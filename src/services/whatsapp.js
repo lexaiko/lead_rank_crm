@@ -145,7 +145,7 @@ export async function startAdminSession(adminId) {
   const makeWASocketFn = makeWASocket.default || makeWASocket;
   const sock = makeWASocketFn({
     auth: state,
-    logger: pino({ level: 'silent' }),
+    logger: pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' }),
     printQRInTerminal: false // We will print it manually
   });
 
@@ -375,10 +375,28 @@ async function handleIncomingMessage(sock, msg, adminId) {
                               adminNames.includes(currentNameLower);
 
       if (isIncorrectName) {
-        customer = await prisma.customer.update({
-          where: { id: customer.id },
-          data: { nama_kontak: msg.pushName }
-        });
+        // Fetch a fresh copy from the database to see if another concurrent thread has already updated it
+        const freshCustomer = await prisma.customer.findUnique({ where: { id: customer.id } });
+        if (freshCustomer) {
+          const freshNameLower = freshCustomer.nama_kontak?.toLowerCase();
+          const stillIncorrect = !freshCustomer.nama_kontak ||
+                                 (currentSockName && freshNameLower === currentSockName) ||
+                                 adminNames.includes(freshNameLower);
+          
+          if (stillIncorrect) {
+            try {
+              customer = await prisma.customer.update({
+                where: { id: customer.id },
+                data: { nama_kontak: msg.pushName }
+              });
+            } catch (updateErr) {
+              console.warn(`[Concurrency Warning] Failed to update customer name due to lock/concurrency:`, updateErr.message);
+              customer = await prisma.customer.findUnique({ where: { id: customer.id } }) || customer;
+            }
+          } else {
+            customer = freshCustomer;
+          }
+        }
       }
     }
   }
@@ -501,11 +519,17 @@ async function updateCustomerFromContact(contact) {
     });
 
     if (existingCustomer) {
-      await prisma.customer.update({
-        where: { id: existingCustomer.id },
-        data: { nama_kontak: contactName }
-      });
-      console.log(`[Contacts Sync] Updated name for HP ${customerHp}: "${contactName}"`);
+      if (existingCustomer.nama_kontak !== contactName) {
+        try {
+          await prisma.customer.update({
+            where: { id: existingCustomer.id },
+            data: { nama_kontak: contactName }
+          });
+          console.log(`[Contacts Sync] Updated name for HP ${customerHp}: "${contactName}"`);
+        } catch (updateErr) {
+          console.warn(`[Contacts Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
+        }
+      }
     }
   } catch (err) {
     console.error(`Failed to update customer from contact sync event:`, err);
