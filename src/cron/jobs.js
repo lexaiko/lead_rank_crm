@@ -11,7 +11,7 @@ Tugasmu:
    - 'minat_destinasi' (misal: Ijen, Baluran, Djawatan, dsb)
    - 'jumlah_peserta' (dalam format angka numerik)
    - 'estimasi_waktu' (wajib format tanggal ISO 'YYYY-MM-DD', misal jika pelanggan menyebutkan 'bulan depan tanggal 15' dan tanggal hari ini adalah 2026-07-10, maka tanggal yang dihasilkan adalah '2026-08-15'. Jika tidak ada estimasi waktu atau tidak dapat dipastikan, isi dengan null)
-   - 'catatan_khusus' (kebutuhan spesifik pelanggan)
+   - 'catatan_khusus' (catatan atau ringkasan singkat mengenai kebutuhan spesifik pelanggan, kesepakatan penting, atau rangkuman inti percakapan mereka)
    - 'referral_source' (dari mana pelanggan mengetahui TripBwi, wajib pilih salah satu dari: "instagram", "tiktok", "website", "rekomendasi", "facebook", "lainnya", atau "tidak diketahui")
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka numerik integer rupiah, misal dari chat penawaran harga 4.800.000 atau harga total yang disepakati/ditanyakan, jika tidak ada, isi dengan null)
 3. Tentukan 'status_lead' HANYA dengan salah satu dari 5 pilihan berikut (Jangan gunakan status NEW):

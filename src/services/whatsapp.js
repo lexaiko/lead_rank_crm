@@ -64,12 +64,13 @@ async function mergeLidCustomerRecord(lid, phone) {
       // Get target lead for the real phone customer
       let targetLead = phoneCust.leads[0];
       if (!targetLead) {
-        const kode_lead = `LD${phone}-${Date.now().toString().slice(-6)}`;
+        const adminId = lidCust.leads[0]?.admin_id || 10;
+        const kode_lead = await generateKodeLead(adminId);
         targetLead = await prisma.lead.create({
           data: {
             kode_lead,
             customer_id: phoneCust.id,
-            admin_id: lidCust.leads[0]?.admin_id || 10,
+            admin_id: adminId,
             status_lead: 'NEW'
           }
         });
@@ -202,8 +203,31 @@ export async function startAdminSession(adminId) {
 
   sock.ev.on('creds.update', saveCreds);
 
+  // Sync contacts from messaging history set (triggered on connection reconnects/syncs)
+  sock.ev.on('messaging-history.set', async ({ contacts }) => {
+    if (contacts) {
+      console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts.`);
+      const named = contacts.filter(c => c.name);
+      if (named.length > 0) {
+        console.log(`[Contacts Sync] Sample named contacts from history (first 3):`, JSON.stringify(named.slice(0, 3), null, 2));
+      }
+      for (const c of contacts) {
+        if (c.lid && c.id) {
+          await registerLidMapping(c.lid, c.id);
+        }
+        await updateCustomerFromContact(c);
+      }
+    }
+  });
+
   // Sync contacts from phone address book
   sock.ev.on('contacts.set', async ({ contacts }) => {
+    console.log(`[Contacts Sync] contacts.set triggered with ${contacts.length} contacts.`);
+    // Print contacts that have a name property to inspect fields
+    const named = contacts.filter(c => c.name);
+    if (named.length > 0) {
+      console.log(`[Contacts Sync] Sample named contacts (first 3):`, JSON.stringify(named.slice(0, 3), null, 2));
+    }
     for (const c of contacts) {
       if (c.lid && c.id) {
         await registerLidMapping(c.lid, c.id);
@@ -213,7 +237,11 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('contacts.update', async (updates) => {
+    console.log(`[Contacts Sync] contacts.update triggered with ${updates.length} updates.`);
     for (const c of updates) {
+      if (c.name || c.notify) {
+        console.log(`[Contacts Sync] Update details:`, JSON.stringify(c, null, 2));
+      }
       if (c.lid && c.id) {
         await registerLidMapping(c.lid, c.id);
       }
@@ -222,11 +250,43 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('contacts.upsert', async (newContacts) => {
+    console.log(`[Contacts Sync] contacts.upsert triggered with ${newContacts.length} new contacts.`);
     for (const c of newContacts) {
+      if (c.name || c.notify) {
+        console.log(`[Contacts Sync] Upsert details:`, JSON.stringify(c, null, 2));
+      }
       if (c.lid && c.id) {
         await registerLidMapping(c.lid, c.id);
       }
       await updateCustomerFromContact(c);
+    }
+  });
+
+  // Sync contacts from chat list (always triggered on reconnects/bootup)
+  sock.ev.on('chats.set', async ({ chats }) => {
+    console.log(`[Chats Sync] chats.set triggered with ${chats.length} chats.`);
+    for (const chat of chats) {
+      if (chat.name) {
+        await updateCustomerNameFromChat(chat);
+      }
+    }
+  });
+
+  sock.ev.on('chats.upsert', async (newChats) => {
+    console.log(`[Chats Sync] chats.upsert triggered with ${newChats.length} chats.`);
+    for (const chat of newChats) {
+      if (chat.name) {
+        await updateCustomerNameFromChat(chat);
+      }
+    }
+  });
+
+  sock.ev.on('chats.update', async (updates) => {
+    console.log(`[Chats Sync] chats.update triggered with ${updates.length} updates.`);
+    for (const chat of updates) {
+      if (chat.name) {
+        await updateCustomerNameFromChat(chat);
+      }
     }
   });
 
@@ -414,8 +474,8 @@ async function handleIncomingMessage(sock, msg, adminId) {
 
   // 5. Buat Lead Baru if none active
   if (!lead) {
-    const kode_lead = `LD${customerHp}-${Date.now().toString().slice(-6)}`;
     try {
+      const kode_lead = await generateKodeLead(admin.id);
       lead = await prisma.lead.create({
         data: {
           kode_lead,
@@ -535,3 +595,102 @@ async function updateCustomerFromContact(contact) {
     console.error(`Failed to update customer from contact sync event:`, err);
   }
 }
+
+/**
+ * Updates an existing customer's name from a Baileys chat object (always synchronized on reconnect).
+ * 
+ * @param {object} chat 
+ */
+async function updateCustomerNameFromChat(chat) {
+  try {
+    let jid = chat.id;
+    if (!jid || (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid'))) {
+      return;
+    }
+
+    // Translate LID to Phone Number JID if mapping exists
+    if (jid.endsWith('@lid')) {
+      const cleanLid = normalizePhoneNumber(jid);
+      const mappedPhone = lidToPhoneMap.get(cleanLid);
+      if (mappedPhone) {
+        jid = mappedPhone + '@s.whatsapp.net';
+      }
+    }
+
+    const customerHp = normalizePhoneNumber(jid);
+    if (!customerHp) return;
+
+    const contactName = chat.name;
+    if (!contactName) return;
+
+    // Fetch active admins to filter out admin numbers/names
+    const admins = await prisma.admin.findMany({ select: { nama_admin: true } });
+    const adminNames = admins.map(a => a.nama_admin.toLowerCase());
+    
+    // Ignore updates that match admin names
+    if (adminNames.includes(contactName.toLowerCase())) return;
+
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { nomor_hp: customerHp }
+    });
+
+    if (existingCustomer && existingCustomer.nama_kontak !== contactName) {
+      try {
+        await prisma.customer.update({
+          where: { id: existingCustomer.id },
+          data: { nama_kontak: contactName }
+        });
+        console.log(`[Chats Sync] Updated name for HP ${customerHp}: "${contactName}"`);
+      } catch (updateErr) {
+        console.warn(`[Chats Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
+      }
+    }
+  } catch (err) {
+    console.error(`[Chats Sync] Failed to update customer from chat event:`, err);
+  }
+}
+
+/**
+ * Generates a unique sequential Lead Code based on the pattern:
+ * YYMM[AdminInitial][Index3Digit] (e.g. 2607E001)
+ * The index resets back to 001 every month.
+ * 
+ * @param {number} adminId 
+ * @returns {Promise<string>}
+ */
+export async function generateKodeLead(adminId) {
+  const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+  const adminInitial = admin?.nama_admin?.trim().charAt(0).toUpperCase() || 'X';
+  
+  const now = new Date();
+  const yy = now.getFullYear().toString().slice(-2);
+  const mm = (now.getMonth() + 1).toString().padStart(2, '0');
+  const prefix = `${yy}${mm}`;
+  
+  // Find all leads created in this month
+  const monthlyLeads = await prisma.lead.findMany({
+    where: {
+      kode_lead: {
+        startsWith: prefix
+      }
+    },
+    select: {
+      kode_lead: true
+    }
+  });
+  
+  let maxIndex = 0;
+  for (const l of monthlyLeads) {
+    // Extract the index part (last 3 characters)
+    const indexPart = l.kode_lead.slice(-3);
+    const indexNum = parseInt(indexPart, 10);
+    if (!isNaN(indexNum) && indexNum > maxIndex) {
+      maxIndex = indexNum;
+    }
+  }
+  
+  const nextIndex = maxIndex + 1;
+  const indexStr = nextIndex.toString().padStart(3, '0');
+  return `${prefix}${adminInitial}${indexStr}`;
+}
+
