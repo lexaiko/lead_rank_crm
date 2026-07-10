@@ -1,0 +1,14 @@
+{
+  "ignore": [
+    "sessions/*",
+    "sessions/**",
+    "sessions",
+    "*.log",
+    "node_modules",
+    "prisma/migrations"
+  ],
+  "watch": [
+    "src"
+  ],
+  "ext": "js,mjs,cjs,json"
+}

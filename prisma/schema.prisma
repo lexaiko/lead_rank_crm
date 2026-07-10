@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id          Int      @id @default(autoincrement())
+  nama_admin  String   @db.VarChar(100)
+  nomor_wa    String   @unique @db.VarChar(20)
+  is_active   Boolean  @default(true)
+  leads       Lead[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Customer {
+  id          Int      @id @default(autoincrement())
+  nomor_hp    String   @unique @db.VarChar(20)
+  nama_kontak String?  @db.VarChar(100)
+  leads       Lead[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Lead {
+  id              Int           @id @default(autoincrement())
+  kode_lead       String        @unique @db.VarChar(50)
+  customer_id     Int
+  customer        Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  admin_id        Int
+  admin           Admin         @relation(fields: [admin_id], references: [id])
+  
+  status_lead     String        @default("NEW") 
+  minat_destinasi String?       @db.VarChar(255)
+  jumlah_peserta  Int?
+  estimasi_waktu  DateTime?
+  catatan_khusus       String?       @db.Text
+  catatan_sistem       String?       @db.Text
+  referral_source      String        @default("tidak diketahui") @db.VarChar(50)
+  estimasi_nilai_order Int?
+  
+  messages        ChatMessage[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id                 Int      @id @default(autoincrement())
+  lead_id            Int
+  lead               Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  pengirim           String   @db.VarChar(20) // "admin" atau "customer"
+  pesan              String   @db.Text
+  waktu_pesan        DateTime
+  is_processed_by_ai Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
