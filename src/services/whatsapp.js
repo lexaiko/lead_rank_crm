@@ -211,8 +211,8 @@ export async function startAdminSession(adminId) {
 
   sock.ev.on('creds.update', saveCreds);
 
-  // Sync contacts from messaging history set (triggered on connection reconnects/syncs)
-  sock.ev.on('messaging-history.set', async ({ contacts }) => {
+  // Sync contacts and messages from messaging history set (triggered on connection reconnects/syncs)
+  sock.ev.on('messaging-history.set', async ({ contacts, messages }) => {
     if (contacts) {
       console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts.`);
       const named = contacts.filter(c => c.name);
@@ -224,6 +224,17 @@ export async function startAdminSession(adminId) {
           await registerLidMapping(c.lid, c.id);
         }
         await updateCustomerFromContact(c);
+      }
+    }
+
+    if (messages && messages.length > 0) {
+      console.log(`[History Sync] messaging-history.set triggered with ${messages.length} messages.`);
+      for (const msg of messages) {
+        try {
+          await handleIncomingMessage(sock, msg, adminId);
+        } catch (err) {
+          console.error('[History Sync] Error handling synced message:', err);
+        }
       }
     }
   });
@@ -300,7 +311,7 @@ export async function startAdminSession(adminId) {
 
   sock.ev.on('messages.upsert', async (m) => {
     console.log('[WhatsApp Event] messages.upsert triggered:', JSON.stringify(m, null, 2));
-    if (m.type !== 'notify') return;
+    if (m.type !== 'notify' && m.type !== 'append') return;
 
     for (const msg of m.messages) {
       try {
@@ -346,6 +357,17 @@ export async function handleIncomingMessage(sock, msg, adminId) {
     msg.broadcast === true
   ) {
     return;
+  }
+
+  // 0.1 Check if message already exists (prevent duplicate processing from history sync)
+  const messageId = msg.key?.id;
+  if (messageId) {
+    const existingMsg = await prisma.chatMessage.findUnique({
+      where: { wa_message_id: messageId }
+    });
+    if (existingMsg) {
+      return;
+    }
   }
 
   // 1. Identify Admin PIC
@@ -552,6 +574,7 @@ export async function handleIncomingMessage(sock, msg, adminId) {
   await prisma.$transaction([
     prisma.chatMessage.create({
       data: {
+        wa_message_id: messageId,
         lead_id: lead.id,
         pengirim,
         pesan: text,

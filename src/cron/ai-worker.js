@@ -344,9 +344,9 @@ Tugasmu:
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
 
   const modelsToTry = [
-    'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
     'gemini-2.5-flash-lite-preview',
+    'gemini-3.1-flash-lite',
   ];
 
   let lastError = null;

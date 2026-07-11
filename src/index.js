@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { prisma } from './config/prisma.js';
 import { startAdminSession } from './services/whatsapp.js';
 import { initCronJobs } from './cron/jobs.js';
@@ -11,15 +12,29 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+import path from 'path';
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Serve static assets from public
+app.use(express.static('public'));
 
 // Mounting API routes under /api
 app.use('/api', apiRouter);
 
-// Root route redirects to dashboard
+// Root route serves the React SPA
 app.get('/', (req, res) => {
-  res.redirect('/api/dashboard-html');
+  res.sendFile(path.resolve('public/index.html'));
+});
+
+// Wildcard fallback for React routing (non-API routes)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.resolve('public/index.html'));
 });
 
 app.listen(PORT, async () => {

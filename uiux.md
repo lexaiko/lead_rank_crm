@@ -11,7 +11,9 @@ Target utama bukan sekadar tampilan yang cantik, tetapi aplikasi yang cepat digu
 ## Tech Stack
 
 Gunakan stack yang sudah ada.
-Frontend: Next JS
+Frontend: Vite
+Tailwind CSS
+shadcn UI
 
 Jangan mengganti framework.
 
@@ -474,5 +476,14 @@ Fokus pada:
 * user experience yang intuitif
 * konsistensi komponen
 * maintainable dan scalable.
+
+---
+
+# Technical & Performance Constraints (For Low-End Devices)
+
+* **Chat Virtualization**: Bagian WhatsApp Conversation WAJIB menggunakan virtual scrolling (misal TanStack Virtual atau React Virtuoso) untuk menangani ribuan chat tanpa membebani RAM browser.
+* **Debounced Search**: Input search pada Data Table wajib menggunakan debounce (300ms) agar HP tidak lag saat admin mengetik dengan cepat.
+* **State Efficiency**: Gunakan Zustand untuk mengelola state data leads, chat, dan AI Queue agar tidak memicu re-render massal pada komponen UI yang tidak berubah.
+* **Bundle Optimization**: Maksimalkan fitur Tree Shaking dari Vite dan Tailwind CSS agar ukuran bundle akhir sesedikit mungkin. Gunakan React.lazy() untuk code-splitting berbasis route halaman.
 
 sesuaikan aja gimana enaknya
