@@ -37,11 +37,22 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.resolve('public/index.html'));
 });
 
+// Global error handling middleware (production-grade)
+app.use((err, req, res, next) => {
+  console.error('[Global Error]', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal Server Error' 
+      : err.message || 'Something went wrong.'
+  });
+});
+
 app.listen(PORT, async () => {
   console.log(`=========================================`);
   console.log(`Trip Banyuwangi CRM Backend is running!`);
   console.log(`Port: ${PORT}`);
-  console.log(`Dashboard: http://localhost:${PORT}/api/dashboard-html`);
+  console.log(`Dashboard: http://localhost:${PORT}`);
   console.log(`=========================================`);
 
   // Initialize schedules
@@ -53,7 +64,10 @@ app.listen(PORT, async () => {
   // Auto-connect WhatsApp sessions for active Admins
   try {
     const activeAdmins = await prisma.admin.findMany({
-      where: { is_active: true }
+      where: { 
+        is_active: true,
+        nomor_wa: { not: null }
+      }
     });
 
     if (activeAdmins.length > 0) {

@@ -6,6 +6,12 @@ import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { enqueueAIJob } from './ai-queue.js';
 
+function logDebug(...args) {
+  if (process.env.BAILEYS_LOG_LEVEL && process.env.BAILEYS_LOG_LEVEL !== 'silent') {
+    console.log(...args);
+  }
+}
+
 // Store active sockets and QRs in memory
 export const activeSockets = new Map();
 export const activeQrs = new Map();
@@ -256,10 +262,10 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('contacts.update', async (updates) => {
-    console.log(`[Contacts Sync] contacts.update triggered with ${updates.length} updates.`);
+    logDebug(`[Contacts Sync] contacts.update triggered with ${updates.length} updates.`);
     for (const c of updates) {
       if (c.name || c.notify) {
-        console.log(`[Contacts Sync] Update details:`, JSON.stringify(c, null, 2));
+        logDebug(`[Contacts Sync] Update details:`, JSON.stringify(c, null, 2));
       }
       if (c.lid && c.id) {
         await registerLidMapping(c.lid, c.id);
@@ -269,10 +275,10 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('contacts.upsert', async (newContacts) => {
-    console.log(`[Contacts Sync] contacts.upsert triggered with ${newContacts.length} new contacts.`);
+    logDebug(`[Contacts Sync] contacts.upsert triggered with ${newContacts.length} new contacts.`);
     for (const c of newContacts) {
       if (c.name || c.notify) {
-        console.log(`[Contacts Sync] Upsert details:`, JSON.stringify(c, null, 2));
+        logDebug(`[Contacts Sync] Upsert details:`, JSON.stringify(c, null, 2));
       }
       if (c.lid && c.id) {
         await registerLidMapping(c.lid, c.id);
@@ -283,7 +289,7 @@ export async function startAdminSession(adminId) {
 
   // Sync contacts from chat list (always triggered on reconnects/bootup)
   sock.ev.on('chats.set', async ({ chats }) => {
-    console.log(`[Chats Sync] chats.set triggered with ${chats.length} chats.`);
+    logDebug(`[Chats Sync] chats.set triggered with ${chats.length} chats.`);
     for (const chat of chats) {
       if (chat.name) {
         await updateCustomerNameFromChat(chat);
@@ -292,7 +298,7 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('chats.upsert', async (newChats) => {
-    console.log(`[Chats Sync] chats.upsert triggered with ${newChats.length} chats.`);
+    logDebug(`[Chats Sync] chats.upsert triggered with ${newChats.length} chats.`);
     for (const chat of newChats) {
       if (chat.name) {
         await updateCustomerNameFromChat(chat);
@@ -301,7 +307,7 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('chats.update', async (updates) => {
-    console.log(`[Chats Sync] chats.update triggered with ${updates.length} updates.`);
+    logDebug(`[Chats Sync] chats.update triggered with ${updates.length} updates.`);
     for (const chat of updates) {
       if (chat.name) {
         await updateCustomerNameFromChat(chat);
@@ -310,12 +316,12 @@ export async function startAdminSession(adminId) {
   });
 
   sock.ev.on('messages.upsert', async (m) => {
-    console.log('[WhatsApp Event] messages.upsert triggered:', JSON.stringify(m, null, 2));
+    logDebug('[WhatsApp Event] messages.upsert triggered:', JSON.stringify(m, null, 2));
     if (m.type !== 'notify' && m.type !== 'append') return;
 
     for (const msg of m.messages) {
       try {
-        console.log('[WhatsApp Event] Handling message:', JSON.stringify(msg, null, 2));
+        logDebug('[WhatsApp Event] Handling message:', JSON.stringify(msg, null, 2));
         await handleIncomingMessage(sock, msg, adminId);
       } catch (err) {
         console.error('Error handling WhatsApp message event:', err);

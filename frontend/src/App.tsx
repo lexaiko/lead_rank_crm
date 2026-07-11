@@ -7,6 +7,8 @@ import { Customers } from './pages/Customers';
 import { AIQueue } from './pages/AIQueue';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
+import { Users } from './pages/Users';
+import { Roles } from './pages/Roles';
 import { Login } from './pages/Login';
 import { Compass, Loader2 } from 'lucide-react';
 
@@ -53,6 +55,10 @@ export const App: React.FC = () => {
         return <Reports />;
       case 'settings':
         return <Settings />;
+      case 'users':
+        return <Users />;
+      case 'roles':
+        return <Roles />;
       default:
         return <Dashboard />;
     }

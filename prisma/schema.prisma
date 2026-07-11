@@ -66,6 +66,9 @@ model Lead {
   messages                     ChatMessage[]
   createdAt                    DateTime      @default(now())
   updatedAt                    DateTime      @updatedAt
+
+  @@index([status_lead])
+  @@index([updatedAt])
 }
 
 model ChatMessage {
@@ -78,6 +81,8 @@ model ChatMessage {
   waktu_pesan DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([waktu_pesan])
 }
 
 model AIJob {
@@ -97,4 +102,6 @@ model AIAnalysis {
   lead_id     Int
   result_json Json
   createdAt   DateTime @default(now())
+
+  @@index([lead_id])
 }

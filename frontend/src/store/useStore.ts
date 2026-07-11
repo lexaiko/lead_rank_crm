@@ -8,7 +8,7 @@ interface StoreState {
   aiQueue: AIJob[];
   activeChatMessages: ChatMessage[];
   selectedLeadId: number | null;
-  activeTab: 'dashboard' | 'leads' | 'customers' | 'ai-queue' | 'reports' | 'settings';
+  activeTab: 'dashboard' | 'leads' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles';
   theme: 'light' | 'dark';
   searchKeyword: string;
   filterStatus: string;
@@ -28,6 +28,7 @@ interface StoreState {
   checkAuth: () => Promise<void>;
   fetchRoles: () => Promise<void>;
   updateRolePermissions: (roleId: number, permissions: any) => Promise<boolean>;
+  createRole: (name: string) => Promise<boolean>;
   
   fetchDashboard: () => Promise<void>;
   fetchCustomers: () => Promise<void>;
@@ -35,6 +36,8 @@ interface StoreState {
   fetchMessages: (leadId: number) => Promise<void>;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
   createAdmin: (payload: { nama_admin: string; nomor_wa?: string; username: string; password: string; role_id: number }) => Promise<boolean>;
+  updateAdmin: (id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>) => Promise<boolean>;
+  deleteAdmin: (id: number) => Promise<{ success: boolean; message?: string }>;
   toggleAdmin: (id: number) => Promise<void>;
   triggerSweeper: () => Promise<string>;
   triggerAIWorker: () => Promise<string>;
@@ -151,6 +154,23 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  createRole: async (name: string) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.createRole(name);
+      if (res.success) {
+        await get().fetchRoles();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error creating role', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   fetchDashboard: async () => {
     try {
       const res = await api.getDashboard();
@@ -224,6 +244,40 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       console.error('Error creating admin', e);
       return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  updateAdmin: async (id, payload) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.updateAdmin(id, payload);
+      if (res.success) {
+        await get().fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error updating admin', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  deleteAdmin: async (id) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.deleteAdmin(id);
+      if (res.success) {
+        await get().fetchDashboard();
+        return { success: true, message: res.message };
+      }
+      return { success: false, message: res.error || 'Failed to delete account' };
+    } catch (e: any) {
+      console.error('Error deleting admin', e);
+      return { success: false, message: e.message || 'Error occurred' };
     } finally {
       set({ isLoading: false });
     }

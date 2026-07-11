@@ -29,6 +29,22 @@ export const api = {
     return res.json();
   },
 
+  async updateAdmin(id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>): Promise<{ success: boolean; data: Admin }> {
+    const res = await fetch(`${API_BASE}/admins/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  async deleteAdmin(id: number): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/admins/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
   async getAdminStatus(id: number): Promise<{ success: boolean; connected: boolean }> {
     const res = await fetch(`${API_BASE}/admins/${id}/status-json`);
     return res.json();
@@ -103,6 +119,15 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ permissions }),
+    });
+    return res.json();
+  },
+
+  async createRole(name: string): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/roles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
     });
     return res.json();
   },

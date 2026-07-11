@@ -13,7 +13,10 @@ import {
   Menu, 
   X,
   Compass,
-  LogOut
+  LogOut,
+  UserCog,
+  Shield,
+  Wifi
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -33,8 +36,10 @@ export const Sidebar: React.FC = () => {
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
+    { id: 'users', label: 'User Accounts', shortLabel: 'Users', icon: UserCog },
+    { id: 'roles', label: 'Role Permissions', shortLabel: 'Roles', icon: Shield },
+    { id: 'settings', label: 'WA Connections', shortLabel: 'WA Sockets', icon: Wifi },
     { id: 'reports', label: 'Analytics Reports', shortLabel: 'Reports', icon: BarChart3 },
-    { id: 'settings', label: 'CS & Settings', shortLabel: 'Settings', icon: Settings },
   ] as const;
 
   const sidebarContent = (

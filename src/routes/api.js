@@ -83,7 +83,7 @@ router.get('/auth/me', authMiddleware, (req, res) => {
 });
 
 // Role Management Endpoints
-router.get('/roles', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.get('/roles', authMiddleware, permissionMiddleware('roles', 'read'), async (req, res, next) => {
   try {
     const roles = await prisma.role.findMany();
     res.json({ success: true, data: roles });
@@ -92,7 +92,47 @@ router.get('/roles', authMiddleware, permissionMiddleware('settings', 'write'), 
   }
 });
 
-router.put('/roles/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/roles', authMiddleware, permissionMiddleware('roles', 'write'), async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Role name is required.' });
+    }
+
+    const upperName = name.trim().toUpperCase();
+    const existing = await prisma.role.findUnique({
+      where: { name: upperName }
+    });
+
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Role already exists.' });
+    }
+
+    const defaultPermissions = {
+      dashboard: 'none',
+      leads: 'none',
+      customers: 'none',
+      queue: 'none',
+      reports: 'none',
+      settings: 'none',
+      users: 'none',
+      roles: 'none'
+    };
+
+    const newRole = await prisma.role.create({
+      data: {
+        name: upperName,
+        permissions: defaultPermissions
+      }
+    });
+
+    res.status(201).json({ success: true, data: newRole });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/roles/:id', authMiddleware, permissionMiddleware('roles', 'write'), async (req, res, next) => {
   try {
     const roleId = parseInt(req.params.id);
     const { permissions } = req.body;
@@ -122,7 +162,7 @@ function escapeHtml(str) {
 }
 
 // Create Admin
-router.post('/admins', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/admins', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
   try {
     const { nama_admin, nomor_wa, username, password, role_id } = req.body;
     if (!nama_admin || !username || !password) {
@@ -164,7 +204,7 @@ router.post('/admins', authMiddleware, permissionMiddleware('settings', 'write')
 });
 
 // List Admins
-router.get('/admins', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+router.get('/admins', authMiddleware, permissionMiddleware('users', 'read'), async (req, res, next) => {
   try {
     const admins = await prisma.admin.findMany({
       include: { role: true }
@@ -182,6 +222,98 @@ router.get('/admins', authMiddleware, permissionMiddleware('settings', 'read'), 
       connected: activeSockets.has(a.id) && !!activeSockets.get(a.id).user
     }));
     res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update Admin Details (CRUD)
+router.patch('/admins/:id', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const { nama_admin, nomor_wa, username, password, role_id, is_active } = req.body;
+
+    const existingAdmin = await prisma.admin.findUnique({
+      where: { id: adminId }
+    });
+
+    if (!existingAdmin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    const updateData = {};
+    if (nama_admin !== undefined) updateData.nama_admin = nama_admin;
+    if (is_active !== undefined) updateData.is_active = is_active;
+    
+    if (nomor_wa !== undefined) {
+      const normalized = nomor_wa ? normalizePhoneNumber(nomor_wa) : null;
+      if (normalized && normalized !== existingAdmin.nomor_wa) {
+        const duplicate = await prisma.admin.findUnique({ where: { nomor_wa: normalized } });
+        if (duplicate) {
+          return res.status(400).json({ error: 'WhatsApp number is already assigned to another account.' });
+        }
+      }
+      updateData.nomor_wa = normalized;
+    }
+
+    if (username !== undefined) {
+      if (username !== existingAdmin.username) {
+        const duplicate = await prisma.admin.findUnique({ where: { username } });
+        if (duplicate) {
+          return res.status(400).json({ error: 'Username is already taken.' });
+        }
+      }
+      updateData.username = username;
+    }
+
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    if (role_id !== undefined) {
+      if (existingAdmin.username === 'admin' && parseInt(role_id) !== existingAdmin.role_id) {
+        return res.status(400).json({ error: 'Cannot change default superadmin access role.' });
+      }
+      updateData.role_id = parseInt(role_id);
+    }
+
+    const updated = await prisma.admin.update({
+      where: { id: adminId },
+      data: updateData
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete Admin Account (CRUD)
+router.delete('/admins/:id', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
+  try {
+    const adminId = parseInt(req.params.id);
+
+    if (adminId === req.admin.id) {
+      return res.status(400).json({ error: 'Cannot delete your own account while logged in.' });
+    }
+
+    const existingAdmin = await prisma.admin.findUnique({
+      where: { id: adminId }
+    });
+
+    if (!existingAdmin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    if (existingAdmin.username === 'admin') {
+      return res.status(400).json({ error: 'Cannot delete default superadmin account.' });
+    }
+
+    await prisma.admin.delete({
+      where: { id: adminId }
+    });
+
+    res.json({ success: true, message: 'Admin account deleted successfully.' });
   } catch (err) {
     next(err);
   }
@@ -488,12 +620,17 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
   });
 }, async (req, res, next) => {
   try {
-    const admins = await prisma.admin.findMany();
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const admins = await prisma.admin.findMany({ include: { role: true } });
     const leads = await prisma.lead.findMany({
+      take: 1000, // Limit sync data payload size to the 1000 most recently active leads
       include: {
         customer: true,
         admin: true,
         messages: {
+          where: {
+            waktu_pesan: { gte: fourteenDaysAgo } // Only fetch messages from last 14 days to calculate stats
+          },
           select: {
             pengirim: true,
             waktu_pesan: true
@@ -558,6 +695,8 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
           id: a.id,
           nama_admin: a.nama_admin,
           nomor_wa: a.nomor_wa,
+          role: a.role?.name || 'CS',
+          role_id: a.role_id,
           is_active: a.is_active,
           connected: activeSockets.has(a.id) && !!activeSockets.get(a.id).user,
           avgReplyTime: adminAverages[a.id] !== undefined ? adminAverages[a.id] : null
@@ -701,7 +840,7 @@ router.patch('/leads/:id', authMiddleware, permissionMiddleware('leads', 'write'
 });
 
 // Toggle admin active status
-router.post('/admins/:id/toggle', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/admins/:id/toggle', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
   try {
     const adminId = parseInt(req.params.id);
     const admin = await prisma.admin.findUnique({ where: { id: adminId } });

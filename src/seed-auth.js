@@ -13,7 +13,9 @@ async function main() {
     customers: 'write',
     queue: 'write',
     reports: 'read',
-    settings: 'write'
+    settings: 'write',
+    users: 'write',
+    roles: 'write'
   };
 
   const csPermissions = {
@@ -22,7 +24,9 @@ async function main() {
     customers: 'read',
     queue: 'none',
     reports: 'read',
-    settings: 'none'
+    settings: 'none',
+    users: 'none',
+    roles: 'none'
   };
 
   let adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
