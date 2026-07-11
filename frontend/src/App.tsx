@@ -25,7 +25,7 @@ export const App: React.FC = () => {
   if (checkingAuth) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#080c14] text-foreground">
-        <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-500 text-white font-bold shadow-md shadow-emerald-500/20 mb-4 animate-pulse">
+        <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-md shadow-orange-500/20 mb-4 animate-pulse">
           <Compass size={24} className="animate-spin-slow" />
         </div>
         <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">

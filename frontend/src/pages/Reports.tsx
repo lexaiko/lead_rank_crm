@@ -88,7 +88,7 @@ export const Reports: React.FC = () => {
       
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
-        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
           Analytics & Performance Reports (Bulan Ini)
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
@@ -101,11 +101,11 @@ export const Reports: React.FC = () => {
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Sales Revenue (Bulan Ini)</span>
-            <span className="text-2xl font-extrabold text-teal-600 dark:text-teal-400 mt-1 font-heading">
+            <span className="text-2xl font-extrabold text-orange-600 dark:text-orange-400 mt-1 font-heading">
               Rp {revenueTotal.toLocaleString('id-ID')}
             </span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
             <TrendingUp size={20} />
           </div>
         </div>
@@ -212,7 +212,7 @@ export const Reports: React.FC = () => {
                 adminStats.map((stat, i) => (
                   <tr key={i} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-4 text-foreground flex items-center gap-2">
-                      <div className="h-6 w-6 bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
+                      <div className="h-6 w-6 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
                         {stat.name.slice(0, 2)}
                       </div>
                       {stat.name}
@@ -221,7 +221,7 @@ export const Reports: React.FC = () => {
                     <td className="px-5 py-4 text-center font-mono text-muted-foreground font-normal">{stat.won}</td>
                     <td className="px-5 py-4 text-center text-emerald-500 font-bold font-mono">{stat.rate} %</td>
                     <td className="px-5 py-4 text-center font-mono text-xs text-muted-foreground">{formatResponseTime(stat.avgReplyTime)}</td>
-                    <td className="px-5 py-4 text-right text-teal-600 dark:text-teal-400 font-heading font-extrabold">
+                    <td className="px-5 py-4 text-right text-orange-600 dark:text-orange-400 font-heading font-extrabold">
                       Rp {stat.sales.toLocaleString('id-ID')}
                     </td>
                   </tr>
@@ -242,12 +242,12 @@ export const Reports: React.FC = () => {
               <div key={i} className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
+                    <div className="h-7 w-7 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
                       {stat.name.slice(0, 2)}
                     </div>
                     <span className="font-bold text-sm text-foreground">{stat.name}</span>
                   </div>
-                  <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400 font-heading">
+                  <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                     Rp {stat.sales.toLocaleString('id-ID')}
                   </span>
                 </div>

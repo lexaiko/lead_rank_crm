@@ -16,7 +16,8 @@ import {
   LogOut,
   UserCog,
   Shield,
-  Wifi
+  Wifi,
+  MoreHorizontal
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -30,6 +31,7 @@ export const Sidebar: React.FC = () => {
   } = useStore();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard },
@@ -50,12 +52,12 @@ export const Sidebar: React.FC = () => {
         {/* Sidebar Header Logo */}
         <div className="flex items-center justify-between px-2 mb-8">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-500 text-white font-bold shadow-md shadow-emerald-500/20 animate-pulse">
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-md shadow-orange-500/20 animate-pulse">
               <Compass size={22} className="animate-spin-slow" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col text-left">
-                <span className="font-heading font-extrabold text-lg leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+                <span className="font-heading font-extrabold text-lg leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
                   TripBwi CRM
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5 font-sans">
@@ -108,27 +110,34 @@ export const Sidebar: React.FC = () => {
       <div className="flex flex-col gap-4 border-t border-border pt-4">
         {/* User profile & Logout */}
         {user && (
-          <div className="flex flex-col gap-3 px-2">
-            {!isCollapsed && (
-              <div className="flex flex-col text-left">
-                <span className="text-xs font-bold text-foreground leading-tight truncate">
-                  {user.nama_admin}
-                </span>
-                <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">
-                  {user.role}
-                </span>
+          <div className="px-2">
+            <div className={`flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-muted/40 border border-border/50 ${isCollapsed ? 'flex-col py-2' : ''}`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* User Avatar Initials */}
+                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20">
+                  {user.nama_admin.slice(0, 2)}
+                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col text-left min-w-0">
+                    <span className="text-[11px] font-black text-foreground leading-tight truncate" title={user.nama_admin}>
+                      {user.nama_admin}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">
+                      {user.role}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-            <button
-              onClick={() => logout()}
-              className={`flex items-center gap-3 py-2.5 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer ${
-                isCollapsed ? 'px-2 justify-center' : 'px-3.5'
-              }`}
-              title="Logout from console"
-            >
-              <LogOut size={16} />
-              {!isCollapsed && <span>Logout</span>}
-            </button>
+              
+              {/* Logout Button */}
+              <button
+                onClick={() => logout()}
+                className="h-8 w-8 rounded-xl flex items-center justify-center text-rose-500 hover:bg-rose-500/10 active:scale-[0.95] transition-all cursor-pointer shrink-0"
+                title="Logout from console"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -161,7 +170,7 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Top Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-card border-b border-border z-30 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-500 text-white font-bold">
+          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold">
             <Compass size={18} />
           </div>
           <span className="font-heading font-extrabold text-md tracking-tight">TripBwi CRM</span>
@@ -178,35 +187,115 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border z-40 flex items-center justify-around px-1 shadow-lg pb-safe">
-        {menuItems
-          .filter((item) => {
-            if (!user) return false;
-            const permissions = user.permissions || {};
-            const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id;
-            return permissions[permissionKey] !== 'none';
-          })
-          .map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-150 relative select-none cursor-pointer ${
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon size={18} className="shrink-0 mb-0.5" />
-                <span className={`text-[9px] font-bold tracking-tight text-center ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                }`}>
-                  {item.shortLabel}
-                </span>
-              </button>
-            );
-          })}
-      </div>
+      {(() => {
+        const allowedItems = menuItems.filter((item) => {
+          if (!user) return false;
+          const permissions = user.permissions || {};
+          const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id;
+          return permissions[permissionKey] !== 'none';
+        });
+
+        const useMoreMenu = allowedItems.length > 5;
+        const primaryItems = useMoreMenu ? allowedItems.slice(0, 4) : allowedItems;
+        const moreItems = useMoreMenu ? allowedItems.slice(4) : [];
+
+        return (
+          <>
+            <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border z-40 flex items-center justify-around px-1 shadow-lg pb-safe">
+              {primaryItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setTab(item.id);
+                      setShowMoreMenu(false);
+                    }}
+                    className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-150 relative select-none cursor-pointer ${
+                      isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Icon size={18} className="shrink-0 mb-0.5" />
+                    <span className={`text-[9px] font-bold tracking-tight text-center ${
+                      isActive ? 'text-primary' : 'text-muted-foreground'
+                    }`}>
+                      {item.shortLabel}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {useMoreMenu && (
+                <button
+                  onClick={() => setShowMoreMenu(prev => !prev)}
+                  className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-150 relative select-none cursor-pointer ${
+                    showMoreMenu ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <MoreHorizontal size={18} className="shrink-0 mb-0.5" />
+                  <span className={`text-[9px] font-bold tracking-tight text-center ${
+                    showMoreMenu ? 'text-primary' : 'text-muted-foreground'
+                  }`}>
+                    Lainnya
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Mobile Drawer (Lainnya) Sheet */}
+            {showMoreMenu && useMoreMenu && (
+              <>
+                {/* Backdrop overlay */}
+                <div 
+                  className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-45 transition-opacity duration-200"
+                  onClick={() => setShowMoreMenu(false)}
+                />
+                {/* Slide-up sheet */}
+                <div className="md:hidden fixed bottom-16 left-3 right-3 max-h-[70vh] overflow-y-auto bg-card border border-border/80 z-50 rounded-3xl shadow-2xl p-5 animate-slide-up flex flex-col gap-4">
+                  {/* Header pull line */}
+                  <div className="w-12 h-1 bg-border rounded-full mx-auto shrink-0" />
+                  
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2.5 shrink-0">
+                    <span className="font-heading font-black text-sm text-foreground tracking-tight">Menu Navigasi</span>
+                    <button 
+                      onClick={() => setShowMoreMenu(false)}
+                      className="h-6 w-6 rounded-lg bg-muted text-muted-foreground flex items-center justify-center cursor-pointer active:scale-95 transition-all"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* List of more items */}
+                  <div className="flex flex-col gap-1 overflow-y-auto">
+                    {moreItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setTab(item.id);
+                            setShowMoreMenu(false);
+                          }}
+                          className={`flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                            isActive 
+                              ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/10' 
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          }`}
+                        >
+                          <Icon size={16} className="shrink-0" />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {/* Desktop Persistent Sidebar */}
       <aside className={`hidden md:block shrink-0 h-screen sticky top-0 transition-all duration-300 ${

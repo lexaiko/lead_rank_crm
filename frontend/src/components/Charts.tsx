@@ -124,7 +124,7 @@ export const DestinationsChart: React.FC = () => {
       {
         label: 'Leads Interested',
         data: sortedDest.map(d => d[1]),
-        backgroundColor: '#0d9488', // Teal
+        backgroundColor: '#e05e26', // Terracotta Orange
         borderRadius: 8,
       },
     ],

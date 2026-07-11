@@ -309,8 +309,8 @@ export const LeadDetailDrawer: React.FC = () => {
 
                 {/* AI Summary Card (If analyzed) */}
                 {localLead.ai_summary && (
-                  <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5 dark:bg-teal-500/[0.02]">
-                    <div className="flex items-center gap-2 mb-2 text-teal-600 dark:text-teal-400">
+                  <div className="p-4 rounded-xl border border-orange-500/20 bg-orange-500/5 dark:bg-orange-500/[0.02]">
+                    <div className="flex items-center gap-2 mb-2 text-orange-600 dark:text-orange-400">
                       <SparklesIcon />
                       <span className="text-xs font-bold uppercase tracking-wider">Premium AI Insights</span>
                     </div>

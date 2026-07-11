@@ -128,7 +128,7 @@ export const Users: React.FC = () => {
       
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
-        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
           User Account Management (CRUD)
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">

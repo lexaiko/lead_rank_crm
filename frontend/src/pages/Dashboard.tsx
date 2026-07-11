@@ -52,7 +52,7 @@ export const Dashboard: React.FC = () => {
       
       {/* Welcome Banner */}
       <div className="flex flex-col gap-1.5 border-b border-border pb-4">
-        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
           Core Operations Console
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
@@ -117,7 +117,7 @@ export const Dashboard: React.FC = () => {
                   className="flex items-start gap-4 p-3 rounded-xl border border-border/60 hover:bg-muted/40 transition-colors"
                 >
                   {/* Icon indicator */}
-                  <div className="h-9 w-9 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 shrink-0 flex items-center justify-center">
+                  <div className="h-9 w-9 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 shrink-0 flex items-center justify-center">
                     <Compass size={16} />
                   </div>
 

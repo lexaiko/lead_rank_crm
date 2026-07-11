@@ -26,13 +26,13 @@
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
-  --primary: #0d9488; /* Teal 600 */
+  --primary: #e05e26; /* Terracotta Orange */
   --primary-foreground: #ffffff;
   --secondary: #e2e8f0; /* Slate 200 */
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --accent: #10b981; /* Emerald 500 */
+  --accent: #f59e0b; /* Amber 500 */
   --accent-foreground: #ffffff;
   --border: #cbd5e1;
   --chat-bg: #f1f5f9;
@@ -44,13 +44,13 @@
   --foreground: #f8fafc;
   --card: #0f172a;
   --card-foreground: #f8fafc;
-  --primary: #14b8a6; /* Teal 500 */
-  --primary-foreground: #090d16;
+  --primary: #f27230; /* Terracotta Orange Dark Mode */
+  --primary-foreground: #ffffff;
   --secondary: #1e293b;
   --secondary-foreground: #f8fafc;
   --muted: #1e293b;
   --muted-foreground: #94a3b8;
-  --accent: #10b981; /* Emerald 500 */
+  --accent: #f59e0b; /* Amber 500 */
   --accent-foreground: #090d16;
   --border: #1e293b;
   --chat-bg: #030712;
@@ -117,4 +117,19 @@ body {
   background: linear-gradient(90deg, var(--muted) 25%, #334155 50%, var(--muted) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(15px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

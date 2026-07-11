@@ -176,7 +176,7 @@ export const Leads: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+          <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
             Leads Intelligence Sheet
           </h1>
           <p className="text-xs text-muted-foreground font-semibold">
@@ -416,13 +416,13 @@ export const Leads: React.FC = () => {
                           {lead.referral_source || 'tidak diketahui'}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-sm font-extrabold text-teal-600 dark:text-teal-400 font-heading">
+                      <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                         {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '-'}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-1">
-                          <MessageSquare size={13} className="text-teal-500" />
-                          <span className="text-xs font-bold text-teal-600 dark:text-teal-400 font-mono">
+                          <MessageSquare size={13} className="text-orange-500" />
+                          <span className="text-xs font-bold text-orange-600 dark:text-orange-400 font-mono">
                             {lead.messagesCount}
                           </span>
                         </div>
@@ -537,7 +537,7 @@ export const Leads: React.FC = () => {
                     <span className="text-[11px] text-muted-foreground font-semibold">
                       Admin: <strong className="text-foreground">{lead.adminNama || '-'}</strong>
                     </span>
-                    <span className="text-teal-600 dark:text-teal-400 font-extrabold text-sm">
+                    <span className="text-orange-600 dark:text-orange-400 font-extrabold text-sm">
                       {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : 'Rp -'}
                     </span>
                   </div>

@@ -44,13 +44,14 @@ export const DashboardWidget: React.FC = () => {
       value: `Rp ${estimatedRevenue.toLocaleString('id-ID')}`,
       icon: TrendingUp,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
-      desc: 'Completed sales value this month'
+      desc: 'Completed sales value this month',
+      fullWidth: true
     },
     {
       label: 'Total Leads (Bulan Ini)',
       value: totalLeads,
       icon: Database,
-      color: 'text-teal-500 bg-teal-500/10 dark:bg-teal-500/5',
+      color: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/5',
       desc: 'All inquiries tracked this month'
     },
     {
@@ -98,7 +99,7 @@ export const DashboardWidget: React.FC = () => {
           <div 
             key={i} 
             className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-3 ${
-              stat.label === 'Closed Revenue' ? 'col-span-2 lg:col-span-2' : ''
+              stat.fullWidth ? 'col-span-full' : ''
             }`}
           >
             <div className="flex flex-col gap-0.5 min-w-0">

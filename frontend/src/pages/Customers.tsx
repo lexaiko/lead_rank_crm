@@ -50,7 +50,7 @@ export const Customers: React.FC = () => {
       
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
-        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+        <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
           Customers Directory
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
@@ -111,7 +111,7 @@ export const Customers: React.FC = () => {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-2">
-                              <div className="h-7 w-7 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold text-xs uppercase">
+                              <div className="h-7 w-7 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs uppercase">
                                 {client.nama_kontak.slice(0, 2)}
                               </div>
                               <span className="font-bold text-sm text-foreground">{client.nama_kontak}</span>
@@ -128,7 +128,7 @@ export const Customers: React.FC = () => {
                               {client.lastStatus}
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-sm font-extrabold text-teal-600 dark:text-teal-400 font-heading">
+                          <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                             Rp {client.totalRevenue.toLocaleString('id-ID')}
                           </td>
                         </tr>
@@ -170,7 +170,7 @@ export const Customers: React.FC = () => {
                                           <div className="text-left">
                                             Total Pax: <strong className="text-foreground">{lead.jumlah_peserta || '-'}</strong>
                                           </div>
-                                          <div className="text-right text-teal-600 dark:text-teal-400 font-bold">
+                                          <div className="text-right text-orange-600 dark:text-orange-400 font-bold">
                                             {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '-'}
                                           </div>
                                         </div>
@@ -273,7 +273,7 @@ export const Customers: React.FC = () => {
                     className="flex items-center justify-between cursor-pointer"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                      <div className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
                         {client.nama_kontak.slice(0, 2)}
                       </div>
                       <div className="flex flex-col min-w-0">
@@ -283,7 +283,7 @@ export const Customers: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400 font-heading">
+                        <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                           Rp {client.totalRevenue.toLocaleString('id-ID')}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
@@ -318,7 +318,7 @@ export const Customers: React.FC = () => {
                               <div>Destinasi: <span className="text-foreground">{lead.minat_destinasi || '-'}</span></div>
                               <div className="text-right">Pax: <span className="text-foreground">{lead.jumlah_peserta || '-'}</span></div>
                               <div>Trip: <span className="text-foreground font-mono">{lead.estimasi_waktu ? lead.estimasi_waktu.split('T')[0] : '-'}</span></div>
-                              <div className="text-right text-teal-600 dark:text-teal-400 font-bold">
+                              <div className="text-right text-orange-600 dark:text-orange-400 font-bold">
                                 {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '-'}
                               </div>
                             </div>

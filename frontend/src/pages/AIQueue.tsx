@@ -88,7 +88,7 @@ export const AIQueue: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
+          <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
             AI Queue Worker Monitor
           </h1>
           <p className="text-xs text-muted-foreground font-semibold">
@@ -124,7 +124,7 @@ export const AIQueue: React.FC = () => {
 
       {/* Trigger Notifications Banner */}
       {aiMessage && (
-        <div className="p-4 rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-600 dark:text-teal-400 text-xs font-bold flex items-center gap-2.5 animate-pulse">
+        <div className="p-4 rounded-xl border border-orange-500/20 bg-orange-500/5 text-orange-600 dark:text-orange-400 text-xs font-bold flex items-center gap-2.5 animate-pulse">
           <Bot size={16} />
           {aiMessage}
         </div>
