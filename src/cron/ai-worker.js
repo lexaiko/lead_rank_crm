@@ -335,7 +335,7 @@ Tugasmu:
    - 'referral_source' (dari mana mengetahui TripBwi, wajib pilih salah satu dari: "instagram", "tiktok", "website", "rekomendasi", "facebook", "lainnya", atau "tidak diketahui").
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka integer rupiah, jika tidak ada, isi dengan null).
 4. Tentukan 'status_lead' dengan salah satu dari pilihan berikut:
-   - PROSPEK: Pelanggan bertanya informasi umum, harga, atau fasilitas. Belum ada kepastian jadwal/jumlah orang.
+   - PROSPECT: Pelanggan bertanya informasi umum, harga, atau fasilitas. Belum ada kepastian jadwal/jumlah orang.
    - QUALIFIED: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
    - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (rekening, invoice, atau berjanji transfer).
    - CLOSED WON: Pelanggan mengirimkan bukti transfer atau konfirmasi pembayaran berhasil.

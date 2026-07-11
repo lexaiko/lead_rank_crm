@@ -21,13 +21,17 @@ export const Reports: React.FC = () => {
     );
   }
 
-  const leads = dashboardData.leads;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
   const admins = dashboardData.admins;
 
   // 1. Funnel Calculations
   const counts = {
     NEW: leads.filter(l => l.status_lead === 'NEW').length,
-    PROSPEK: leads.filter(l => l.status_lead === 'PROSPEK').length,
+    PROSPECT: leads.filter(l => l.status_lead === 'PROSPECT').length,
     QUALIFIED: leads.filter(l => l.status_lead === 'QUALIFIED').length,
     HOT: leads.filter(l => l.status_lead === 'HOT').length,
     WON: leads.filter(l => l.status_lead === 'CLOSED WON').length,
@@ -73,7 +77,7 @@ export const Reports: React.FC = () => {
 
   const funnelStages = [
     { label: 'New lead incoming', count: counts.NEW, color: 'bg-slate-400' },
-    { label: 'Prospek asking price', count: counts.PROSPEK, color: 'bg-blue-500' },
+    { label: 'Prospect asking price', count: counts.PROSPECT, color: 'bg-blue-500' },
     { label: 'Qualified trip set', count: counts.QUALIFIED, color: 'bg-cyan-500' },
     { label: 'HOT payment pending', count: counts.HOT, color: 'bg-orange-500' },
     { label: 'CLOSED WON paid', count: counts.WON, color: 'bg-emerald-500' },
@@ -85,10 +89,10 @@ export const Reports: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500 dark:from-teal-400 dark:to-emerald-400">
-          Analytics & Performance Reports
+          Analytics & Performance Reports (Bulan Ini)
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Review sales pipelines funnel conversion, booking values, travel package demands, and sales agents performance.
+          Review sales pipelines funnel conversion, booking values, travel package demands, and sales agents performance (Metrics: Current Month / Bulan Ini).
         </p>
       </div>
 
@@ -96,7 +100,7 @@ export const Reports: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Sales Revenue</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Sales Revenue (Bulan Ini)</span>
             <span className="text-2xl font-extrabold text-teal-600 dark:text-teal-400 mt-1 font-heading">
               Rp {revenueTotal.toLocaleString('id-ID')}
             </span>
@@ -107,7 +111,7 @@ export const Reports: React.FC = () => {
         </div>
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Client Conversion Rate</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Conversion Rate (Bulan Ini)</span>
             <span className="text-2xl font-extrabold text-foreground mt-1 font-heading">
               {conversionRate} %
             </span>
@@ -118,7 +122,7 @@ export const Reports: React.FC = () => {
         </div>
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performing Agent</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performing Agent (Bulan Ini)</span>
             <span className="text-sm font-bold text-foreground mt-1 truncate max-w-[150px]">
               {adminStats[0]?.name || 'No Agent'}
             </span>

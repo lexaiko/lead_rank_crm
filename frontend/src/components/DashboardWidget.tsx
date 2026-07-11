@@ -15,10 +15,14 @@ export const DashboardWidget: React.FC = () => {
 
   if (!dashboardData) return null;
 
-  const leads = dashboardData.leads;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
   
   // Computations
-  const totalLeads = dashboardData.totalLeads;
+  const totalLeads = leads.length;
   
   // Lead Baru Hari Ini (created today)
   const today = new Date().toDateString();
@@ -36,18 +40,18 @@ export const DashboardWidget: React.FC = () => {
 
   const stats = [
     {
-      label: 'Closed Revenue',
+      label: 'Closed Revenue (Bulan Ini)',
       value: `Rp ${estimatedRevenue.toLocaleString('id-ID')}`,
       icon: TrendingUp,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
-      desc: 'Completed sales value'
+      desc: 'Completed sales value this month'
     },
     {
-      label: 'Total Leads',
+      label: 'Total Leads (Bulan Ini)',
       value: totalLeads,
       icon: Database,
       color: 'text-teal-500 bg-teal-500/10 dark:bg-teal-500/5',
-      desc: 'All inquiries tracked'
+      desc: 'All inquiries tracked this month'
     },
     {
       label: 'New Leads Today',
@@ -57,25 +61,25 @@ export const DashboardWidget: React.FC = () => {
       desc: 'Incoming chats today'
     },
     {
-      label: 'HOT Leads',
+      label: 'HOT Leads (Bulan Ini)',
       value: hotLeads,
       icon: Flame,
       color: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/5',
-      desc: 'Nearing transaction'
+      desc: 'Nearing transaction this month'
     },
     {
-      label: 'Closed Deals',
+      label: 'Closed Deals (Bulan Ini)',
       value: closedWon,
       icon: CheckCircle2,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
-      desc: 'Successful trips'
+      desc: 'Successful trips this month'
     },
     {
-      label: 'Lost Deals',
+      label: 'Lost Deals (Bulan Ini)',
       value: closedLost,
       icon: XCircle,
       color: 'text-rose-500 bg-rose-500/10 dark:bg-rose-500/5',
-      desc: 'Inactive/Cancelled'
+      desc: 'Inactive/Cancelled this month'
     },
     {
       label: 'AI Queue Jobs',

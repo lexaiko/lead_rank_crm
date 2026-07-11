@@ -14,7 +14,7 @@ export async function runGhostingSweeper() {
     const result = await prisma.lead.updateMany({
       where: {
         status_lead: {
-          in: ['NEW', 'PROSPEK', 'QUALIFIED', 'HOT']
+          in: ['NEW', 'PROSPECT', 'QUALIFIED', 'HOT']
         },
         updatedAt: {
           lt: threeDaysAgo

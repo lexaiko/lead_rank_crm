@@ -531,7 +531,7 @@ export async function handleIncomingMessage(sock, msg, adminId) {
           lead = await prisma.lead.update({
             where: { id: latestClosedLead.id },
             data: {
-              status_lead: 'PROSPEK',
+              status_lead: 'PROSPECT',
               closed_at: null
             }
           });

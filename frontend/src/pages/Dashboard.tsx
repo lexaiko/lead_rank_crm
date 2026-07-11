@@ -38,7 +38,7 @@ export const Dashboard: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'NEW': return 'bg-slate-500/10 text-slate-500';
-      case 'PROSPEK': return 'bg-blue-500/10 text-blue-500';
+      case 'PROSPECT': return 'bg-blue-500/10 text-blue-500';
       case 'QUALIFIED': return 'bg-cyan-500/10 text-cyan-500';
       case 'HOT': return 'bg-orange-500/10 text-orange-500';
       case 'CLOSED WON': return 'bg-emerald-500/10 text-emerald-500';
@@ -56,7 +56,7 @@ export const Dashboard: React.FC = () => {
           Core Operations Console
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Real-time WhatsApp passive tracking, AI data extraction, and customer conversions.
+          Real-time WhatsApp passive tracking, AI data extraction, and customer conversions (Metrics: Current Month / Bulan Ini).
         </p>
       </div>
 

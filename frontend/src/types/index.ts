@@ -33,7 +33,7 @@ export interface Lead {
   kode_lead: string;
   customer_id: number;
   admin_id: number;
-  status_lead: 'NEW' | 'PROSPEK' | 'QUALIFIED' | 'HOT' | 'CLOSED WON' | 'CLOSED LOST';
+  status_lead: 'NEW' | 'PROSPECT' | 'QUALIFIED' | 'HOT' | 'CLOSED WON' | 'CLOSED LOST';
   minat_destinasi: string | null;
   jumlah_peserta: number | null;
   estimasi_waktu: string | null;

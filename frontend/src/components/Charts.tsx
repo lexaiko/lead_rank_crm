@@ -31,10 +31,14 @@ export const LeadStatusChart: React.FC = () => {
 
   if (!dashboardData) return null;
 
-  const leads = dashboardData.leads;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
   const statusCounts = {
     NEW: leads.filter(l => l.status_lead === 'NEW').length,
-    PROSPEK: leads.filter(l => l.status_lead === 'PROSPEK').length,
+    PROSPECT: leads.filter(l => l.status_lead === 'PROSPECT').length,
     QUALIFIED: leads.filter(l => l.status_lead === 'QUALIFIED').length,
     HOT: leads.filter(l => l.status_lead === 'HOT').length,
     'CLOSED WON': leads.filter(l => l.status_lead === 'CLOSED WON').length,
@@ -53,7 +57,7 @@ export const LeadStatusChart: React.FC = () => {
         data: Object.values(statusCounts),
         backgroundColor: [
           '#64748b', // NEW
-          '#3b82f6', // PROSPEK
+          '#3b82f6', // PROSPECT
           '#06b6d4', // QUALIFIED
           '#f97316', // HOT
           '#10b981', // CLOSED WON
@@ -87,7 +91,11 @@ export const DestinationsChart: React.FC = () => {
 
   if (!dashboardData) return null;
 
-  const leads = dashboardData.leads;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
   
   // Count destinations frequency
   const destCounts: Record<string, number> = {};
@@ -148,7 +156,11 @@ export const ReferralChart: React.FC = () => {
 
   if (!dashboardData) return null;
 
-  const leads = dashboardData.leads;
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
   const refCounts: Record<string, number> = {
     instagram: 0,
     tiktok: 0,

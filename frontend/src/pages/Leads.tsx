@@ -161,7 +161,7 @@ export const Leads: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'NEW': return 'bg-slate-500/10 text-slate-500 border border-slate-500/20';
-      case 'PROSPEK': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
+      case 'PROSPECT': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
       case 'QUALIFIED': return 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20';
       case 'HOT': return 'bg-orange-500/10 text-orange-500 border border-orange-500/20';
       case 'CLOSED WON': return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
@@ -260,7 +260,7 @@ export const Leads: React.FC = () => {
               >
                 <option value="ALL">All Statuses</option>
                 <option value="NEW">NEW</option>
-                <option value="PROSPEK">PROSPEK</option>
+                <option value="PROSPECT">PROSPECT</option>
                 <option value="QUALIFIED">QUALIFIED</option>
                 <option value="HOT">HOT</option>
                 <option value="CLOSED WON">CLOSED WON</option>
