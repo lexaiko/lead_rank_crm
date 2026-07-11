@@ -4,6 +4,7 @@ import fs from 'fs';
 import qrcode from 'qrcode-terminal';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
+import { enqueueAIJob } from './ai-queue.js';
 
 // Store active sockets and QRs in memory
 export const activeSockets = new Map();
@@ -84,6 +85,9 @@ async function mergeLidCustomerRecord(lid, phone) {
         });
       }
       
+      // Enqueue the target lead to AI queue
+      await enqueueAIJob(targetLead.id);
+      
       // Delete the duplicate LID customer record
       await prisma.customer.delete({
         where: { id: lidCust.id }
@@ -146,7 +150,11 @@ export async function startAdminSession(adminId) {
   const makeWASocketFn = makeWASocket.default || makeWASocket;
   const sock = makeWASocketFn({
     auth: state,
-    logger: pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' }),
+    logger: pino({ 
+      level: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'].includes(process.env.BAILEYS_LOG_LEVEL) 
+        ? process.env.BAILEYS_LOG_LEVEL 
+        : 'silent' 
+    }),
     printQRInTerminal: false // We will print it manually
   });
 
@@ -327,7 +335,7 @@ function extractMessageText(message) {
 /**
  * Handles incoming/outgoing messages tracked by Baileys.
  */
-async function handleIncomingMessage(sock, msg, adminId) {
+export async function handleIncomingMessage(sock, msg, adminId) {
   // 0. Ignore WhatsApp status updates, story broadcasts, and group chats
   const remoteJidRaw = msg.key.remoteJid;
   if (
@@ -399,9 +407,9 @@ async function handleIncomingMessage(sock, msg, adminId) {
     const socketContact = sock.contacts?.[remoteJid];
     let contactName = socketContact?.name || socketContact?.verifiedName || socketContact?.notify || null;
 
-    // Fallback to pushName if message is from the customer
+    // Fallback to pushName or verifiedBizName if message is from the customer
     if (!contactName && !fromMe) {
-      contactName = msg.pushName || null;
+      contactName = msg.pushName || msg.verifiedBizName || null;
     }
 
     try {
@@ -424,7 +432,8 @@ async function handleIncomingMessage(sock, msg, adminId) {
     }
   } else {
     // Auto-correct contact name if it's currently null/placeholder or was incorrectly set to the admin's name
-    if (!fromMe && msg.pushName) {
+    const incomingPushName = msg.pushName || msg.verifiedBizName;
+    if (!fromMe && incomingPushName) {
       const allAdmins = await prisma.admin.findMany({ select: { nama_admin: true } });
       const adminNames = allAdmins.map(a => a.nama_admin.toLowerCase());
       const currentNameLower = customer.nama_kontak?.toLowerCase();
@@ -447,7 +456,7 @@ async function handleIncomingMessage(sock, msg, adminId) {
             try {
               customer = await prisma.customer.update({
                 where: { id: customer.id },
-                data: { nama_kontak: msg.pushName }
+                data: { nama_kontak: incomingPushName }
               });
             } catch (updateErr) {
               console.warn(`[Concurrency Warning] Failed to update customer name due to lock/concurrency:`, updateErr.message);
@@ -472,7 +481,41 @@ async function handleIncomingMessage(sock, msg, adminId) {
     }
   });
 
-  // 5. Buat Lead Baru if none active
+  // Reopen logic if no active lead
+  if (!lead) {
+    const latestClosedLead = await prisma.lead.findFirst({
+      where: {
+        customer_id: customer.id,
+        status_lead: { in: ['CLOSED WON', 'CLOSED LOST'] }
+      },
+      orderBy: {
+        closed_at: 'desc'
+      }
+    });
+
+    if (latestClosedLead && latestClosedLead.closed_at) {
+      const reopenWindowDays = parseInt(process.env.LEAD_REOPEN_WINDOW_DAYS, 10) || 30;
+      const diffTime = Math.abs(new Date() - new Date(latestClosedLead.closed_at));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= reopenWindowDays) {
+        try {
+          lead = await prisma.lead.update({
+            where: { id: latestClosedLead.id },
+            data: {
+              status_lead: 'PROSPEK',
+              closed_at: null
+            }
+          });
+          console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp} (Closed ${diffDays} days ago)`);
+        } catch (reopenErr) {
+          console.error(`[Lead Reopen] Failed to reopen lead ${latestClosedLead.kode_lead}:`, reopenErr);
+        }
+      }
+    }
+  }
+
+  // 5. Buat Lead Baru if none active or reopened
   if (!lead) {
     try {
       const kode_lead = await generateKodeLead(admin.id);
@@ -505,24 +548,29 @@ async function handleIncomingMessage(sock, msg, adminId) {
     ? new Date(Number(msg.messageTimestamp) * 1000) 
     : new Date();
 
-  // Run in transaction to insert chat message and update Lead's updatedAt
+  // Run in transaction to insert chat message and update Lead's timestamps
   await prisma.$transaction([
     prisma.chatMessage.create({
       data: {
         lead_id: lead.id,
         pengirim,
         pesan: text,
-        waktu_pesan,
-        is_processed_by_ai: false
+        waktu_pesan
       }
     }),
     prisma.lead.update({
       where: { id: lead.id },
-      data: { updatedAt: new Date() } // Touch lead's updatedAt
+      data: { 
+        updatedAt: new Date(),
+        last_activity_at: new Date()
+      }
     })
   ]);
 
   console.log(`[${pengirim}] saved for Lead ID ${lead.id}: "${text.slice(0, 30)}..."`);
+  
+  // Enqueue AI kualifikasi job with a 15-minute debounce
+  await enqueueAIJob(lead.id);
 }
 
 /**

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { prisma } from './config/prisma.js';
 import { startAdminSession } from './services/whatsapp.js';
 import { initCronJobs } from './cron/jobs.js';
+import { startAIWorker } from './cron/ai-worker.js';
 import apiRouter from './routes/api.js';
 
 dotenv.config();
@@ -30,6 +31,9 @@ app.listen(PORT, async () => {
 
   // Initialize schedules
   initCronJobs();
+
+  // Start the background AI analysis queue worker
+  startAIWorker();
 
   // Auto-connect WhatsApp sessions for active Admins
   try {

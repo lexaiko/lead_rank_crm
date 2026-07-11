@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { startAdminSession, activeSockets, activeQrs } from '../services/whatsapp.js';
-import { runGhostingSweeper, runGeminiExtractor } from '../cron/jobs.js';
+import { runGhostingSweeper } from '../cron/jobs.js';
+import { processAIQueue } from '../cron/ai-worker.js';
 
 const router = Router();
 
@@ -234,8 +235,9 @@ router.post('/cron/ghosting-sweeper', async (req, res, next) => {
 // Trigger Manual Gemini Extractor (Modul C)
 router.post('/cron/gemini-extractor', async (req, res, next) => {
   try {
-    const result = await runGeminiExtractor();
-    res.json({ success: true, result });
+    console.log('[API] Manually triggering background AI queue processing (force: true)...');
+    await processAIQueue(true);
+    res.json({ success: true, message: 'AI Extraction triggered and executed successfully!' });
   } catch (err) {
     next(err);
   }
@@ -269,7 +271,13 @@ router.get('/dashboard', async (req, res, next) => {
     });
     
     const messagesCount = await prisma.chatMessage.count();
-    const unprocessedMessagesCount = await prisma.chatMessage.count({ where: { is_processed_by_ai: false } });
+    const unprocessedResult = await prisma.$queryRaw`
+      SELECT COUNT(*) as count 
+      FROM ChatMessage m
+      JOIN \`Lead\` l ON m.lead_id = l.id
+      WHERE l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id
+    `;
+    const unprocessedMessagesCount = Number(unprocessedResult[0]?.count || 0);
 
     res.json({
       success: true,
@@ -323,7 +331,13 @@ router.get('/dashboard-html', async (req, res, next) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    const unprocessedMessagesCount = await prisma.chatMessage.count({ where: { is_processed_by_ai: false } });
+    const unprocessedResult = await prisma.$queryRaw`
+      SELECT COUNT(*) as count 
+      FROM ChatMessage m
+      JOIN \`Lead\` l ON m.lead_id = l.id
+      WHERE l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id
+    `;
+    const unprocessedMessagesCount = Number(unprocessedResult[0]?.count || 0);
 
     // Calculate Response Times
     const messages = await prisma.chatMessage.findMany({

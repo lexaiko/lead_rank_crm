@@ -27,35 +27,60 @@ model Customer {
 }
 
 model Lead {
-  id              Int           @id @default(autoincrement())
-  kode_lead       String        @unique @db.VarChar(50)
-  customer_id     Int
-  customer        Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  admin_id        Int
-  admin           Admin         @relation(fields: [admin_id], references: [id])
+  id                           Int           @id @default(autoincrement())
+  kode_lead                    String        @unique @db.VarChar(50)
+  customer_id                  Int
+  customer                     Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  admin_id                     Int
+  admin                        Admin         @relation(fields: [admin_id], references: [id])
   
-  status_lead     String        @default("NEW") 
-  minat_destinasi String?       @db.VarChar(255)
-  jumlah_peserta  Int?
-  estimasi_waktu  DateTime?
-  catatan_khusus       String?       @db.Text
-  catatan_sistem       String?       @db.Text
-  referral_source      String        @default("tidak diketahui") @db.VarChar(50)
-  estimasi_nilai_order Int?
+  status_lead                  String        @default("NEW") 
+  minat_destinasi              String?       @db.VarChar(255)
+  jumlah_peserta               Int?
+  estimasi_waktu               DateTime?
+  catatan_khusus               String?       @db.Text
+  catatan_sistem               String?       @db.Text
+  referral_source              String        @default("tidak diketahui") @db.VarChar(50)
+  estimasi_nilai_order         Int?
+
+  // Asynchronous AI Queue tracking fields
+  last_activity_at             DateTime?
+  closed_at                    DateTime?
+  ai_summary                   String?       @db.Text
+  ai_last_analyzed_message_id  Int?
+  ai_last_analyzed_at          DateTime?
   
-  messages        ChatMessage[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  messages                     ChatMessage[]
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
 }
 
 model ChatMessage {
-  id                 Int      @id @default(autoincrement())
-  lead_id            Int
-  lead               Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
-  pengirim           String   @db.VarChar(20) // "admin" atau "customer"
-  pesan              String   @db.Text
-  waktu_pesan        DateTime
-  is_processed_by_ai Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  lead_id     Int
+  lead        Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  pengirim    String   @db.VarChar(20) // "admin" atau "customer"
+  pesan       String   @db.Text
+  waktu_pesan DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AIJob {
+  id          Int       @id @default(autoincrement())
+  lead_id     Int
+  status      String    @db.VarChar(20) // "WAITING", "PROCESSING", "DONE", "FAILED"
+  execute_at  DateTime?
+  retry_count Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, execute_at])
+}
+
+model AIAnalysis {
+  id          Int      @id @default(autoincrement())
+  lead_id     Int
+  result_json Json
+  createdAt   DateTime @default(now())
 }
