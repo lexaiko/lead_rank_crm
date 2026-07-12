@@ -2,6 +2,48 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { Bot, RefreshCw, AlertCircle, Play, CheckCircle2, Loader2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
+const CountdownTimer: React.FC<{ targetDateStr: string | null; status: string }> = ({ targetDateStr, status }) => {
+  const [timeLeft, setTimeLeft] = useState<string>('');
+
+  useEffect(() => {
+    if (!targetDateStr || status !== 'WAITING') {
+      setTimeLeft('-');
+      return;
+    }
+
+    const targetDate = new Date(targetDateStr);
+    
+    const updateTimer = () => {
+      const now = new Date();
+      const diffMs = targetDate.getTime() - now.getTime();
+
+      if (diffMs <= 0) {
+        setTimeLeft('Ready');
+        return;
+      }
+
+      const totalSecs = Math.floor(diffMs / 1000);
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+
+      setTimeLeft(`${mins}m ${secs}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [targetDateStr, status]);
+
+  if (!targetDateStr || status !== 'WAITING') return <span className="text-muted-foreground">-</span>;
+
+  const isReady = timeLeft === 'Ready';
+  return (
+    <span className={`font-mono text-[10px] font-bold ${isReady ? 'text-amber-500 animate-pulse' : 'text-primary'}`}>
+      {isReady ? 'Antre' : timeLeft}
+    </span>
+  );
+};
+
 export const AIQueue: React.FC = () => {
   const { aiQueue, fetchAIQueue, triggerAIWorker, triggerSweeper, isLoading } = useStore();
   const [runningAI, setRunningAI] = useState(false);
@@ -211,8 +253,18 @@ export const AIQueue: React.FC = () => {
                           {job.status}
                         </span>
                       </td>
-                      <td className="px-5 py-4 font-mono font-normal text-muted-foreground">
-                        {formatDate(job.execute_at)}
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-xs font-normal text-muted-foreground">
+                            {formatDate(job.execute_at)}
+                          </span>
+                          {job.status === 'WAITING' && job.execute_at && (
+                            <div className="mt-1 flex items-center gap-1 text-[10px]">
+                              <span className="text-muted-foreground font-semibold">In:</span>
+                              <CountdownTimer targetDateStr={job.execute_at} status={job.status} />
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-center font-mono font-bold text-foreground">
                         {job.retry_count > 0 ? (
@@ -334,8 +386,13 @@ export const AIQueue: React.FC = () => {
                   <div>
                     CS: <span className="text-foreground">{job.lead?.adminName || '-'}</span>
                   </div>
-                  <div className="text-right">
-                    Exec: <span className="text-foreground font-mono">{formatDate(job.execute_at)}</span>
+                  <div className="text-right flex flex-col items-end">
+                    <span>Exec: <span className="text-foreground font-mono">{formatDate(job.execute_at)}</span></span>
+                    {job.status === 'WAITING' && job.execute_at && (
+                      <span className="text-[9px] mt-0.5 text-muted-foreground flex items-center gap-1">
+                        In: <CountdownTimer targetDateStr={job.execute_at} status={job.status} />
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -99,16 +99,39 @@ export async function processAIQueue(force = false) {
   
   console.log(`[AI Worker] Processing batch of ${jobsToProcess.length} jobs. Job IDs: [${jobIds.join(', ')}], Lead IDs: [${leadIds.join(', ')}]`);
 
-  // 3. Lock Jobs in a Transaction
+  // 3. Lock Jobs in a Transaction with optimistic concurrency lock
   try {
-    await prisma.$transaction(
+    const lockResults = await prisma.$transaction(
       jobsToProcess.map(job =>
-        prisma.aIJob.update({
-          where: { id: job.id },
+        prisma.aIJob.updateMany({
+          where: { 
+            id: job.id,
+            status: 'WAITING'
+          },
           data: { status: 'PROCESSING' }
         })
       )
     );
+
+    // Check if any job failed to lock (meaning another process locked it first)
+    const allLocked = lockResults.every(r => r.count === 1);
+    if (!allLocked) {
+      console.warn('[AI Worker] Some jobs in batch were already locked by another process. Skipping batch.');
+      // Rollback successfully locked jobs in this batch back to WAITING
+      const successfullyLocked = [];
+      for (let i = 0; i < lockResults.length; i++) {
+        if (lockResults[i].count === 1) {
+          successfullyLocked.push(jobsToProcess[i].id);
+        }
+      }
+      if (successfullyLocked.length > 0) {
+        await prisma.aIJob.updateMany({
+          where: { id: { in: successfullyLocked } },
+          data: { status: 'WAITING' }
+        });
+      }
+      return;
+    }
   } catch (lockErr) {
     console.error('[AI Worker] Failed to lock jobs to PROCESSING. Skipping batch.', lockErr);
     return;
@@ -192,16 +215,29 @@ export async function processAIQueue(force = false) {
     return;
   }
 
-  // 5. Send Bulk Request to Gemini
+  // 5. Send Bulk Request to Gemini (with fallback to individual calls if bulk fails)
   let aiResults = [];
+  let useFallbackIndividual = false;
   try {
     aiResults = await callGeminiBulk(leadsContext);
   } catch (apiErr) {
-    console.error('[AI Worker] Gemini API call failed. Rolling back jobs to WAITING.', apiErr);
-    for (const job of jobsToProcess) {
-      await rescheduleFailedJob(job);
+    console.warn('[AI Worker] Gemini bulk call failed. Falling back to individual processing to prevent poison pills. Error:', apiErr.message);
+    useFallbackIndividual = true;
+  }
+
+  if (useFallbackIndividual) {
+    for (const ctx of leadsContext) {
+      try {
+        console.log(`[AI Worker] Analyzing Lead ${ctx.lead_id} individually...`);
+        const individualResult = await callGeminiBulk([ctx]);
+        if (individualResult && individualResult.length > 0) {
+          aiResults.push(individualResult[0]);
+        }
+      } catch (indivErr) {
+        console.error(`[AI Worker] Individual analysis failed for Lead ${ctx.lead_id}:`, indivErr.message);
+        // Will be rescheduled in step 6 since it won't be in aiResults
+      }
     }
-    return;
   }
 
   // 6. Update Database with Analysis Results

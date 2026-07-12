@@ -106,3 +106,16 @@ model AIAnalysis {
 
   @@index([lead_id])
 }
+
+model WhatsAppSession {
+  id        Int      @id @default(autoincrement())
+  admin_id  Int
+  key       String   @db.VarChar(255)
+  value     String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([admin_id, key])
+  @@index([admin_id])
+}
+

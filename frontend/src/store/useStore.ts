@@ -42,6 +42,7 @@ interface StoreState {
   updateAdmin: (id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>) => Promise<boolean>;
   deleteAdmin: (id: number) => Promise<{ success: boolean; message?: string }>;
   toggleAdmin: (id: number) => Promise<void>;
+  logoutAdmin: (id: number) => Promise<boolean>;
   triggerSweeper: () => Promise<string>;
   triggerAIWorker: () => Promise<string>;
   setTab: (tab: StoreState['activeTab']) => void;
@@ -325,6 +326,23 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     } catch (e) {
       console.error('Error toggling admin', e);
+    }
+  },
+
+  logoutAdmin: async (id: number) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.logoutAdmin(id);
+      if (res.success) {
+        await get().fetchDashboard();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error logging out WhatsApp session', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 

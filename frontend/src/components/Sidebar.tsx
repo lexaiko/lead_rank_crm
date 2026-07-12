@@ -40,7 +40,7 @@ export const Sidebar: React.FC = () => {
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'users', label: 'User Accounts', shortLabel: 'Users', icon: UserCog },
     { id: 'roles', label: 'Role Permissions', shortLabel: 'Roles', icon: Shield },
-    { id: 'settings', label: 'WA Connections', shortLabel: 'WA Sockets', icon: Wifi },
+    { id: 'settings', label: 'Setting WA', shortLabel: 'Setting WA', icon: Wifi },
     { id: 'reports', label: 'Analytics Reports', shortLabel: 'Reports', icon: BarChart3 },
   ] as const;
 

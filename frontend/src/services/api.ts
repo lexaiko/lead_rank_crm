@@ -50,6 +50,13 @@ export const api = {
     return res.json();
   },
 
+  async logoutAdmin(id: number): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/admins/${id}/logout`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
   async getLeadMessages(id: number): Promise<{ success: boolean; data: ChatMessage[] }> {
     const res = await fetch(`${API_BASE}/leads/${id}/messages`);
     return res.json();

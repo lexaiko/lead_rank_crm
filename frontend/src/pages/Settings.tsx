@@ -8,6 +8,7 @@ export const Settings: React.FC = () => {
     dashboardData, 
     fetchDashboard, 
     toggleAdmin,
+    logoutAdmin,
     isLoading 
   } = useStore();
 
@@ -16,6 +17,7 @@ export const Settings: React.FC = () => {
   const [qrStatusText, setQrStatusText] = useState('Initializing WhatsApp instance...');
   const [showIframe, setShowIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [logoutConfirmAdmin, setLogoutConfirmAdmin] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -137,14 +139,24 @@ export const Settings: React.FC = () => {
                   </td>
                   <td className="px-4 py-3.5">
                     {adm.nomor_wa ? (
-                      <button
-                        onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
-                        className="px-3.5 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
-                      >
-                        Link / Scan QR
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
+                          className="px-3.5 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                        >
+                          Link / Scan QR
+                        </button>
+                        {adm.connected && (
+                          <button
+                            onClick={() => setLogoutConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
+                            className="px-3.5 py-1.5 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                          >
+                            Logout WA
+                          </button>
+                        )}
+                      </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground/50 font-bold italic uppercase tracking-wider">Monitoring Only</span>
+                      <span className="text-xs text-muted-foreground/50 font-bold italic uppercase tracking-wider font-sans">Monitoring Only</span>
                     )}
                   </td>
                 </tr>
@@ -184,14 +196,24 @@ export const Settings: React.FC = () => {
 
               <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-1 gap-4">
                 {adm.nomor_wa ? (
-                  <button
-                    onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
-                    className="px-3 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none"
-                  >
-                    Link / Scan QR
-                  </button>
+                  <div className="flex items-center gap-2 w-full justify-end">
+                    <button
+                      onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
+                      className="px-3 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                    >
+                      Link / Scan QR
+                    </button>
+                    {adm.connected && (
+                      <button
+                        onClick={() => setLogoutConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
+                        className="px-3 py-1.5 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                      >
+                        Logout WA
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  <span className="text-xs text-muted-foreground/50 font-bold italic uppercase tracking-wider">Monitoring Only</span>
+                  <span className="text-xs text-muted-foreground/50 font-bold italic uppercase tracking-wider font-sans">Monitoring Only</span>
                 )}
               </div>
             </div>
@@ -266,6 +288,65 @@ export const Settings: React.FC = () => {
               <span className="text-[11px] leading-relaxed text-muted-foreground font-semibold">
                 Open WhatsApp on your phone, go to Menu ➔ Linked Devices ➔ Link a Device, and scan the QR.
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {logoutConfirmAdmin && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setLogoutConfirmAdmin(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-scale-up text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border py-4.5 px-5 bg-rose-500/10 dark:bg-rose-500/5">
+              <div className="flex flex-col">
+                <span className="font-bold text-sm text-rose-500 flex items-center gap-2">
+                  ⚠️ Peringatan Logout
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Admin: {logoutConfirmAdmin.name}</span>
+              </div>
+              <button 
+                onClick={() => setLogoutConfirmAdmin(null)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 flex flex-col gap-4">
+              <span className="text-sm font-bold leading-relaxed text-foreground">
+                Apakah Anda yakin ingin memutuskan koneksi WhatsApp untuk agen ini?
+              </span>
+              <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
+                Sesi koneksi akan diputus secara permanen dari server. Anda harus memindai ulang QR Code untuk menghubungkannya kembali.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-border px-5 py-4 bg-muted/20 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setLogoutConfirmAdmin(null)}
+                className="px-3.5 py-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  const adminId = logoutConfirmAdmin.id;
+                  setLogoutConfirmAdmin(null);
+                  await logoutAdmin(adminId);
+                }}
+                className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Ya, Logout
+              </button>
             </div>
           </div>
         </div>

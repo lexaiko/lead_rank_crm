@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import { rateLimit } from 'express-rate-limit';
 import { prisma } from './config/prisma.js';
 import { startAdminSession } from './services/whatsapp.js';
 import { initCronJobs } from './cron/jobs.js';
@@ -18,8 +19,35 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Rate limiters for security in production
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many requests from this IP, please try again after 15 minutes.'
+  }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 login requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many login attempts from this IP, please try again after 15 minutes.'
+  }
+});
+
 // Serve static assets from public
 app.use(express.static('public'));
+
+// Secure API routes with rate limiters
+app.use('/api/auth/login', authLimiter);
+app.use('/api', generalLimiter);
 
 // Mounting API routes under /api
 app.use('/api', apiRouter);
@@ -71,14 +99,37 @@ app.listen(PORT, async () => {
     });
 
     if (activeAdmins.length > 0) {
-      console.log(`Booting WhatsApp connections for ${activeAdmins.length} active Admin(s)...`);
+      console.log(`Checking stored WhatsApp sessions for active Admin(s)...`);
       for (const admin of activeAdmins) {
-        startAdminSession(admin.id).catch(err => {
-          console.error(`Auto-boot WhatsApp session failed for Admin ${admin.nama_admin} (ID ${admin.id}):`, err);
-        });
+        let hasSession = false;
+        try {
+          if (prisma.whatsAppSession) {
+            const session = await prisma.whatsAppSession.findUnique({
+              where: { admin_id_key: { admin_id: admin.id, key: 'creds' } }
+            });
+            hasSession = !!session;
+          } else {
+            const rows = await prisma.$queryRawUnsafe(
+              'SELECT 1 FROM WhatsAppSession WHERE admin_id = ? AND `key` = "creds" LIMIT 1',
+              admin.id
+            );
+            hasSession = rows.length > 0;
+          }
+        } catch (e) {
+          // Ignore check errors and fallback to not booting
+        }
+
+        if (hasSession) {
+          console.log(`Auto-booting WhatsApp session for Admin ${admin.nama_admin} (ID ${admin.id})...`);
+          startAdminSession(admin.id).catch(err => {
+            console.error(`Auto-boot WhatsApp session failed for Admin ${admin.nama_admin} (ID ${admin.id}):`, err);
+          });
+        } else {
+          console.log(`Admin ${admin.nama_admin} (ID ${admin.id}) has no active WhatsApp session. Skipping auto-boot.`);
+        }
       }
     } else {
-      console.log(`No active Admin accounts found in database. Register an Admin to connect to WhatsApp.`);
+      console.log(`No active Admin accounts found in database.`);
     }
   } catch (err) {
     console.error('Failed to query active Admins on startup:', err.message);

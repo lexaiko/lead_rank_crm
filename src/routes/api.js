@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
-import { startAdminSession, activeSockets, activeQrs } from '../services/whatsapp.js';
+import { startAdminSession, activeSockets, activeQrs, logoutAdminSession } from '../services/whatsapp.js';
 import { runGhostingSweeper } from '../cron/jobs.js';
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware } from '../middleware/auth.js';
@@ -367,6 +367,24 @@ router.get('/admins/:id/status-json', authMiddleware, permissionMiddleware('sett
   }
 });
 
+// Logout WhatsApp session for Admin
+router.post('/admins/:id/logout', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+    
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    await logoutAdminSession(adminId);
+    
+    res.json({ success: true, message: 'WhatsApp session logged out successfully.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // QR Code page
 router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
   try {
@@ -622,6 +640,8 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
   try {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const admins = await prisma.admin.findMany({ include: { role: true } });
+    
+    // 1. Fetch leads without loading messages into memory
     const leads = await prisma.lead.findMany({
       take: 1000, // Limit sync data payload size to the 1000 most recently active leads
       where: {
@@ -632,19 +652,39 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       include: {
         customer: true,
         admin: true,
-        messages: {
-          where: {
-            waktu_pesan: { gte: fourteenDaysAgo } // Only fetch messages from last 14 days to calculate stats
-          },
-          select: {
-            pengirim: true,
-            waktu_pesan: true
-          },
-          orderBy: { waktu_pesan: 'asc' }
-        },
         _count: { select: { messages: true } }
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: [
+        { last_activity_at: 'desc' },
+        { updatedAt: 'desc' }
+      ]
+    });
+
+    // 2. Fetch messages in a separate flat query to calculate response times efficiently
+    const recentMessages = await prisma.chatMessage.findMany({
+      where: {
+        waktu_pesan: { gte: fourteenDaysAgo },
+        lead: {
+          customer: {
+            is_ignored: false
+          }
+        }
+      },
+      select: {
+        lead_id: true,
+        pengirim: true,
+        waktu_pesan: true
+      },
+      orderBy: { waktu_pesan: 'asc' }
+    });
+
+    // Group messages by lead_id
+    const messagesByLead = new Map();
+    recentMessages.forEach(msg => {
+      if (!messagesByLead.has(msg.lead_id)) {
+        messagesByLead.set(msg.lead_id, []);
+      }
+      messagesByLead.get(msg.lead_id).push(msg);
     });
     
     // Calculate average reply time for each admin (in seconds)
@@ -655,7 +695,7 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         adminReplyTimes[adminId] = [];
       }
       
-      const msgs = lead.messages || [];
+      const msgs = messagesByLead.get(lead.id) || [];
       let waitingSince = null;
       
       msgs.forEach(msg => {
@@ -796,7 +836,8 @@ router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read
         leads: {
           orderBy: { updatedAt: 'desc' }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
     
     const result = customers.map(c => {
@@ -834,7 +875,8 @@ router.get('/customers/ignored', authMiddleware, permissionMiddleware('customers
         leads: {
           orderBy: { updatedAt: 'desc' }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' }
     });
 
     const result = customers.map(c => {

@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, BufferJSON } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import fs from 'fs';
 import qrcode from 'qrcode-terminal';
@@ -10,6 +10,162 @@ function logDebug(...args) {
   if (process.env.BAILEYS_LOG_LEVEL && process.env.BAILEYS_LOG_LEVEL !== 'silent') {
     console.log(...args);
   }
+}
+
+// Queue to serialize database operations (reads and writes) per admin session to prevent race conditions and concurrent transaction conflicts (MySQL 1020 errors)
+const dbWriteQueues = new Map();
+
+function enqueueDbWrite(adminId, operation) {
+  if (!dbWriteQueues.has(adminId)) {
+    dbWriteQueues.set(adminId, Promise.resolve());
+  }
+  const currentQueue = dbWriteQueues.get(adminId);
+  const nextQueue = currentQueue.then(async () => {
+    try {
+      return await operation();
+    } catch (err) {
+      console.error(`[Prisma AuthState Queue Error] for admin ${adminId}:`, err.message);
+      throw err;
+    }
+  });
+  // Maintain the chain by catching errors for the stored queue head
+  dbWriteQueues.set(adminId, nextQueue.catch(() => {}));
+  return nextQueue;
+}
+
+/**
+ * Custom Prisma-backed authentication state provider for Baileys.
+ * Saves credentials and keys directly in the MySQL database to support stateless/cloud production runs.
+ * Supports fallback to queryRaw if Prisma Client was not regenerated yet due to locked files.
+ * 
+ * @param {number} adminId 
+ */
+export async function usePrismaAuthState(adminId) {
+  const getRecord = async (key) => {
+    return enqueueDbWrite(adminId, async () => {
+      try {
+        if (prisma.whatsAppSession) {
+          return await prisma.whatsAppSession.findUnique({
+            where: { admin_id_key: { admin_id: adminId, key } }
+          });
+        } else {
+          const rows = await prisma.$queryRawUnsafe(
+            'SELECT * FROM WhatsAppSession WHERE admin_id = ? AND `key` = ?',
+            adminId,
+            key
+          );
+          return rows[0] || null;
+        }
+      } catch (err) {
+        console.error(`[Prisma AuthState] Failed to get key ${key}:`, err.message);
+        return null;
+      }
+    });
+  };
+
+  const upsertRecord = async (key, value) => {
+    return enqueueDbWrite(adminId, async () => {
+      if (prisma.whatsAppSession) {
+        await prisma.whatsAppSession.upsert({
+          where: { admin_id_key: { admin_id: adminId, key } },
+          create: { admin_id: adminId, key, value },
+          update: { value }
+        });
+      } else {
+        await prisma.$executeRawUnsafe(
+          'INSERT INTO WhatsAppSession (admin_id, `key`, value, createdAt, updatedAt) VALUES (?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE value = ?, updatedAt = NOW()',
+          adminId,
+          key,
+          value,
+          value
+        );
+      }
+    });
+  };
+
+  const deleteRecord = async (key) => {
+    return enqueueDbWrite(adminId, async () => {
+      if (prisma.whatsAppSession) {
+        // Use deleteMany instead of delete so it silently no-ops if record doesn't exist
+        await prisma.whatsAppSession.deleteMany({
+          where: { admin_id: adminId, key }
+        });
+      } else {
+        await prisma.$executeRawUnsafe(
+          'DELETE FROM WhatsAppSession WHERE admin_id = ? AND `key` = ?',
+          adminId,
+          key
+        ).catch(() => {});
+      }
+    });
+  };
+
+  const getCreds = async () => {
+    const record = await getRecord('creds');
+    if (record) {
+      return JSON.parse(record.value, BufferJSON.reviver);
+    }
+    return null;
+  };
+
+  const saveCreds = async (creds) => {
+    const value = JSON.stringify(creds, BufferJSON.replacer);
+    await upsertRecord('creds', value);
+  };
+
+  let creds = await getCreds();
+  if (!creds) {
+    const { initAuthCreds } = await import('@whiskeysockets/baileys');
+    creds = initAuthCreds();
+    await saveCreds(creds);
+  }
+
+  const state = {
+    creds,
+    keys: {
+      get: async (type, ids) => {
+        const data = {};
+        await Promise.all(
+          ids.map(async (id) => {
+            const dbKey = `${type}-${id}`;
+            const record = await getRecord(dbKey);
+            if (record) {
+              let val = JSON.parse(record.value, BufferJSON.reviver);
+              if (type === 'app-state-sync-key' && val) {
+                const { proto } = await import('@whiskeysockets/baileys');
+                val = proto.Message.AppStateSyncKeyData.fromObject(val);
+              }
+              data[id] = val;
+            }
+          })
+        );
+        return data;
+      },
+      set: async (data) => {
+        const promises = [];
+        for (const type of Object.keys(data)) {
+          for (const id of Object.keys(data[type])) {
+            const value = data[type][id];
+            const dbKey = `${type}-${id}`;
+            if (value) {
+              const valStr = JSON.stringify(value, BufferJSON.replacer);
+              promises.push(upsertRecord(dbKey, valStr));
+            } else {
+              promises.push(deleteRecord(dbKey));
+            }
+          }
+        }
+        await Promise.all(promises);
+      }
+    }
+  };
+
+  return {
+    state,
+    saveCreds: async () => {
+      await saveCreds(state.creds);
+    }
+  };
 }
 
 // Store active sockets and QRs in memory
@@ -29,13 +185,6 @@ function loadLidMapping() {
       const data = JSON.parse(fs.readFileSync(MAPPING_FILE, 'utf-8'));
       lidToPhoneMap = new Map(Object.entries(data));
       console.log(`[LID Mapping] Loaded ${lidToPhoneMap.size} mappings from file.`);
-      
-      // Trigger database merge for all loaded mappings on startup to clean up residual duplicates
-      for (const [lid, phone] of lidToPhoneMap.entries()) {
-        mergeLidCustomerRecord(lid, phone).catch(err => {
-          console.error(`[LID Mapping] Async startup merge failed for ${lid} -> ${phone}:`, err);
-        });
-      }
     }
   } catch (e) {
     console.error('Failed to load LID mapping file:', e);
@@ -151,7 +300,7 @@ export async function startAdminSession(adminId) {
 
   console.log(`Starting WhatsApp session for Admin ID: ${adminId}`);
 
-  const { state, saveCreds } = await useMultiFileAuthState(`sessions/${adminId}`);
+  const { state, saveCreds } = await usePrismaAuthState(adminId);
 
   const makeWASocketFn = makeWASocket.default || makeWASocket;
   const sock = makeWASocketFn({
@@ -204,12 +353,21 @@ export async function startAdminSession(adminId) {
           startAdminSession(adminId);
         }, 5000);
       } else {
-        console.log(`Logged out. Cleaning up session files for Admin ID: ${adminId}`);
+        console.log(`Logged out. Cleaning up session database records for Admin ID: ${adminId}`);
         activeSockets.delete(adminId);
         try {
-          fs.rmSync(`sessions/${adminId}`, { recursive: true, force: true });
+          if (prisma.whatsAppSession) {
+            await prisma.whatsAppSession.deleteMany({
+              where: { admin_id: adminId }
+            });
+          } else {
+            await prisma.$executeRawUnsafe(
+              'DELETE FROM WhatsAppSession WHERE admin_id = ?',
+              adminId
+            );
+          }
         } catch (err) {
-          console.error(`Failed to delete session files: ${err.message}`);
+          console.error(`Failed to delete database session records: ${err.message}`);
         }
       }
     }
@@ -219,8 +377,10 @@ export async function startAdminSession(adminId) {
 
   // Sync contacts and messages from messaging history set (triggered on connection reconnects/syncs)
   sock.ev.on('messaging-history.set', async ({ contacts, messages }) => {
+    // Only sync contacts/LID mappings. Intentionally skip old message history to avoid
+    // polluting the lead list with stale data from weeks or months ago.
     if (contacts) {
-      console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts.`);
+      console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts. Skipping ${messages?.length ?? 0} old history messages.`);
       const named = contacts.filter(c => c.name);
       if (named.length > 0) {
         console.log(`[Contacts Sync] Sample named contacts from history (first 3):`, JSON.stringify(named.slice(0, 3), null, 2));
@@ -230,17 +390,6 @@ export async function startAdminSession(adminId) {
           await registerLidMapping(c.lid, c.id);
         }
         await updateCustomerFromContact(c);
-      }
-    }
-
-    if (messages && messages.length > 0) {
-      console.log(`[History Sync] messaging-history.set triggered with ${messages.length} messages.`);
-      for (const msg of messages) {
-        try {
-          await handleIncomingMessage(sock, msg, adminId);
-        } catch (err) {
-          console.error('[History Sync] Error handling synced message:', err);
-        }
       }
     }
   });
@@ -319,10 +468,13 @@ export async function startAdminSession(adminId) {
     logDebug('[WhatsApp Event] messages.upsert triggered:', JSON.stringify(m, null, 2));
     if (m.type !== 'notify' && m.type !== 'append') return;
 
+    // Both 'notify' (real-time) and 'append' (missed messages since last disconnect)
+    // are treated as real messages — not history. 'append' contains messages that came
+    // in while the server was down, so they should create leads and trigger AI jobs normally.
     for (const msg of m.messages) {
       try {
         logDebug('[WhatsApp Event] Handling message:', JSON.stringify(msg, null, 2));
-        await handleIncomingMessage(sock, msg, adminId);
+        await handleIncomingMessage(sock, msg, adminId, false);
       } catch (err) {
         console.error('Error handling WhatsApp message event:', err);
       }
@@ -352,7 +504,7 @@ function extractMessageText(message) {
 /**
  * Handles incoming/outgoing messages tracked by Baileys.
  */
-export async function handleIncomingMessage(sock, msg, adminId) {
+export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = false) {
   // 0. Ignore WhatsApp status updates, story broadcasts, and group chats
   const remoteJidRaw = msg.key.remoteJid;
   if (
@@ -550,6 +702,10 @@ export async function handleIncomingMessage(sock, msg, adminId) {
 
   // 5. Buat Lead Baru if none active or reopened
   if (!lead) {
+    if (isHistorySync) {
+      // Skip creating new leads for historical sync messages
+      return;
+    }
     try {
       const kode_lead = await generateKodeLead(admin.id);
       lead = await prisma.lead.create({
@@ -581,9 +737,9 @@ export async function handleIncomingMessage(sock, msg, adminId) {
     ? new Date(Number(msg.messageTimestamp) * 1000) 
     : new Date();
 
-  // Run in transaction to insert chat message and update Lead's timestamps
-  await prisma.$transaction([
-    prisma.chatMessage.create({
+  try {
+    // 1. Create chat message
+    await prisma.chatMessage.create({
       data: {
         wa_message_id: messageId,
         lead_id: lead.id,
@@ -591,20 +747,41 @@ export async function handleIncomingMessage(sock, msg, adminId) {
         pesan: text,
         waktu_pesan
       }
-    }),
-    prisma.lead.update({
-      where: { id: lead.id },
-      data: { 
-        updatedAt: new Date(),
-        last_activity_at: new Date()
-      }
-    })
-  ]);
+    });
 
-  console.log(`[${pengirim}] saved for Lead ID ${lead.id}: "${text.slice(0, 30)}..."`);
+    // 2. Update Lead's timestamps
+    await prisma.lead.update({
+      where: {
+        id: lead.id,
+        ...(isHistorySync ? {
+          OR: [
+            { last_activity_at: null },
+            { last_activity_at: { lt: waktu_pesan } }
+          ]
+        } : {})
+      },
+      data: { 
+        updatedAt: isHistorySync ? waktu_pesan : new Date(),
+        last_activity_at: isHistorySync ? waktu_pesan : new Date()
+      }
+    }).catch(() => {
+      // Silently ignore if the WHERE condition was not met (i.e., an older message
+      // tried to overwrite a newer last_activity_at — this is correct behavior)
+    });
+
+    console.log(`[${pengirim}] saved for Lead ID ${lead.id}: "${text.slice(0, 30)}..."`);
+  } catch (err) {
+    if (err.code === 'P2002' && (err.meta?.target?.includes('wa_message_id') || err.meta?.modelName === 'ChatMessage')) {
+      console.log(`[WhatsApp Event] Message ${messageId} already exists (handled concurrently). Skipping insert.`);
+      return;
+    }
+    throw err;
+  }
   
-  // Enqueue AI kualifikasi job with a 15-minute debounce
-  await enqueueAIJob(lead.id);
+  // Enqueue AI kualifikasi job with a 15-minute debounce (only if not history sync)
+  if (!isHistorySync) {
+    await enqueueAIJob(lead.id);
+  }
 }
 
 /**
@@ -775,4 +952,44 @@ export async function generateKodeLead(adminId) {
   const indexStr = nextIndex.toString().padStart(3, '0');
   return `${prefix}${adminInitial}${indexStr}`;
 }
+
+/**
+ * Logout and clear WhatsApp session for an Admin.
+ * 
+ * @param {number} adminId 
+ */
+export async function logoutAdminSession(adminId) {
+  const sock = activeSockets.get(adminId);
+  if (sock) {
+    try {
+      sock.isManualShutdown = true;
+      await sock.logout();
+    } catch (err) {
+      console.error(`Error logging out Baileys socket for Admin ${adminId}:`, err.message);
+      try {
+        sock.end();
+      } catch (_) {}
+    }
+    activeSockets.delete(adminId);
+  }
+  activeQrs.delete(adminId);
+
+  // Clean up database session records
+  try {
+    if (prisma.whatsAppSession) {
+      await prisma.whatsAppSession.deleteMany({
+        where: { admin_id: adminId }
+      });
+    } else {
+      await prisma.$executeRawUnsafe(
+        'DELETE FROM WhatsAppSession WHERE admin_id = ?',
+        adminId
+      );
+    }
+    console.log(`[Logout] Successfully deleted database session records for Admin ID: ${adminId}`);
+  } catch (err) {
+    console.error(`[Logout] Failed to delete database session records:`, err.message);
+  }
+}
+
 
