@@ -1,164 +1,101 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Search, Filter, RefreshCw, X, MessageSquare, Compass, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 
 export const Leads: React.FC = () => {
-  const { 
-    dashboardData, 
-    fetchDashboard, 
-    searchKeyword,
-    setSearchKeyword,
-    filterStatus,
-    setFilterStatus,
-    filterReferral,
-    setFilterReferral,
-    filterAdmin,
-    setFilterAdmin,
-    resetFilters,
-    setSelectedLeadId
+  const {
+    dashboardData,
+    leads,
+    leadsMeta,
+    leadsLoading,
+    leadsParams,
+    fetchLeads,
+    setLeadsParams,
+    resetLeadsParams,
+    setSelectedLeadId,
   } = useStore();
 
-  // Local state for debounced input
-  const [searchInput, setSearchInput] = useState(searchKeyword);
-  
-  // Sort State
-  const [sortBy, setSortBy] = useState<'kode_lead' | 'customerNama' | 'updatedAt' | 'estimasi_nilai_order'>('updatedAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  // Local debounced search input
+  const [searchInput, setSearchInput] = useState(leadsParams.search);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Unified Date Filter States (Presets + Custom)
-  const [dateFilterType, setDateFilterType] = useState<string>('ALL');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-
-  // Mobile Filters Drawer Expand state
+  // Mobile filter drawer
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(false);
 
-  // Custom Note Detail Modal state
+  // Date filter local state
+  const [dateFilterType, setDateFilterType] = useState<string>('ALL');
+
+  // Note modal
   const [activeNoteModal, setActiveNoteModal] = useState<string | null>(null);
 
-  const activeFiltersCount = 
-    (filterStatus !== 'ALL' ? 1 : 0) + 
-    (filterReferral !== 'ALL' ? 1 : 0) + 
-    (filterAdmin !== 'ALL' ? 1 : 0) + 
-    (dateFilterType !== 'ALL' ? 1 : 0);
-
-  // Sync state if global search keyword gets cleared externally
+  // Initial load
   useEffect(() => {
-    setSearchInput(searchKeyword);
-  }, [searchKeyword]);
-
-  // Debounced search logic (300ms)
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      setSearchKeyword(searchInput);
-      setCurrentPage(1); // Reset page on search
-    }, 300);
-    return () => clearTimeout(delay);
-  }, [searchInput]);
-
-  useEffect(() => {
-    fetchDashboard();
+    fetchLeads();
   }, []);
 
-  if (!dashboardData) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-border border-t-primary" />
-      </div>
-    );
-  }
+  // Debounced search → trigger server fetch on change
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchLeads({ search: searchInput, page: 1 });
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchInput]);
 
-  const { leads, admins } = dashboardData;
+  const handleFilterChange = useCallback((partial: Record<string, any>) => {
+    fetchLeads({ ...partial, page: 1 });
+  }, []);
 
-  // 1. Filtering
-  const filteredLeads = leads.filter(lead => {
-    const nameMatch = (lead.customerNama || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    const hpMatch = (lead.customerHp || '').includes(searchKeyword);
-    const destMatch = (lead.minat_destinasi || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    const codeMatch = lead.kode_lead.toLowerCase().includes(searchKeyword.toLowerCase());
-    const matchesSearch = nameMatch || hpMatch || destMatch || codeMatch;
+  const handleSort = (field: string) => {
+    const isSame = leadsParams.sort_by === field;
+    const newOrder = isSame && leadsParams.sort_order === 'desc' ? 'asc' : 'desc';
+    fetchLeads({ sort_by: field, sort_order: newOrder, page: 1 });
+  };
 
-    const matchesStatus = filterStatus === 'ALL' || lead.status_lead === filterStatus;
-    const matchesReferral = filterReferral === 'ALL' || lead.referral_source === filterReferral;
-    const matchesAdmin = filterAdmin === 'ALL' || lead.adminNama === filterAdmin;
+  const handlePageChange = (page: number) => {
+    fetchLeads({ page });
+  };
 
-    // Unified Date / Timeframe Filter Logic (based on last update)
-    let matchesDate = true;
-    if (dateFilterType !== 'ALL') {
-      const leadDateStr = lead.updatedAt.split('T')[0];
-      
-      if (dateFilterType === 'CUSTOM') {
-        if (startDate && leadDateStr < startDate) {
-          matchesDate = false;
-        }
-        if (endDate && leadDateStr > endDate) {
-          matchesDate = false;
-        }
-      } else {
-        const leadDate = new Date(lead.updatedAt);
-        const today = new Date();
-        
-        const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const leadZeroDate = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
-        
-        const diffTime = todayDate.getTime() - leadZeroDate.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (dateFilterType === 'TODAY') {
-          matchesDate = diffDays === 0;
-        } else if (dateFilterType === 'YESTERDAY') {
-          matchesDate = diffDays === 1;
-        } else if (dateFilterType === 'WEEK') {
-          matchesDate = diffDays <= 7 && diffDays >= 0;
-        } else if (dateFilterType === 'MONTH') {
-          matchesDate = diffDays <= 30 && diffDays >= 0;
-        }
-      }
+  const handleLimitChange = (limit: number) => {
+    fetchLeads({ limit, page: 1 });
+  };
+
+  const handleReset = () => {
+    setSearchInput('');
+    setDateFilterType('ALL');
+    resetLeadsParams();
+    fetchLeads({ page: 1, limit: leadsParams.limit, search: '', status: '', admin_id: '', referral: '', date_from: '', date_to: '', sort_by: 'updatedAt', sort_order: 'desc' });
+  };
+
+  const hasActiveFilters =
+    leadsParams.search ||
+    leadsParams.status ||
+    leadsParams.admin_id ||
+    leadsParams.referral ||
+    leadsParams.date_from ||
+    leadsParams.date_to;
+
+  const activeFiltersCount = [leadsParams.status, leadsParams.admin_id, leadsParams.referral, leadsParams.date_from || leadsParams.date_to]
+    .filter(Boolean).length;
+
+  const admins = dashboardData?.admins || [];
+
+  const { total = 0, page = 1, limit = 20, totalPages = 1 } = leadsMeta || {};
+  const startIndex = (page - 1) * limit;
+
+  // Pagination page numbers (max 7 visible)
+  const getPageNumbers = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [];
+    pages.push(1);
+    if (page > 3) pages.push('...');
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+      pages.push(i);
     }
-
-    return matchesSearch && matchesStatus && matchesReferral && matchesAdmin && matchesDate;
-  });
-
-  // 2. Sorting
-  const sortedLeads = [...filteredLeads].sort((a, b) => {
-    let valA: any = a[sortBy];
-    let valB: any = b[sortBy];
-
-    if (sortBy === 'customerNama') {
-      valA = a.customerNama || '';
-      valB = b.customerNama || '';
-    }
-
-    if (typeof valA === 'string') {
-      return sortOrder === 'asc' 
-        ? valA.localeCompare(valB) 
-        : valB.localeCompare(valA);
-    } else {
-      // Numbers or Dates
-      const numA = valA ? new Date(valA).getTime() || valA : 0;
-      const numB = valB ? new Date(valB).getTime() || valB : 0;
-      return sortOrder === 'asc' ? numA - numB : numB - numA;
-    }
-  });
-
-  // 3. Pagination
-  const totalItems = sortedLeads.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedLeads = sortedLeads.slice(startIndex, startIndex + itemsPerPage);
-
-  const toggleSort = (field: typeof sortBy) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
+    if (page < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
   };
 
   const getStatusBadge = (status: string) => {
@@ -173,9 +110,22 @@ export const Leads: React.FC = () => {
     }
   };
 
+  const SortButton = ({ field, label }: { field: string; label: string }) => (
+    <button
+      onClick={() => handleSort(field)}
+      className="flex items-center gap-1.5 hover:text-foreground"
+    >
+      {label}
+      <ArrowUpDown
+        size={12}
+        className={leadsParams.sort_by === field ? 'text-primary' : ''}
+      />
+    </button>
+  );
+
   return (
     <div className="flex flex-col gap-6">
-      
+
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
@@ -187,17 +137,18 @@ export const Leads: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => fetchDashboard()}
-          className="self-start md:self-auto flex items-center gap-2 px-4 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all"
+          onClick={() => fetchLeads()}
+          disabled={leadsLoading}
+          className="self-start md:self-auto flex items-center gap-2 px-4 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all disabled:opacity-60"
         >
-          <RefreshCw size={13} />
+          {leadsLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           Reload Sheet
         </button>
       </div>
 
       {/* Advanced Filters */}
       <div className="p-4 md:p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
-        {/* Desktop Title & Icon */}
+        {/* Desktop Title */}
         <div className="hidden md:flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-wider">
           <Filter size={14} />
           Sheet Filters
@@ -234,11 +185,11 @@ export const Leads: React.FC = () => {
           </button>
         </div>
 
-        {/* Grid Container (Mobile: Collapsible, Desktop: Always block) */}
-        <div className={`${isMobileFiltersExpanded ? 'block' : 'hidden'} md:block animate-fade-in`}>
+        {/* Filter Grid */}
+        <div className={`${isMobileFiltersExpanded ? 'block' : 'hidden'} md:block`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            
-            {/* Keyword Search (Desktop only, hidden on mobile) */}
+
+            {/* Keyword Search (Desktop) */}
             <div className="hidden md:flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Search Query</span>
               <div className="relative">
@@ -257,11 +208,11 @@ export const Leads: React.FC = () => {
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Lead Status</span>
               <select
-                value={filterStatus}
-                onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                value={leadsParams.status}
+                onChange={(e) => handleFilterChange({ status: e.target.value })}
                 className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
               >
-                <option value="ALL">All Statuses</option>
+                <option value="">All Statuses</option>
                 <option value="NEW">NEW</option>
                 <option value="PROSPECT">PROSPECT</option>
                 <option value="QUALIFIED">QUALIFIED</option>
@@ -275,11 +226,11 @@ export const Leads: React.FC = () => {
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Referral Source</span>
               <select
-                value={filterReferral}
-                onChange={(e) => { setFilterReferral(e.target.value); setCurrentPage(1); }}
+                value={leadsParams.referral}
+                onChange={(e) => handleFilterChange({ referral: e.target.value })}
                 className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
               >
-                <option value="ALL">All Referrals</option>
+                <option value="">All Referrals</option>
                 <option value="instagram">Instagram</option>
                 <option value="tiktok">TikTok</option>
                 <option value="website">Website</option>
@@ -290,17 +241,17 @@ export const Leads: React.FC = () => {
               </select>
             </div>
 
-            {/* CS Agent Assignee */}
+            {/* Admin Filter */}
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assigned Admin</span>
               <select
-                value={filterAdmin}
-                onChange={(e) => { setFilterAdmin(e.target.value); setCurrentPage(1); }}
+                value={leadsParams.admin_id}
+                onChange={(e) => handleFilterChange({ admin_id: e.target.value })}
                 className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
               >
-                <option value="ALL">All Admin CS</option>
+                <option value="">All Admin CS</option>
                 {admins.map((adm) => (
-                  <option key={adm.id} value={adm.nama_admin}>{adm.nama_admin}</option>
+                  <option key={adm.id} value={String(adm.id)}>{adm.nama_admin}</option>
                 ))}
               </select>
             </div>
@@ -309,14 +260,12 @@ export const Leads: React.FC = () => {
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Filter Waktu</span>
               <DateRangePicker
-                startDate={startDate}
-                endDate={endDate}
+                startDate={leadsParams.date_from}
+                endDate={leadsParams.date_to}
                 presetType={dateFilterType}
                 onChange={(start, end, preset) => {
-                  setStartDate(start);
-                  setEndDate(end);
                   setDateFilterType(preset);
-                  setCurrentPage(1);
+                  handleFilterChange({ date_from: start, date_to: end });
                 }}
               />
             </div>
@@ -324,14 +273,14 @@ export const Leads: React.FC = () => {
           </div>
         </div>
 
-        {/* Filters Summary & Reset */}
-        {(searchKeyword || filterStatus !== 'ALL' || filterReferral !== 'ALL' || filterAdmin !== 'ALL' || dateFilterType !== 'ALL' || startDate || endDate) && (
+        {/* Active filters summary & reset */}
+        {hasActiveFilters && (
           <div className="flex items-center justify-between border-t border-border/60 pt-3">
             <span className="text-xs text-muted-foreground font-semibold">
-              Filtered down to <strong className="text-foreground">{totalItems}</strong> matching leads
+              Found <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> matching leads
             </span>
             <button
-              onClick={() => { resetFilters(); setSearchInput(''); setDateFilterType('ALL'); setStartDate(''); setEndDate(''); setCurrentPage(1); }}
+              onClick={handleReset}
               className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-bold border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-lg transition-all"
             >
               <X size={12} /> Clear Filters
@@ -340,46 +289,47 @@ export const Leads: React.FC = () => {
         )}
       </div>
 
-      {/* Leads Main Table Sheet */}
+      {/* Leads Table */}
       <div className="flex flex-col gap-4">
-        {/* Desktop View Table */}
-        <div className="hidden md:block rounded-2xl bg-card border border-border/80 shadow-sm overflow-hidden flex flex-col">
+
+        {/* Desktop Table */}
+        <div className="hidden md:block rounded-2xl bg-card border border-border/80 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="bg-muted/40 border-b border-border/60">
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    <button onClick={() => toggleSort('kode_lead')} className="flex items-center gap-1.5 hover:text-foreground">
-                      Lead Code <ArrowUpDown size={12} />
-                    </button>
+                    <SortButton field="kode_lead" label="Lead Code" />
                   </th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    <button onClick={() => toggleSort('customerNama')} className="flex items-center gap-1.5 hover:text-foreground">
-                      Customer contact <ArrowUpDown size={12} />
-                    </button>
+                    Customer Contact
                   </th>
-                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-sans">Status</th>
+                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Destinations</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Pax</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Trip Date</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Note</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    <button onClick={() => toggleSort('estimasi_nilai_order')} className="flex items-center gap-1.5 hover:text-foreground">
-                      Order Value <ArrowUpDown size={12} />
-                    </button>
+                    <SortButton field="estimasi_nilai_order" label="Order Value" />
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/55">
-                {paginatedLeads.length === 0 ? (
+                {leadsLoading ? (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-12 text-center">
+                      <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
+                    </td>
+                  </tr>
+                ) : leads.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No leads found matching current filtering queries.
                     </td>
                   </tr>
                 ) : (
-                  paginatedLeads.map((lead) => (
-                    <tr 
+                  leads.map((lead) => (
+                    <tr
                       key={lead.id}
                       onClick={() => setSelectedLeadId(lead.id)}
                       className="hover:bg-muted/30 cursor-pointer transition-colors"
@@ -387,9 +337,7 @@ export const Leads: React.FC = () => {
                       <td className="px-5 py-4 font-bold text-sm text-primary font-mono">{lead.kode_lead}</td>
                       <td className="px-5 py-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-sm text-foreground">
-                            {lead.customerNama || 'Pelanggan WA'}
-                          </span>
+                          <span className="font-bold text-sm text-foreground">{lead.customerNama || 'Pelanggan WA'}</span>
                           <span className="text-xs text-muted-foreground font-mono">{lead.customerHp}</span>
                         </div>
                       </td>
@@ -411,7 +359,7 @@ export const Leads: React.FC = () => {
                       <td className="px-5 py-4 text-xs font-semibold text-muted-foreground font-mono">
                         {lead.estimasi_waktu ? lead.estimasi_waktu.split('T')[0] : '-'}
                       </td>
-                      <td 
+                      <td
                         className="px-5 py-4 text-xs font-semibold text-muted-foreground"
                         onClick={(e) => {
                           if (lead.catatan_khusus) {
@@ -440,25 +388,24 @@ export const Leads: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Table Pagination Footer (Desktop) */}
+
+          {/* Desktop Pagination Footer */}
           <div className="flex items-center justify-between border-t border-border/60 py-4 px-6 bg-card">
             <div className="flex items-center gap-4">
               <span className="text-xs text-muted-foreground font-semibold">
-                Showing <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong> to <strong className="text-foreground">{Math.min(startIndex + itemsPerPage, totalItems)}</strong> of <strong className="text-foreground">{totalItems}</strong> entries
+                Showing <strong className="text-foreground">{total > 0 ? startIndex + 1 : 0}</strong> to{' '}
+                <strong className="text-foreground">{Math.min(startIndex + limit, total)}</strong> of{' '}
+                <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> entries
               </span>
               <div className="flex items-center gap-2 border-l border-border pl-4">
                 <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Show:</span>
                 <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
+                  value={limit}
+                  onChange={(e) => handleLimitChange(Number(e.target.value))}
                   className="px-2 py-1 text-xs border border-border bg-card rounded-lg focus:outline-none focus:border-primary text-foreground font-bold cursor-pointer"
                 >
-                  <option value={5}>5</option>
                   <option value={10}>10</option>
-                  <option value={25}>25</option>
+                  <option value={20}>20</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
@@ -467,32 +414,32 @@ export const Leads: React.FC = () => {
             {totalPages > 1 && (
               <div className="flex items-center gap-1">
                 <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={page === 1}
+                  onClick={() => handlePageChange(page - 1)}
                   className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
+                {getPageNumbers().map((p, i) =>
+                  p === '...' ? (
+                    <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground text-xs">…</span>
+                  ) : (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={p}
+                      onClick={() => handlePageChange(p as number)}
                       className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
-                        isCurrent 
+                        page === p
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
-                      {page}
+                      {p}
                     </button>
-                  );
-                })}
+                  )
+                )}
                 <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={page === totalPages}
+                  onClick={() => handlePageChange(page + 1)}
                   className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
                 >
                   <ChevronRight size={16} />
@@ -502,50 +449,43 @@ export const Leads: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile-Friendly Spaced Floating Cards List */}
+        {/* Mobile Cards */}
         <div className="md:hidden flex flex-col gap-3">
-          {paginatedLeads.length === 0 ? (
+          {leadsLoading ? (
+            <div className="p-8 text-center bg-card border border-border/80 rounded-2xl">
+              <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
+            </div>
+          ) : leads.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm">
               No leads found matching current filtering queries.
             </div>
           ) : (
-            paginatedLeads.map(lead => (
-              <div 
-                key={lead.id} 
+            leads.map(lead => (
+              <div
+                key={lead.id}
                 onClick={() => setSelectedLeadId(lead.id)}
                 className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-2 hover:bg-muted/40 cursor-pointer text-foreground transition-all"
               >
-                {/* Header Row: Code + Status Badge */}
                 <div className="flex justify-between items-center">
                   <span className="font-mono text-sm font-bold text-primary">{lead.kode_lead}</span>
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                     {lead.status_lead}
                   </span>
                 </div>
-
-                {/* Body Content */}
                 <div className="flex flex-col gap-2.5 mt-1 text-xs">
-                  {/* Client info */}
                   <div className="flex items-center justify-between">
                     <span className="text-foreground font-bold text-sm">{lead.customerNama || 'Pelanggan WA'}</span>
                     <span className="text-muted-foreground font-mono font-normal">{lead.customerHp}</span>
                   </div>
-
-                  {/* Destinations block */}
                   {lead.minat_destinasi && (
                     <div className="flex flex-col gap-1 mt-0.5 border-t border-border/40 pt-2">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Destinations Interest</span>
                       <span className="text-foreground text-sm font-semibold leading-relaxed">{lead.minat_destinasi}</span>
                     </div>
                   )}
-
-                  {/* Notes block */}
                   {lead.catatan_khusus && (
-                    <div 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveNoteModal(lead.catatan_khusus);
-                      }}
+                    <div
+                      onClick={(e) => { e.stopPropagation(); setActiveNoteModal(lead.catatan_khusus!); }}
                       className="flex flex-col gap-1 mt-0.5 border-t border-border/40 pt-2 cursor-pointer hover:bg-muted/40 p-1.5 rounded-xl transition-all"
                     >
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -556,8 +496,6 @@ export const Leads: React.FC = () => {
                       </span>
                     </div>
                   )}
-
-                  {/* Footer Row: Admin PIC & Order Value */}
                   <div className="flex items-center justify-between border-t border-border/40 pt-2 mt-0.5">
                     <span className="text-[11px] text-muted-foreground font-semibold">
                       Admin: <strong className="text-foreground">{lead.adminNama || '-'}</strong>
@@ -571,61 +509,44 @@ export const Leads: React.FC = () => {
             ))
           )}
 
-          {/* Table Pagination Footer (Mobile) */}
-          <div className="flex flex-col items-center gap-3 justify-between py-4 px-4 bg-card border border-border/80 shadow-sm rounded-2xl mt-1 text-center">
+          {/* Mobile Pagination */}
+          <div className="flex flex-col items-center gap-3 py-4 px-4 bg-card border border-border/80 shadow-sm rounded-2xl mt-1 text-center">
             <div className="flex items-center justify-between w-full">
               <span className="text-xs text-muted-foreground font-semibold">
-                Showing <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong>-{Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems}
+                {total > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + limit, total)} of {total.toLocaleString('id-ID')}
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-muted-foreground font-bold">Show:</span>
                 <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
+                  value={limit}
+                  onChange={(e) => handleLimitChange(Number(e.target.value))}
                   className="px-1.5 py-0.5 text-xs border border-border bg-card rounded-md focus:outline-none focus:border-primary text-foreground font-bold cursor-pointer font-sans"
                 >
-                  <option value={5}>5</option>
                   <option value={10}>10</option>
-                  <option value={25}>25</option>
+                  <option value={20}>20</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
               </div>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1 mt-1">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
-                >
+              <div className="flex items-center gap-1 mt-1 flex-wrap justify-center">
+                <button disabled={page === 1} onClick={() => handlePageChange(page - 1)}
+                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all">
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
-                        isCurrent 
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {page}
+                {getPageNumbers().map((p, i) =>
+                  p === '...' ? (
+                    <span key={`m-ellipsis-${i}`} className="px-1 text-muted-foreground text-xs">…</span>
+                  ) : (
+                    <button key={p} onClick={() => handlePageChange(p as number)}
+                      className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${page === p ? 'bg-primary text-primary-foreground shadow-sm' : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                      {p}
                     </button>
-                  );
-                })}
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
-                >
+                  )
+                )}
+                <button disabled={page === totalPages} onClick={() => handlePageChange(page + 1)}
+                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -634,21 +555,16 @@ export const Leads: React.FC = () => {
         </div>
       </div>
 
-      {/* Custom Note View Modal */}
+      {/* Note Modal */}
       {activeNoteModal && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up text-foreground">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl flex flex-col gap-4 text-foreground">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2 text-primary">
                 <MessageSquare size={16} />
-                <span className="font-heading font-black text-sm uppercase tracking-wider">
-                  Catatan Prospek (Note)
-                </span>
+                <span className="font-heading font-black text-sm uppercase tracking-wider">Catatan Prospek (Note)</span>
               </div>
-              <button
-                onClick={() => setActiveNoteModal(null)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-              >
+              <button onClick={() => setActiveNoteModal(null)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
                 <X size={16} />
               </button>
             </div>
@@ -656,10 +572,7 @@ export const Leads: React.FC = () => {
               {activeNoteModal}
             </div>
             <div className="flex justify-end mt-1">
-              <button
-                onClick={() => setActiveNoteModal(null)}
-                className="px-5 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-all cursor-pointer"
-              >
+              <button onClick={() => setActiveNoteModal(null)} className="px-5 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-all cursor-pointer">
                 Tutup
               </button>
             </div>

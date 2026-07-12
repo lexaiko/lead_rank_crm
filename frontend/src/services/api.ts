@@ -1,4 +1,4 @@
-import { DashboardData, Admin, ChatMessage, AIJob, CustomerStats, Lead } from '../types';
+import { DashboardData, Admin, ChatMessage, AIJob, CustomerStats, Lead, LeadListItem, LeadsMeta, LeadsParams } from '../types';
 
 const API_BASE = '/api';
 
@@ -23,7 +23,22 @@ export const api = {
   },
 
   async toggleAdmin(id: number): Promise<{ success: boolean; data: Admin }> {
-    const res = await fetch(`${API_BASE}/admins/${id}/toggle`, {
+    // Deprecated: use activateAdmin or deactivateAdmin explicitly
+    const res = await fetch(`${API_BASE}/admins/${id}/activate`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  async activateAdmin(id: number): Promise<{ success: boolean; data: Admin }> {
+    const res = await fetch(`${API_BASE}/admins/${id}/activate`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  async deactivateAdmin(id: number): Promise<{ success: boolean; data: Admin }> {
+    const res = await fetch(`${API_BASE}/admins/${id}/deactivate`, {
       method: 'POST',
     });
     return res.json();
@@ -46,7 +61,7 @@ export const api = {
   },
 
   async getAdminStatus(id: number): Promise<{ success: boolean; connected: boolean }> {
-    const res = await fetch(`${API_BASE}/admins/${id}/status-json`);
+    const res = await fetch(`${API_BASE}/admins/${id}/status`);
     return res.json();
   },
 
@@ -54,6 +69,22 @@ export const api = {
     const res = await fetch(`${API_BASE}/admins/${id}/logout`, {
       method: 'POST',
     });
+    return res.json();
+  },
+
+  async getLeads(params: Partial<LeadsParams> = {}): Promise<{ success: boolean; data: LeadListItem[]; meta: LeadsMeta }> {
+    const query = new URLSearchParams();
+    if (params.page)      query.set('page',       String(params.page));
+    if (params.limit)     query.set('limit',      String(params.limit));
+    if (params.search)    query.set('search',     params.search);
+    if (params.status)    query.set('status',     params.status);
+    if (params.admin_id)  query.set('admin_id',   params.admin_id);
+    if (params.referral)  query.set('referral',   params.referral);
+    if (params.date_from) query.set('date_from',  params.date_from);
+    if (params.date_to)   query.set('date_to',    params.date_to);
+    if (params.sort_by)   query.set('sort_by',    params.sort_by);
+    if (params.sort_order)query.set('sort_order', params.sort_order);
+    const res = await fetch(`${API_BASE}/leads?${query.toString()}`);
     return res.json();
   },
 
@@ -82,7 +113,7 @@ export const api = {
   },
 
   async getIgnoredCustomers(): Promise<{ success: boolean; data: CustomerStats[] }> {
-    const res = await fetch(`${API_BASE}/customers/ignored`);
+    const res = await fetch(`${API_BASE}/customers?ignored=true`);
     return res.json();
   },
 
@@ -96,14 +127,14 @@ export const api = {
   },
 
   async runSweeper(): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/cron/ghosting-sweeper`, {
+    const res = await fetch(`${API_BASE}/jobs/ghosting-sweep`, {
       method: 'POST',
     });
     return res.json();
   },
 
   async runAIWorker(): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/cron/gemini-extractor`, {
+    const res = await fetch(`${API_BASE}/jobs/ai-extract`, {
       method: 'POST',
     });
     return res.json();

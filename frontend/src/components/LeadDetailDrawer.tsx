@@ -8,7 +8,8 @@ export const LeadDetailDrawer: React.FC = () => {
   const { 
     selectedLeadId, 
     setSelectedLeadId, 
-    dashboardData, 
+    dashboardData,
+    leads,
     activeChatMessages, 
     fetchMessages, 
     updateLead,
@@ -41,8 +42,8 @@ export const LeadDetailDrawer: React.FC = () => {
   const canWriteLeads = user?.permissions?.leads === 'write';
   const canIgnore = user?.permissions?.leads === 'write' || user?.permissions?.customers === 'write';
 
-  // Find selected lead from dashboard data
-  const leadData = dashboardData?.leads.find(l => l.id === selectedLeadId);
+  // Find selected lead from paginated leads list
+  const leadData = leads.find(l => l.id === selectedLeadId);
 
   // Fetch messages when drawer opens or lead changes
   useEffect(() => {

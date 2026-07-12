@@ -1,13 +1,5 @@
 import React from 'react';
-import { 
-  Database, 
-  Sparkles, 
-  TrendingUp, 
-  CheckCircle2, 
-  XCircle, 
-  Flame, 
-  Hourglass 
-} from 'lucide-react';
+import { Database, Sparkles, TrendingUp, CheckCircle2, XCircle, Flame, Hourglass } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export const DashboardWidget: React.FC = () => {
@@ -15,33 +7,16 @@ export const DashboardWidget: React.FC = () => {
 
   if (!dashboardData) return null;
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
-  
-  // Computations
-  const totalLeads = leads.length;
-  
-  // Lead Baru Hari Ini (created today)
-  const today = new Date().toDateString();
-  const leadsToday = leads.filter(l => new Date(l.createdAt).toDateString() === today).length;
-  
-  const hotLeads = leads.filter(l => l.status_lead === 'HOT').length;
-  const closedWon = leads.filter(l => l.status_lead === 'CLOSED WON').length;
-  const closedLost = leads.filter(l => l.status_lead === 'CLOSED LOST').length;
-  
-  const estimatedRevenue = leads
-    .filter(l => l.status_lead === 'CLOSED WON')
-    .reduce((sum, l) => sum + (l.estimasi_nilai_order || 0), 0);
+  const { stats } = dashboardData;
+  const { thisMonth } = stats;
+  const byStatus = thisMonth.byStatus;
 
   const waitingJobs = aiQueue.filter(j => j.status === 'WAITING' || j.status === 'PROCESSING').length;
 
-  const stats = [
+  const items = [
     {
       label: 'Closed Revenue (Bulan Ini)',
-      value: `Rp ${estimatedRevenue.toLocaleString('id-ID')}`,
+      value: `Rp ${thisMonth.revenue.toLocaleString('id-ID')}`,
       icon: TrendingUp,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
       desc: 'Completed sales value this month',
@@ -49,35 +24,35 @@ export const DashboardWidget: React.FC = () => {
     },
     {
       label: 'Total Leads (Bulan Ini)',
-      value: totalLeads,
+      value: thisMonth.total,
       icon: Database,
       color: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/5',
       desc: 'All inquiries tracked this month'
     },
     {
       label: 'New Leads Today',
-      value: leadsToday,
+      value: thisMonth.today,
       icon: Sparkles,
       color: 'text-blue-500 bg-blue-500/10 dark:bg-blue-500/5',
       desc: 'Incoming chats today'
     },
     {
       label: 'HOT Leads (Bulan Ini)',
-      value: hotLeads,
+      value: byStatus['HOT'] || 0,
       icon: Flame,
       color: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/5',
       desc: 'Nearing transaction this month'
     },
     {
       label: 'Closed Deals (Bulan Ini)',
-      value: closedWon,
+      value: byStatus['CLOSED WON'] || 0,
       icon: CheckCircle2,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
       desc: 'Successful trips this month'
     },
     {
       label: 'Lost Deals (Bulan Ini)',
-      value: closedLost,
+      value: byStatus['CLOSED LOST'] || 0,
       icon: XCircle,
       color: 'text-rose-500 bg-rose-500/10 dark:bg-rose-500/5',
       desc: 'Inactive/Cancelled this month'
@@ -93,11 +68,11 @@ export const DashboardWidget: React.FC = () => {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-      {stats.map((stat, i) => {
+      {items.map((stat, i) => {
         const Icon = stat.icon;
         return (
-          <div 
-            key={i} 
+          <div
+            key={i}
             className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-3 ${
               stat.fullWidth ? 'col-span-full' : ''
             }`}

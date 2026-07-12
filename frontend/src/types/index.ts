@@ -91,14 +91,75 @@ export interface CustomerStats {
   leads: Lead[];
 }
 
-export interface DashboardData {
-  admins: Admin[];
+/** Flattened lead row returned by GET /leads (paginated) */
+export interface LeadListItem {
+  id: number;
+  kode_lead: string;
+  customer_id: number;
+  admin_id: number;
+  customerHp: string;
+  customerNama: string | null;
+  adminNama: string;
+  status_lead: Lead['status_lead'];
+  minat_destinasi: string | null;
+  jumlah_peserta: number | null;
+  estimasi_waktu: string | null;
+  catatan_khusus: string | null;
+  catatan_sistem: string | null;
+  referral_source: string;
+  estimasi_nilai_order: number | null;
+  messagesCount: number;
+  ai_summary?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadsMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface LeadsParams {
+  page: number;
+  limit: number;
+  search: string;
+  status: string;
+  admin_id: string;
+  referral: string;
+  date_from: string;
+  date_to: string;
+  sort_by: string;
+  sort_order: 'asc' | 'desc';
+}
+
+export interface DashboardStats {
   totalLeads: number;
-  leads: Array<Lead & {
-    customerHp: string;
+  thisMonth: {
+    total: number;
+    today: number;
+    byStatus: Record<string, number>;
+    revenue: number;
+    byReferral: Record<string, number>;
+    byDestination: Record<string, number>;
+    byDay: Array<{ date: string; count: number }>;
+  };
+}
+
+export interface DashboardData {
+  admins: Array<Admin & {
+    thisMonth: { assigned: number; won: number; revenue: number };
+  }>;
+  stats: DashboardStats;
+  recentLeads: Array<{
+    id: number;
+    kode_lead: string;
     customerNama: string | null;
     adminNama: string;
-    messagesCount: number;
+    status_lead: Lead['status_lead'];
+    minat_destinasi: string | null;
+    updatedAt: string;
   }>;
   messages: {
     total: number;

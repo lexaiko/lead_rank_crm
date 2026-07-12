@@ -21,59 +21,48 @@ export const Reports: React.FC = () => {
     );
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const leads = dashboardData.leads.filter(l => new Date(l.createdAt) >= startOfMonth);
-  const admins = dashboardData.admins;
+  const { stats, admins } = dashboardData;
+  const { thisMonth } = stats;
+  const byStatus = thisMonth.byStatus;
 
   // 1. Funnel Calculations
   const counts = {
-    NEW: leads.filter(l => l.status_lead === 'NEW').length,
-    PROSPECT: leads.filter(l => l.status_lead === 'PROSPECT').length,
-    QUALIFIED: leads.filter(l => l.status_lead === 'QUALIFIED').length,
-    HOT: leads.filter(l => l.status_lead === 'HOT').length,
-    WON: leads.filter(l => l.status_lead === 'CLOSED WON').length,
+    NEW: byStatus['NEW'] || 0,
+    PROSPECT: byStatus['PROSPECT'] || 0,
+    QUALIFIED: byStatus['QUALIFIED'] || 0,
+    HOT: byStatus['HOT'] || 0,
+    WON: byStatus['CLOSED WON'] || 0,
   };
 
+  const totalLeads = thisMonth.total;
   const totalWon = counts.WON;
-  const totalLeads = leads.length;
   const conversionRate = totalLeads > 0 ? ((totalWon / totalLeads) * 100).toFixed(1) : '0.0';
-
-  // 2. Revenue Calculations
-  const revenueTotal = leads
-    .filter(l => l.status_lead === 'CLOSED WON')
-    .reduce((sum, l) => sum + (l.estimasi_nilai_order || 0), 0);
+  const revenueTotal = thisMonth.revenue;
 
   const formatResponseTime = (seconds: number | null | undefined) => {
     if (seconds === null || seconds === undefined) return '-';
     if (seconds < 60) return `${seconds}s`;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    if (mins < 60) {
-      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-    }
+    if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
     return remMins > 0 ? `${remMins}m` : `${hrs}h`;
   };
 
-  // 3. Admin Performance calculations
-  const adminStats = admins.map(adm => {
-    const assigned = leads.filter(l => l.adminNama === adm.nama_admin);
-    const won = assigned.filter(l => l.status_lead === 'CLOSED WON');
-    const sales = won.reduce((sum, l) => sum + (l.estimasi_nilai_order || 0), 0);
-    const rate = assigned.length > 0 ? ((won.length / assigned.length) * 100).toFixed(1) : '0.0';
-    return {
+  // 2. Admin Performance — sourced from server-aggregated thisMonth data
+  const adminStats = admins
+    .map(adm => ({
       name: adm.nama_admin,
-      assigned: assigned.length,
-      won: won.length,
-      rate,
-      sales,
+      assigned: adm.thisMonth.assigned,
+      won: adm.thisMonth.won,
+      sales: adm.thisMonth.revenue,
+      rate: adm.thisMonth.assigned > 0
+        ? ((adm.thisMonth.won / adm.thisMonth.assigned) * 100).toFixed(1)
+        : '0.0',
       avgReplyTime: adm.avgReplyTime
-    };
-  }).sort((a, b) => b.sales - a.sales);
+    }))
+    .sort((a, b) => b.sales - a.sales);
 
   const funnelStages = [
     { label: 'New lead incoming', count: counts.NEW, color: 'bg-slate-400' },

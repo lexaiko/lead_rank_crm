@@ -2,11 +2,18 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../config/prisma.js';
 
 /**
- * Middleware to authenticate requests via JWT stored in httpOnly cookie
+ * Middleware to authenticate requests via:
+ * 1. JWT stored in httpOnly cookie (web browser)
+ * 2. Bearer token in Authorization header (mobile app)
  */
 export async function authMiddleware(req, res, next) {
   try {
-    const token = req.cookies?.token;
+    // Support both cookie-based (web) and Bearer token (mobile)
+    const cookieToken = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    const token = cookieToken || bearerToken;
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Unauthorized: No token provided.' });

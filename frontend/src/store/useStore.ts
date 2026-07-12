@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
-import { DashboardData, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role } from '../types';
+import { DashboardData, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role, LeadListItem, LeadsMeta, LeadsParams } from '../types';
+
+const DEFAULT_LEADS_PARAMS: LeadsParams = {
+  page: 1,
+  limit: 20,
+  search: '',
+  status: '',
+  admin_id: '',
+  referral: '',
+  date_from: '',
+  date_to: '',
+  sort_by: 'updatedAt',
+  sort_order: 'desc',
+};
 
 interface StoreState {
   dashboardData: DashboardData | null;
@@ -11,18 +24,20 @@ interface StoreState {
   selectedLeadId: number | null;
   activeTab: 'dashboard' | 'leads' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles';
   theme: 'light' | 'dark';
-  searchKeyword: string;
-  filterStatus: string;
-  filterReferral: string;
-  filterAdmin: string;
   isLoading: boolean;
   isLoadingMessages: boolean;
-  
+
+  // Leads (server-side paginated)
+  leads: LeadListItem[];
+  leadsMeta: LeadsMeta | null;
+  leadsLoading: boolean;
+  leadsParams: LeadsParams;
+
   // Auth State
   user: (Admin & { permissions: Record<string, 'read' | 'write' | 'none'> }) | null;
   checkingAuth: boolean;
   roles: Role[];
-  
+
   // Actions
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -30,8 +45,11 @@ interface StoreState {
   fetchRoles: () => Promise<void>;
   updateRolePermissions: (roleId: number, permissions: any) => Promise<boolean>;
   createRole: (name: string) => Promise<boolean>;
-  
+
   fetchDashboard: () => Promise<void>;
+  fetchLeads: (params?: Partial<LeadsParams>) => Promise<void>;
+  setLeadsParams: (params: Partial<LeadsParams>) => void;
+  resetLeadsParams: () => void;
   fetchCustomers: () => Promise<void>;
   fetchIgnoredCustomers: () => Promise<void>;
   updateCustomer: (id: number, data: Partial<{ is_ignored: boolean }>) => Promise<boolean>;
@@ -48,12 +66,7 @@ interface StoreState {
   setTab: (tab: StoreState['activeTab']) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
-  setSearchKeyword: (keyword: string) => void;
-  setFilterStatus: (status: string) => void;
-  setFilterReferral: (referral: string) => void;
-  setFilterAdmin: (admin: string) => void;
   setSelectedLeadId: (id: number | null) => void;
-  resetFilters: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -65,12 +78,14 @@ export const useStore = create<StoreState>((set, get) => ({
   selectedLeadId: null,
   activeTab: 'dashboard',
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
-  searchKeyword: '',
-  filterStatus: 'ALL',
-  filterReferral: 'ALL',
-  filterAdmin: 'ALL',
   isLoading: false,
   isLoadingMessages: false,
+
+  // Leads state
+  leads: [],
+  leadsMeta: null,
+  leadsLoading: false,
+  leadsParams: { ...DEFAULT_LEADS_PARAMS },
 
   // Auth State
   user: null,
@@ -141,12 +156,7 @@ export const useStore = create<StoreState>((set, get) => ({
         await get().fetchRoles();
         const currentUser = get().user;
         if (currentUser && currentUser.role_id === roleId) {
-          set({
-            user: {
-              ...currentUser,
-              permissions
-            }
-          });
+          set({ user: { ...currentUser, permissions } });
         }
         return true;
       }
@@ -185,6 +195,32 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       console.error('Error fetching dashboard', e);
     }
+  },
+
+  fetchLeads: async (params) => {
+    const currentParams = get().leadsParams;
+    const merged = params ? { ...currentParams, ...params } : currentParams;
+    // Persist merged params
+    if (params) set({ leadsParams: merged });
+    set({ leadsLoading: true });
+    try {
+      const res = await api.getLeads(merged);
+      if (res.success) {
+        set({ leads: res.data, leadsMeta: res.meta });
+      }
+    } catch (e) {
+      console.error('Error fetching leads', e);
+    } finally {
+      set({ leadsLoading: false });
+    }
+  },
+
+  setLeadsParams: (params) => {
+    set(state => ({ leadsParams: { ...state.leadsParams, ...params } }));
+  },
+
+  resetLeadsParams: () => {
+    set({ leadsParams: { ...DEFAULT_LEADS_PARAMS } });
   },
 
   fetchCustomers: async () => {
@@ -258,7 +294,8 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.updateLead(leadId, data);
       if (res.success) {
-        await get().fetchDashboard();
+        // Refresh leads list to reflect changes
+        await get().fetchLeads();
       }
     } catch (e) {
       console.error('Error updating lead', e);
@@ -320,7 +357,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   toggleAdmin: async (id: number) => {
     try {
-      const res = await api.toggleAdmin(id);
+      const { dashboardData } = get();
+      const admin = dashboardData?.admins?.find((a: any) => a.id === id);
+      const isCurrentlyActive = admin?.is_active ?? true;
+      const res = isCurrentlyActive
+        ? await api.deactivateAdmin(id)
+        : await api.activateAdmin(id);
       if (res.success) {
         await get().fetchDashboard();
       }
@@ -374,7 +416,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setTab: (tab) => set({ activeTab: tab }),
-  
+
   setTheme: (theme) => {
     localStorage.setItem('theme', theme);
     if (theme === 'dark') {
@@ -390,16 +432,5 @@ export const useStore = create<StoreState>((set, get) => ({
     get().setTheme(nextTheme);
   },
 
-  setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
-  setFilterStatus: (status) => set({ filterStatus: status }),
-  setFilterReferral: (referral) => set({ filterReferral: referral }),
-  setFilterAdmin: (admin) => set({ filterAdmin: admin }),
   setSelectedLeadId: (id) => set({ selectedLeadId: id }),
-  
-  resetFilters: () => set({
-    searchKeyword: '',
-    filterStatus: 'ALL',
-    filterReferral: 'ALL',
-    filterAdmin: 'ALL'
-  }),
 }));

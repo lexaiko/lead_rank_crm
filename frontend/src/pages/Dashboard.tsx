@@ -24,7 +24,7 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  const recentLeads = dashboardData.leads.slice(0, 5);
+  const recentLeads = dashboardData.recentLeads;
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('id-ID', {

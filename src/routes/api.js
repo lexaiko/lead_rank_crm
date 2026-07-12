@@ -39,6 +39,7 @@ router.post('/auth/login', async (req, res, next) => {
       { expiresIn: '24h' }
     );
 
+    // Set httpOnly cookie for web browsers
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -46,8 +47,10 @@ router.post('/auth/login', async (req, res, next) => {
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 
+    // Also return token in body for mobile apps (Bearer token auth)
     res.json({
       success: true,
+      token,
       data: {
         id: admin.id,
         nama_admin: admin.nama_admin,
@@ -63,7 +66,11 @@ router.post('/auth/login', async (req, res, next) => {
 });
 
 router.post('/auth/logout', (req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+  });
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
@@ -320,7 +327,7 @@ router.delete('/admins/:id', authMiddleware, permissionMiddleware('users', 'writ
 });
 
 // Start/Restart WhatsApp session for Admin
-router.get('/admins/:id/session', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/admins/:id/session/start', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
   try {
     const adminId = parseInt(req.params.id);
     const admin = await prisma.admin.findUnique({ where: { id: adminId } });
@@ -349,8 +356,8 @@ router.get('/admins/:id/session', authMiddleware, permissionMiddleware('settings
   }
 });
 
-// JSON endpoint for connection status polling
-router.get('/admins/:id/status-json', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+// Connection status polling
+router.get('/admins/:id/status', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
   try {
     const adminId = parseInt(req.params.id);
     const hasSocket = activeSockets.has(adminId);
@@ -509,7 +516,7 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             <script>
               setInterval(async () => {
                 try {
-                  const res = await fetch('/api/admins/${adminId}/status-json');
+                  const res = await fetch('/api/admins/${adminId}/status');
                   const data = await res.json();
                   if (data.connected) {
                     window.location.reload();
@@ -552,7 +559,7 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
           <script>
             setInterval(async () => {
               try {
-                const res = await fetch('/api/admins/${adminId}/status-json');
+                const res = await fetch('/api/admins/${adminId}/status');
                 const data = await res.json();
                 if (data.connected) {
                   window.location.reload();
@@ -568,7 +575,7 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             <p>Scan using Linked Devices in WhatsApp:</p>
             <div id="qrcode"></div>
             <br/>
-            <a class="btn" href="/api/admins/${adminId}/session?theme=${isLightTheme ? 'light' : 'dark'}">Regenerate QR</a>
+            <a class="btn" href="#" onclick="fetch('/api/admins/${adminId}/session/start?theme=${isLightTheme ? 'light' : 'dark'}', { method: 'POST' }).then(() => window.location.reload()); return false;">Regenerate QR</a>
           </div>
           <script>
             new QRCode(document.getElementById("qrcode"), {
@@ -589,7 +596,7 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
 });
 
 // Trigger Manual Ghosting Sweeper (Modul B)
-router.post('/cron/ghosting-sweeper', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/jobs/ghosting-sweep', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
   try {
     const count = await runGhostingSweeper();
     res.json({ success: true, message: `Swept and closed ${count} inactive leads.` });
@@ -599,7 +606,7 @@ router.post('/cron/ghosting-sweeper', authMiddleware, permissionMiddleware('sett
 });
 
 // Trigger Manual Gemini Extractor (Modul C)
-router.post('/cron/gemini-extractor', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
+router.post('/jobs/ai-extract', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
   try {
     console.log('[API] Manually triggering background AI queue processing (force: true)...');
     await processAIQueue(true);
@@ -623,124 +630,330 @@ router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 
   }
 });
 
-// Dashboard Data API
+// List Leads — Server-side pagination, filter, sort, search
+router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+  try {
+    const {
+      page = '1',
+      limit = '20',
+      search = '',
+      status = '',
+      admin_id = '',
+      referral = '',
+      date_from = '',
+      date_to = '',
+      sort_by = 'updatedAt',
+      sort_order = 'desc'
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Whitelist sort fields to prevent injection
+    const validSortFields = ['updatedAt', 'createdAt', 'kode_lead', 'estimasi_nilai_order', 'last_activity_at'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'updatedAt';
+    const sortDir = sort_order === 'asc' ? 'asc' : 'desc';
+
+    // Build filter
+    const where = {
+      customer: { is_ignored: false }
+    };
+
+    if (status && status !== 'ALL') where.status_lead = status;
+    if (admin_id && admin_id !== 'ALL') where.admin_id = parseInt(admin_id);
+    if (referral && referral !== 'ALL') where.referral_source = referral;
+
+    if (date_from || date_to) {
+      where.updatedAt = {};
+      if (date_from) where.updatedAt.gte = new Date(date_from);
+      if (date_to) {
+        const end = new Date(date_to);
+        end.setHours(23, 59, 59, 999);
+        where.updatedAt.lte = end;
+      }
+    }
+
+    if (search) {
+      where.OR = [
+        { kode_lead: { contains: search } },
+        { minat_destinasi: { contains: search } },
+        { customer: { nama_kontak: { contains: search } } },
+        { customer: { nomor_hp: { contains: search } } }
+      ];
+    }
+
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        include: {
+          customer: true,
+          admin: true,
+          _count: { select: { messages: true } }
+        },
+        orderBy: [{ [sortField]: sortDir }, { updatedAt: 'desc' }],
+        skip,
+        take: limitNum
+      }),
+      prisma.lead.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      data: leads.map(l => ({
+        id: l.id,
+        kode_lead: l.kode_lead,
+        customer_id: l.customer_id,
+        admin_id: l.admin_id,
+        customerHp: l.customer.nomor_hp,
+        customerNama: l.customer.nama_kontak,
+        adminNama: l.admin.nama_admin,
+        status_lead: l.status_lead,
+        minat_destinasi: l.minat_destinasi,
+        jumlah_peserta: l.jumlah_peserta,
+        estimasi_waktu: l.estimasi_waktu,
+        catatan_khusus: l.catatan_khusus,
+        catatan_sistem: l.catatan_sistem,
+        referral_source: l.referral_source,
+        estimasi_nilai_order: l.estimasi_nilai_order,
+        messagesCount: l._count.messages,
+        ai_summary: l.ai_summary || null,
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt
+      })),
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Dashboard Data API — Slim: pre-aggregated stats + admins + 5 recent leads
 router.get('/dashboard', authMiddleware, (req, res, next) => {
   const permissions = req.admin?.role?.permissions || {};
   const hasDashboard = (permissions.dashboard || 'none') !== 'none';
   const hasLeads = (permissions.leads || 'none') !== 'none';
-
-  if (hasDashboard || hasLeads) {
-    return next();
-  }
-  return res.status(403).json({
-    success: false,
-    error: "Forbidden: Insufficient permissions for dashboard data sync."
-  });
+  if (hasDashboard || hasLeads) return next();
+  return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions for dashboard data sync.' });
 }, async (req, res, next) => {
   try {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const admins = await prisma.admin.findMany({ include: { role: true } });
-    
-    // 1. Fetch leads without loading messages into memory
-    const leads = await prisma.lead.findMany({
-      take: 1000, // Limit sync data payload size to the 1000 most recently active leads
-      where: {
-        customer: {
-          is_ignored: false
-        }
-      },
-      include: {
-        customer: true,
-        admin: true,
-        _count: { select: { messages: true } }
-      },
-      orderBy: [
-        { last_activity_at: 'desc' },
-        { updatedAt: 'desc' }
-      ]
-    });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // 2. Fetch messages in a separate flat query to calculate response times efficiently
-    const recentMessages = await prisma.chatMessage.findMany({
-      where: {
-        waktu_pesan: { gte: fourteenDaysAgo },
-        lead: {
-          customer: {
-            is_ignored: false
-          }
-        }
-      },
-      select: {
-        lead_id: true,
-        pengirim: true,
-        waktu_pesan: true
-      },
-      orderBy: { waktu_pesan: 'asc' }
-    });
+    const monthFilter = { createdAt: { gte: startOfMonth }, customer: { is_ignored: false } };
 
-    // Group messages by lead_id
-    const messagesByLead = new Map();
+    // Run all aggregation queries in parallel
+    const [
+      admins,
+      statusGroups,
+      revenueAgg,
+      referralGroups,
+      adminAssigned,
+      adminWon,
+      totalLeads,
+      todayCount,
+      destinationLeads,
+      byDayRaw,
+      messagesCount,
+      unprocessedResult,
+      recentMessages,
+      recentLeads
+    ] = await Promise.all([
+      // Admins with roles
+      prisma.admin.findMany({ include: { role: true } }),
+
+      // Status counts this month
+      prisma.lead.groupBy({
+        by: ['status_lead'],
+        where: monthFilter,
+        _count: { id: true }
+      }),
+
+      // Revenue CLOSED WON this month
+      prisma.lead.aggregate({
+        where: { ...monthFilter, status_lead: 'CLOSED WON' },
+        _sum: { estimasi_nilai_order: true }
+      }),
+
+      // Referral source counts this month
+      prisma.lead.groupBy({
+        by: ['referral_source'],
+        where: monthFilter,
+        _count: { id: true }
+      }),
+
+      // Per-admin: total assigned this month
+      prisma.lead.groupBy({
+        by: ['admin_id'],
+        where: monthFilter,
+        _count: { id: true }
+      }),
+
+      // Per-admin: won this month
+      prisma.lead.groupBy({
+        by: ['admin_id'],
+        where: { ...monthFilter, status_lead: 'CLOSED WON' },
+        _count: { id: true },
+        _sum: { estimasi_nilai_order: true }
+      }),
+
+      // Total active leads (all time)
+      prisma.lead.count({ where: { customer: { is_ignored: false } } }),
+
+      // New leads today
+      prisma.lead.count({ where: { createdAt: { gte: today }, customer: { is_ignored: false } } }),
+
+      // Destination strings this month (for aggregation in JS since it's comma-separated)
+      prisma.lead.findMany({
+        where: monthFilter,
+        select: { minat_destinasi: true }
+      }),
+
+      // Leads by day (last 7 days) — raw SQL for date grouping
+      prisma.$queryRaw`
+        SELECT DATE(l.createdAt) as date, COUNT(*) as count
+        FROM \`Lead\` l
+        JOIN \`Customer\` c ON l.customer_id = c.id
+        WHERE l.createdAt >= ${sevenDaysAgo} AND c.is_ignored = false
+        GROUP BY DATE(l.createdAt)
+        ORDER BY date ASC
+      `,
+
+      // Total messages count
+      prisma.chatMessage.count({ where: { lead: { customer: { is_ignored: false } } } }),
+
+      // Unprocessed by AI
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count
+        FROM ChatMessage m
+        JOIN \`Lead\` l ON m.lead_id = l.id
+        JOIN \`Customer\` c ON l.customer_id = c.id
+        WHERE c.is_ignored = false
+          AND (l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id)
+      `,
+
+      // Recent messages for avg reply time (14 days)
+      prisma.chatMessage.findMany({
+        where: { waktu_pesan: { gte: fourteenDaysAgo }, lead: { customer: { is_ignored: false } } },
+        select: { lead_id: true, pengirim: true, waktu_pesan: true },
+        orderBy: { waktu_pesan: 'asc' }
+      }),
+
+      // 5 most recent leads for activity feed
+      prisma.lead.findMany({
+        where: { customer: { is_ignored: false } },
+        include: { customer: true, admin: true },
+        orderBy: [{ last_activity_at: 'desc' }, { updatedAt: 'desc' }],
+        take: 5
+      })
+    ]);
+
+    // --- Compute avg reply time per admin ---
+    const msgByLead = new Map();
     recentMessages.forEach(msg => {
-      if (!messagesByLead.has(msg.lead_id)) {
-        messagesByLead.set(msg.lead_id, []);
-      }
-      messagesByLead.get(msg.lead_id).push(msg);
+      if (!msgByLead.has(msg.lead_id)) msgByLead.set(msg.lead_id, []);
+      msgByLead.get(msg.lead_id).push(msg);
     });
-    
-    // Calculate average reply time for each admin (in seconds)
+    const adminReplyAccum = {};
+    msgByLead.forEach((msgs) => {
+      // find admin_id from recentLeads is not available here — compute from recentMessages only
+      // We'll attach reply times to admin via lead lookup using adminAssigned groupBy data
+    });
+    // Simpler: compute per lead, group by admin_id from recentLeads association
+    // Use a separate small query for the admin lead map
+    const leadAdminMap = new Map();
+    await prisma.lead.findMany({
+      where: { id: { in: [...msgByLead.keys()] } },
+      select: { id: true, admin_id: true }
+    }).then(rows => rows.forEach(r => leadAdminMap.set(r.id, r.admin_id)));
+
     const adminReplyTimes = {};
-    leads.forEach(lead => {
-      const adminId = lead.admin_id;
-      if (!adminReplyTimes[adminId]) {
-        adminReplyTimes[adminId] = [];
-      }
-      
-      const msgs = messagesByLead.get(lead.id) || [];
+    msgByLead.forEach((msgs, lead_id) => {
+      const adminId = leadAdminMap.get(lead_id);
+      if (!adminId) return;
+      if (!adminReplyTimes[adminId]) adminReplyTimes[adminId] = [];
       let waitingSince = null;
-      
       msgs.forEach(msg => {
         if (msg.pengirim === 'customer') {
-          if (waitingSince === null) {
-            waitingSince = new Date(msg.waktu_pesan);
-          }
-        } else if (msg.pengirim === 'admin') {
-          if (waitingSince !== null) {
-            const replyTimeSec = Math.max(0, Math.floor((new Date(msg.waktu_pesan) - waitingSince) / 1000));
-            adminReplyTimes[adminId].push(replyTimeSec);
-            waitingSince = null;
-          }
+          if (waitingSince === null) waitingSince = new Date(msg.waktu_pesan);
+        } else if (msg.pengirim === 'admin' && waitingSince !== null) {
+          const secs = Math.max(0, Math.floor((new Date(msg.waktu_pesan) - waitingSince) / 1000));
+          adminReplyTimes[adminId].push(secs);
+          waitingSince = null;
         }
       });
     });
-
-    const adminAverages = {};
-    Object.keys(adminReplyTimes).forEach(adminId => {
-      const times = adminReplyTimes[adminId];
-      if (times.length > 0) {
-        const sum = times.reduce((a, b) => a + b, 0);
-        adminAverages[adminId] = Math.round(sum / times.length);
-      } else {
-        adminAverages[adminId] = null;
-      }
+    const adminAvgReply = {};
+    Object.entries(adminReplyTimes).forEach(([id, times]) => {
+      adminAvgReply[id] = times.length > 0
+        ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+        : null;
     });
 
-    const messagesCount = await prisma.chatMessage.count({
-      where: {
-        lead: {
-          customer: {
-            is_ignored: false
-          }
-        }
+    // --- Build status map ---
+    const byStatus = {};
+    statusGroups.forEach(g => { byStatus[g.status_lead] = g._count.id; });
+
+    // --- Build referral map ---
+    const byReferral = {};
+    referralGroups.forEach(g => {
+      const key = g.referral_source || 'tidak diketahui';
+      byReferral[key] = (byReferral[key] || 0) + g._count.id;
+    });
+
+    // --- Build destination map ---
+    const byDestination = {};
+    destinationLeads.forEach(({ minat_destinasi }) => {
+      if (!minat_destinasi) return;
+      minat_destinasi.split(',').forEach(d => {
+        const name = d.trim();
+        if (name) byDestination[name] = (byDestination[name] || 0) + 1;
+      });
+    });
+
+    // --- Build by-day map (fill missing days with 0) ---
+    const byDayMap = {};
+    byDayRaw.forEach(r => {
+      let dateKey = r.date;
+      if (dateKey instanceof Date) {
+        const y = dateKey.getFullYear();
+        const m = String(dateKey.getMonth() + 1).padStart(2, '0');
+        const d = String(dateKey.getDate()).padStart(2, '0');
+        dateKey = `${y}-${m}-${d}`;
+      } else if (typeof dateKey === 'string') {
+        dateKey = dateKey.split('T')[0].split(' ')[0];
+      }
+      if (dateKey) {
+        byDayMap[dateKey] = Number(r.count);
       }
     });
-    const unprocessedResult = await prisma.$queryRaw`
-      SELECT COUNT(*) as count 
-      FROM ChatMessage m
-      JOIN \`Lead\` l ON m.lead_id = l.id
-      JOIN \`Customer\` c ON l.customer_id = c.id
-      WHERE c.is_ignored = false AND (l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id)
-    `;
-    const unprocessedMessagesCount = Number(unprocessedResult[0]?.count || 0);
+    const byDay = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const date = String(d.getDate()).padStart(2, '0');
+      const key = `${y}-${m}-${date}`;
+      byDay.push({ date: key, count: byDayMap[key] || 0 });
+    }
+
+    // --- Build per-admin stats map ---
+    const assignedMap = {};
+    adminAssigned.forEach(g => { assignedMap[g.admin_id] = g._count.id; });
+    const wonMap = {};
+    adminWon.forEach(g => { wonMap[g.admin_id] = { count: g._count.id, revenue: Number(g._sum.estimasi_nilai_order || 0) }; });
 
     res.json({
       success: true,
@@ -753,32 +966,37 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
           role_id: a.role_id,
           is_active: a.is_active,
           connected: activeSockets.has(a.id) && !!activeSockets.get(a.id).user,
-          avgReplyTime: adminAverages[a.id] !== undefined ? adminAverages[a.id] : null
+          avgReplyTime: adminAvgReply[a.id] !== undefined ? adminAvgReply[a.id] : null,
+          thisMonth: {
+            assigned: assignedMap[a.id] || 0,
+            won: wonMap[a.id]?.count || 0,
+            revenue: wonMap[a.id]?.revenue || 0
+          }
         })),
-        totalLeads: leads.length,
-        leads: leads.map(l => ({
+        stats: {
+          totalLeads,
+          thisMonth: {
+            total: statusGroups.reduce((s, g) => s + g._count.id, 0),
+            today: todayCount,
+            byStatus,
+            revenue: Number(revenueAgg._sum.estimasi_nilai_order || 0),
+            byReferral,
+            byDestination,
+            byDay
+          }
+        },
+        recentLeads: recentLeads.map(l => ({
           id: l.id,
           kode_lead: l.kode_lead,
-          customer_id: l.customer_id,
-          admin_id: l.admin_id,
-          customerHp: l.customer.nomor_hp,
           customerNama: l.customer.nama_kontak,
           adminNama: l.admin.nama_admin,
           status_lead: l.status_lead,
           minat_destinasi: l.minat_destinasi,
-          jumlah_peserta: l.jumlah_peserta,
-          estimasi_waktu: l.estimasi_waktu,
-          catatan_khusus: l.catatan_khusus,
-          catatan_sistem: l.catatan_sistem,
-          referral_source: l.referral_source,
-          estimasi_nilai_order: l.estimasi_nilai_order,
-          messagesCount: l._count.messages,
-          createdAt: l.createdAt,
           updatedAt: l.updatedAt
         })),
         messages: {
           total: messagesCount,
-          unprocessedByAi: unprocessedMessagesCount
+          unprocessedByAi: Number(unprocessedResult[0]?.count || 0)
         }
       }
     });
@@ -826,12 +1044,14 @@ router.get('/ai-queue', authMiddleware, permissionMiddleware('queue', 'read'), a
 });
 
 // Get Customers with Lead statistics
+// Supports: GET /customers          → active customers
+//           GET /customers?ignored=true → ignored customers
 router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read'), async (req, res, next) => {
   try {
+    const isIgnored = req.query.ignored === 'true';
+
     const customers = await prisma.customer.findMany({
-      where: {
-        is_ignored: false
-      },
+      where: { is_ignored: isIgnored },
       include: {
         leads: {
           orderBy: { updatedAt: 'desc' }
@@ -858,45 +1078,6 @@ router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read
       };
     });
     
-    res.json({ success: true, data: result });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Get Ignored Customers
-router.get('/customers/ignored', authMiddleware, permissionMiddleware('customers', 'read'), async (req, res, next) => {
-  try {
-    const customers = await prisma.customer.findMany({
-      where: {
-        is_ignored: true
-      },
-      include: {
-        leads: {
-          orderBy: { updatedAt: 'desc' }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    const result = customers.map(c => {
-      const totalRevenue = c.leads
-        .filter(l => l.status_lead === 'CLOSED WON')
-        .reduce((sum, l) => sum + (l.estimasi_nilai_order || 0), 0);
-
-      const lastLead = c.leads[0];
-
-      return {
-        id: c.id,
-        nama_kontak: c.nama_kontak || 'Pelanggan WA',
-        nomor_hp: c.nomor_hp,
-        leadsCount: c.leads.length,
-        lastStatus: lastLead ? lastLead.status_lead : 'NONE',
-        totalRevenue,
-        leads: c.leads
-      };
-    });
-
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);
@@ -960,8 +1141,8 @@ router.patch('/leads/:id', authMiddleware, permissionMiddleware('leads', 'write'
   }
 });
 
-// Toggle admin active status
-router.post('/admins/:id/toggle', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
+// Activate admin account
+router.post('/admins/:id/activate', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
   try {
     const adminId = parseInt(req.params.id);
     const admin = await prisma.admin.findUnique({ where: { id: adminId } });
@@ -970,7 +1151,7 @@ router.post('/admins/:id/toggle', authMiddleware, permissionMiddleware('users', 
     }
     const updated = await prisma.admin.update({
       where: { id: adminId },
-      data: { is_active: !admin.is_active }
+      data: { is_active: true }
     });
     res.json({ success: true, data: updated });
   } catch (err) {
@@ -978,10 +1159,28 @@ router.post('/admins/:id/toggle', authMiddleware, permissionMiddleware('users', 
   }
 });
 
-// Dashboard HTML view redirects to React SPA
-router.get('/dashboard-html', (req, res) => {
-  res.redirect('/');
+// Deactivate admin account
+router.post('/admins/:id/deactivate', authMiddleware, permissionMiddleware('users', 'write'), async (req, res, next) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    if (admin.username === 'admin') {
+      return res.status(400).json({ error: 'Cannot deactivate default superadmin account.' });
+    }
+    const updated = await prisma.admin.update({
+      where: { id: adminId },
+      data: { is_active: false }
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
 });
+
+
 
 // Error handling middleware
 router.use((err, req, res, next) => {
