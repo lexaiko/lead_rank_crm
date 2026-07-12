@@ -624,6 +624,11 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
     const admins = await prisma.admin.findMany({ include: { role: true } });
     const leads = await prisma.lead.findMany({
       take: 1000, // Limit sync data payload size to the 1000 most recently active leads
+      where: {
+        customer: {
+          is_ignored: false
+        }
+      },
       include: {
         customer: true,
         admin: true,
@@ -679,12 +684,21 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       }
     });
 
-    const messagesCount = await prisma.chatMessage.count();
+    const messagesCount = await prisma.chatMessage.count({
+      where: {
+        lead: {
+          customer: {
+            is_ignored: false
+          }
+        }
+      }
+    });
     const unprocessedResult = await prisma.$queryRaw`
       SELECT COUNT(*) as count 
       FROM ChatMessage m
       JOIN \`Lead\` l ON m.lead_id = l.id
-      WHERE l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id
+      JOIN \`Customer\` c ON l.customer_id = c.id
+      WHERE c.is_ignored = false AND (l.ai_last_analyzed_message_id IS NULL OR m.id > l.ai_last_analyzed_message_id)
     `;
     const unprocessedMessagesCount = Number(unprocessedResult[0]?.count || 0);
 
@@ -705,6 +719,8 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         leads: leads.map(l => ({
           id: l.id,
           kode_lead: l.kode_lead,
+          customer_id: l.customer_id,
+          admin_id: l.admin_id,
           customerHp: l.customer.nomor_hp,
           customerNama: l.customer.nama_kontak,
           adminNama: l.admin.nama_admin,
@@ -773,6 +789,9 @@ router.get('/ai-queue', authMiddleware, permissionMiddleware('queue', 'read'), a
 router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read'), async (req, res, next) => {
   try {
     const customers = await prisma.customer.findMany({
+      where: {
+        is_ignored: false
+      },
       include: {
         leads: {
           orderBy: { updatedAt: 'desc' }
@@ -799,6 +818,66 @@ router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read
     });
     
     res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get Ignored Customers
+router.get('/customers/ignored', authMiddleware, permissionMiddleware('customers', 'read'), async (req, res, next) => {
+  try {
+    const customers = await prisma.customer.findMany({
+      where: {
+        is_ignored: true
+      },
+      include: {
+        leads: {
+          orderBy: { updatedAt: 'desc' }
+        }
+      }
+    });
+
+    const result = customers.map(c => {
+      const totalRevenue = c.leads
+        .filter(l => l.status_lead === 'CLOSED WON')
+        .reduce((sum, l) => sum + (l.estimasi_nilai_order || 0), 0);
+
+      const lastLead = c.leads[0];
+
+      return {
+        id: c.id,
+        nama_kontak: c.nama_kontak || 'Pelanggan WA',
+        nomor_hp: c.nomor_hp,
+        leadsCount: c.leads.length,
+        lastStatus: lastLead ? lastLead.status_lead : 'NONE',
+        totalRevenue,
+        leads: c.leads
+      };
+    });
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update Customer details (e.g. is_ignored)
+router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const permissions = req.admin?.role?.permissions || {};
+    const canWrite = permissions.leads === 'write' || permissions.customers === 'write';
+    if (!canWrite) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions to update customer.' });
+    }
+    const customerId = parseInt(req.params.id);
+    const { is_ignored } = req.body;
+
+    const updated = await prisma.customer.update({
+      where: { id: customerId },
+      data: { is_ignored }
+    });
+
+    res.json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }

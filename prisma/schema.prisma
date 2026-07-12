@@ -34,6 +34,7 @@ model Customer {
   id          Int      @id @default(autoincrement())
   nomor_hp    String   @unique @db.VarChar(20)
   nama_kontak String?  @db.VarChar(100)
+  is_ignored  Boolean  @default(false)
   leads       Lead[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

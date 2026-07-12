@@ -430,6 +430,11 @@ export async function handleIncomingMessage(sock, msg, adminId) {
     where: { nomor_hp: customerHp }
   });
 
+  if (customer && customer.is_ignored) {
+    console.log(`[Message Ignore] Received message from ignored contact ${customerHp}. Skipping.`);
+    return;
+  }
+
   if (!customer) {
     // Try to get contact name from Baileys contacts cache first
     const socketContact = sock.contacts?.[remoteJid];

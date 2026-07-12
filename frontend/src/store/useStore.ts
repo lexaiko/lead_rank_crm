@@ -5,6 +5,7 @@ import { DashboardData, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role } f
 interface StoreState {
   dashboardData: DashboardData | null;
   customers: CustomerStats[];
+  ignoredCustomers: CustomerStats[];
   aiQueue: AIJob[];
   activeChatMessages: ChatMessage[];
   selectedLeadId: number | null;
@@ -32,6 +33,8 @@ interface StoreState {
   
   fetchDashboard: () => Promise<void>;
   fetchCustomers: () => Promise<void>;
+  fetchIgnoredCustomers: () => Promise<void>;
+  updateCustomer: (id: number, data: Partial<{ is_ignored: boolean }>) => Promise<boolean>;
   fetchAIQueue: () => Promise<void>;
   fetchMessages: (leadId: number) => Promise<void>;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
@@ -55,6 +58,7 @@ interface StoreState {
 export const useStore = create<StoreState>((set, get) => ({
   dashboardData: null,
   customers: [],
+  ignoredCustomers: [],
   aiQueue: [],
   activeChatMessages: [],
   selectedLeadId: null,
@@ -190,6 +194,36 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     } catch (e) {
       console.error('Error fetching customers', e);
+    }
+  },
+
+  fetchIgnoredCustomers: async () => {
+    try {
+      const res = await api.getIgnoredCustomers();
+      if (res.success) {
+        set({ ignoredCustomers: res.data });
+      }
+    } catch (e) {
+      console.error('Error fetching ignored customers', e);
+    }
+  },
+
+  updateCustomer: async (id, data) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.updateCustomer(id, data);
+      if (res.success) {
+        await get().fetchDashboard();
+        await get().fetchCustomers();
+        await get().fetchIgnoredCustomers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error updating customer', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 

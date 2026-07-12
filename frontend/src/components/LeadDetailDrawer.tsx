@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole } from 'lucide-react';
+import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle } from 'lucide-react';
 import { VirtualChatList } from './VirtualChatList';
 import { Lead } from '../types';
 
@@ -12,6 +12,7 @@ export const LeadDetailDrawer: React.FC = () => {
     activeChatMessages, 
     fetchMessages, 
     updateLead,
+    updateCustomer,
     isLoading,
     isLoadingMessages,
     user
@@ -20,8 +21,25 @@ export const LeadDetailDrawer: React.FC = () => {
   const [localLead, setLocalLead] = useState<Lead | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'profile' | 'chat'>('profile');
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ isOpen: true, message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const canWriteLeads = user?.permissions?.leads === 'write';
+  const canIgnore = user?.permissions?.leads === 'write' || user?.permissions?.customers === 'write';
 
   // Find selected lead from dashboard data
   const leadData = dashboardData?.leads.find(l => l.id === selectedLeadId);
@@ -53,8 +71,8 @@ export const LeadDetailDrawer: React.FC = () => {
       setLocalLead({
         id: leadData.id,
         kode_lead: leadData.kode_lead,
-        customer_id: 0, // Placeholder
-        admin_id: 0, // Placeholder
+        customer_id: leadData.customer_id,
+        admin_id: leadData.admin_id,
         status_lead: leadData.status_lead as any,
         minat_destinasi: leadData.minat_destinasi,
         jumlah_peserta: leadData.jumlah_peserta,
@@ -97,6 +115,29 @@ export const LeadDetailDrawer: React.FC = () => {
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
+  const handleIgnoreContact = () => {
+    if (!localLead) return;
+    const name = leadData?.customerNama || 'Pelanggan WA';
+    const phone = leadData?.customerHp || '';
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Abaikan Kontak?',
+      message: `Apakah Anda yakin ingin mengabaikan kontak "${name}" (${phone})? Kontak ini akan disembunyikan dari seluruh statistik dashboard, laporan konversi, dan pesan baru dari mereka tidak akan diproses oleh CRM.`,
+      onConfirm: async () => {
+        const success = await updateCustomer(localLead.customer_id, { is_ignored: true });
+        if (success) {
+          showToast('Kontak telah berhasil diabaikan.', 'success');
+          setTimeout(() => {
+            setSelectedLeadId(null); // Close the drawer after 1.2s
+          }, 1200);
+        } else {
+          showToast('Gagal mengabaikan kontak.', 'error');
+        }
+      }
+    });
+  };
+
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'NEW': return 'bg-slate-500/10 text-slate-500 border border-slate-500/20';
@@ -136,12 +177,24 @@ export const LeadDetailDrawer: React.FC = () => {
             </span>
           </div>
           
-          <button 
-            onClick={() => setSelectedLeadId(null)}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {canIgnore && (
+              <button
+                type="button"
+                onClick={handleIgnoreContact}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <AlertCircle size={13} /> Abaikan Kontak
+              </button>
+            )}
+            
+            <button 
+              onClick={() => setSelectedLeadId(null)}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Sub-tabs for mobile view */}
@@ -358,6 +411,14 @@ export const LeadDetailDrawer: React.FC = () => {
                     </>
                   )}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleIgnoreContact}
+                  disabled={isLoading}
+                  className="w-full mt-3 py-2.5 rounded-xl font-bold text-xs bg-muted text-muted-foreground border border-border/80 hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <AlertCircle size={14} /> Abaikan Kontak (Spam / Bukan Customer)
+                </button>
               </div>
             )}
 
@@ -397,6 +458,56 @@ export const LeadDetailDrawer: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up text-foreground">
+            <div className="flex items-center gap-3 text-rose-500">
+              <AlertCircle size={24} className="shrink-0" />
+              <span className="font-heading font-black text-base">
+                {confirmModal.title}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center gap-3 mt-2 justify-end">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-border hover:bg-muted font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer bg-card text-foreground"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className="px-5 py-2 bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md hover:bg-rose-600 transition-all cursor-pointer"
+              >
+                Ya, Abaikan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toast?.isOpen && (
+        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-in-right ${
+          toast.type === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle2 size={16} className="shrink-0" />
+          ) : (
+            <XCircle size={16} className="shrink-0" />
+          )}
+          <span className="text-xs font-bold font-heading">{toast.message}</span>
+        </div>
+      )}
     </>
   );
 };

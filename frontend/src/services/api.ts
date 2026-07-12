@@ -74,6 +74,20 @@ export const api = {
     return res.json();
   },
 
+  async getIgnoredCustomers(): Promise<{ success: boolean; data: CustomerStats[] }> {
+    const res = await fetch(`${API_BASE}/customers/ignored`);
+    return res.json();
+  },
+
+  async updateCustomer(id: number, data: Partial<{ is_ignored: boolean }>): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
   async runSweeper(): Promise<{ success: boolean; message: string }> {
     const res = await fetch(`${API_BASE}/cron/ghosting-sweeper`, {
       method: 'POST',

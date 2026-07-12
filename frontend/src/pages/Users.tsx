@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { UserPlus, Edit, Trash2, ToggleLeft, ToggleRight, Loader2, Phone, ShieldAlert, Key, UserCheck, X } from 'lucide-react';
 
@@ -11,9 +11,14 @@ export const Users: React.FC = () => {
     deleteAdmin, 
     toggleAdmin,
     roles,
+    fetchRoles,
     user,
     isLoading 
   } = useStore();
+
+  useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
 
   // Local state for forms
   const [nameInput, setNameInput] = useState('');

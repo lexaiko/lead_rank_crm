@@ -38,6 +38,9 @@ export const Leads: React.FC = () => {
   // Mobile Filters Drawer Expand state
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(false);
 
+  // Custom Note Detail Modal state
+  const [activeNoteModal, setActiveNoteModal] = useState<string | null>(null);
+
   const activeFiltersCount = 
     (filterStatus !== 'ALL' ? 1 : 0) + 
     (filterReferral !== 'ALL' ? 1 : 0) + 
@@ -355,24 +358,22 @@ export const Leads: React.FC = () => {
                       Customer contact <ArrowUpDown size={12} />
                     </button>
                   </th>
-                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">PIC CS</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest font-sans">Status</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Destinations</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Pax</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Trip Date</th>
-                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Referral</th>
+                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Note</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                     <button onClick={() => toggleSort('estimasi_nilai_order')} className="flex items-center gap-1.5 hover:text-foreground">
                       Order Value <ArrowUpDown size={12} />
                     </button>
                   </th>
-                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Chats</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/55">
                 {paginatedLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No leads found matching current filtering queries.
                     </td>
                   </tr>
@@ -392,7 +393,6 @@ export const Leads: React.FC = () => {
                           <span className="text-xs text-muted-foreground font-mono">{lead.customerHp}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-sm font-semibold text-foreground">{lead.adminNama}</td>
                       <td className="px-5 py-4">
                         <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                           {lead.status_lead}
@@ -411,21 +411,28 @@ export const Leads: React.FC = () => {
                       <td className="px-5 py-4 text-xs font-semibold text-muted-foreground font-mono">
                         {lead.estimasi_waktu ? lead.estimasi_waktu.split('T')[0] : '-'}
                       </td>
-                      <td className="px-5 py-4 text-xs font-bold uppercase text-muted-foreground">
-                        <span className="bg-secondary/30 px-2 py-0.5 rounded border border-border text-[9px]">
-                          {lead.referral_source || 'tidak diketahui'}
-                        </span>
+                      <td 
+                        className="px-5 py-4 text-xs font-semibold text-muted-foreground"
+                        onClick={(e) => {
+                          if (lead.catatan_khusus) {
+                            e.stopPropagation();
+                            setActiveNoteModal(lead.catatan_khusus);
+                          }
+                        }}
+                      >
+                        {lead.catatan_khusus ? (
+                          <div className="flex items-start gap-1 hover:text-primary transition-colors cursor-pointer select-none">
+                            <MessageSquare size={12} className="text-primary shrink-0 mt-0.5" />
+                            <span className="break-words whitespace-pre-wrap max-w-[280px] font-sans font-semibold normal-case leading-relaxed">
+                              {lead.catatan_khusus}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/45">-</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                         {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '-'}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center justify-center gap-1">
-                          <MessageSquare size={13} className="text-orange-500" />
-                          <span className="text-xs font-bold text-orange-600 dark:text-orange-400 font-mono">
-                            {lead.messagesCount}
-                          </span>
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -532,6 +539,24 @@ export const Leads: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Notes block */}
+                  {lead.catatan_khusus && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveNoteModal(lead.catatan_khusus);
+                      }}
+                      className="flex flex-col gap-1 mt-0.5 border-t border-border/40 pt-2 cursor-pointer hover:bg-muted/40 p-1.5 rounded-xl transition-all"
+                    >
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <MessageSquare size={11} className="text-primary shrink-0" /> Catatan Prospek (Tap to read)
+                      </span>
+                      <span className="text-foreground text-xs font-semibold leading-relaxed break-words whitespace-pre-wrap">
+                        {lead.catatan_khusus}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Footer Row: Admin PIC & Order Value */}
                   <div className="flex items-center justify-between border-t border-border/40 pt-2 mt-0.5">
                     <span className="text-[11px] text-muted-foreground font-semibold">
@@ -608,6 +633,39 @@ export const Leads: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Custom Note View Modal */}
+      {activeNoteModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2 text-primary">
+                <MessageSquare size={16} />
+                <span className="font-heading font-black text-sm uppercase tracking-wider">
+                  Catatan Prospek (Note)
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveNoteModal(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="text-sm font-semibold text-foreground bg-muted/30 p-4 rounded-xl border border-border/50 max-h-60 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+              {activeNoteModal}
+            </div>
+            <div className="flex justify-end mt-1">
+              <button
+                onClick={() => setActiveNoteModal(null)}
+                className="px-5 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-all cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

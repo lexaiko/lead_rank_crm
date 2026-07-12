@@ -1,27 +1,85 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Search, UserCheck, MessageSquare, Compass, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserCheck, MessageSquare, Compass, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
 import { Lead } from '../types';
 
 export const Customers: React.FC = () => {
-  const { customers, fetchCustomers } = useStore();
+  const { 
+    customers, 
+    ignoredCustomers, 
+    fetchCustomers, 
+    fetchIgnoredCustomers, 
+    updateCustomer, 
+    user 
+  } = useStore();
+  
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showIgnored, setShowIgnored] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    confirmColor: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ isOpen: true, message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const canWrite = user?.permissions?.leads === 'write' || user?.permissions?.customers === 'write';
+
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (showIgnored) {
+      fetchIgnoredCustomers();
+    } else {
+      fetchCustomers();
+    }
+  }, [showIgnored]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
 
-  const filtered = customers.filter(c => {
-    return c.nama_kontak.toLowerCase().includes(search.toLowerCase()) || c.nomor_hp.includes(search);
+  const handleToggleIgnore = (id: number, name: string, isIgnore: boolean) => {
+    const actionLabel = isIgnore ? 'Abaikan' : 'Pulihkan';
+    const explanation = isIgnore 
+      ? `Apakah Anda yakin ingin mengabaikan kontak "${name || 'Pelanggan WA'}"? Kontak ini akan disembunyikan dari seluruh statistik dashboard, laporan konversi, dan pesan baru dari mereka tidak akan diproses oleh CRM.`
+      : `Apakah Anda yakin ingin memulihkan kontak "${name || 'Pelanggan WA'}"? Kontak ini akan dikembalikan ke status customer aktif di CRM.`;
+
+    setConfirmModal({
+      isOpen: true,
+      title: `${actionLabel} Kontak?`,
+      message: explanation,
+      confirmText: isIgnore ? 'Ya, Abaikan' : 'Ya, Pulihkan',
+      confirmColor: isIgnore ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600',
+      onConfirm: async () => {
+        const success = await updateCustomer(id, { is_ignored: isIgnore });
+        if (success) {
+          showToast(`Kontak berhasil di${isIgnore ? 'abaikan' : 'pulihkan'}.`, 'success');
+        } else {
+          showToast(`Gagal ${isIgnore ? 'mengabaikan' : 'memulihkan'} kontak.`, 'error');
+        }
+      }
+    });
+  };
+
+  const activeCustomersList = showIgnored ? ignoredCustomers : customers;
+
+  const filtered = activeCustomersList.filter(c => {
+    return (c.nama_kontak || 'Pelanggan WA').toLowerCase().includes(search.toLowerCase()) || c.nomor_hp.includes(search);
   });
 
   const totalItems = filtered.length;
@@ -60,18 +118,40 @@ export const Customers: React.FC = () => {
 
       {/* Search and Stats bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 border border-border/80 rounded-2xl shadow-sm">
-        <div className="relative w-full sm:max-w-xs">
-          <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search customer name or phone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
-          />
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:max-w-xs">
+            <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search customer name or phone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          <button
+            onClick={() => setShowIgnored(!showIgnored)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              showIgnored 
+                ? 'bg-rose-500/10 text-rose-500 border border-rose-500/25 hover:bg-rose-500/20' 
+                : 'bg-muted text-muted-foreground border border-border hover:bg-muted/80'
+            }`}
+          >
+            {showIgnored ? (
+              <>
+                <EyeOff size={13} /> Kontak Diabaikan (Spam)
+              </>
+            ) : (
+              <>
+                <Eye size={13} /> Tampilkan Kontak Diabaikan
+              </>
+            )}
+          </button>
         </div>
         <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider shrink-0">
-          Registered Clients: <strong className="text-foreground">{customers.length}</strong>
+          {showIgnored ? 'Kontak Diabaikan: ' : 'Registered Clients: '}
+          <strong className="text-foreground">{activeCustomersList.length}</strong>
         </span>
       </div>
 
@@ -88,18 +168,21 @@ export const Customers: React.FC = () => {
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Leads Register</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Latest Inquiries Status</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Transaction (WON)</th>
+                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
                 {paginatedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No customers found matching search queries.
                     </td>
                   </tr>
                 ) : (
                   paginatedCustomers.map((client) => {
                     const isExpanded = expandedId === client.id;
+                    const displayName = client.nama_kontak || 'Pelanggan WA';
+                    const isActive = !showIgnored;
                     return (
                       <React.Fragment key={client.id}>
                         <tr 
@@ -112,9 +195,9 @@ export const Customers: React.FC = () => {
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-2">
                               <div className="h-7 w-7 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs uppercase">
-                                {client.nama_kontak.slice(0, 2)}
+                                {displayName.slice(0, 2)}
                               </div>
-                              <span className="font-bold text-sm text-foreground">{client.nama_kontak}</span>
+                              <span className="font-bold text-sm text-foreground">{displayName}</span>
                             </div>
                           </td>
                           <td className="px-5 py-4 text-sm font-semibold text-muted-foreground font-mono">{client.nomor_hp}</td>
@@ -131,15 +214,36 @@ export const Customers: React.FC = () => {
                           <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                             Rp {client.totalRevenue.toLocaleString('id-ID')}
                           </td>
+                          <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-[11px] font-bold text-muted-foreground">
+                                {isActive ? 'Aktif' : 'Spam'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
+                                disabled={!canWrite}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                    isActive ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
 
                         {/* Expandable Lead History Drawer */}
                         {isExpanded && (
                           <tr className="bg-muted/10">
-                            <td colSpan={6} className="p-6">
+                            <td colSpan={7} className="p-6">
                               <div className="flex flex-col gap-4">
                                 <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest border-b border-border/80 pb-2">
-                                  Historical Leads Details for {client.nama_kontak}
+                                  Historical Leads Details for {displayName}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -266,6 +370,8 @@ export const Customers: React.FC = () => {
           ) : (
             paginatedCustomers.map((client) => {
               const isExpanded = expandedId === client.id;
+              const displayName = client.nama_kontak || 'Pelanggan WA';
+              const isActive = !showIgnored;
               return (
                 <div key={client.id} className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-3">
                   <div 
@@ -274,14 +380,33 @@ export const Customers: React.FC = () => {
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
-                        {client.nama_kontak.slice(0, 2)}
+                        {displayName.slice(0, 2)}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-sm text-foreground truncate">{client.nama_kontak}</span>
+                        <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
                         <span className="text-xs text-muted-foreground font-mono">{client.nomor_hp}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mr-1">
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          {isActive ? 'Aktif' : 'Spam'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
+                          disabled={!canWrite}
+                          className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                          } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              isActive ? 'translate-x-3.5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                           Rp {client.totalRevenue.toLocaleString('id-ID')}
@@ -394,6 +519,56 @@ export const Customers: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center gap-3 text-orange-500">
+              <AlertCircle size={24} className="shrink-0" />
+              <span className="font-heading font-black text-base text-foreground">
+                {confirmModal.title}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center gap-3 mt-2 justify-end">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className={`px-5 py-2 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer ${confirmModal.confirmColor}`}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toast?.isOpen && (
+        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-in-right ${
+          toast.type === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle2 size={16} className="shrink-0" />
+          ) : (
+            <XCircle size={16} className="shrink-0" />
+          )}
+          <span className="text-xs font-bold font-heading">{toast.message}</span>
+        </div>
+      )}
 
     </div>
   );

@@ -157,6 +157,14 @@ export async function processAIQueue(force = false) {
       const latestMsgId = messages[messages.length - 1].id;
       latestMessageIds.set(lead.id, latestMsgId);
 
+      const adminMessageCount = await prisma.chatMessage.count({
+        where: {
+          lead_id: lead.id,
+          pengirim: 'admin'
+        }
+      });
+      const adminHasReplied = adminMessageCount > 0;
+
       leadsContext.push({
         lead_id: lead.id,
         current_lead: {
@@ -167,6 +175,7 @@ export async function processAIQueue(force = false) {
           referral_source: lead.referral_source,
           estimasi_nilai_order: lead.estimasi_nilai_order
         },
+        admin_has_replied: adminHasReplied,
         previous_summary: lead.ai_summary || null,
         new_messages: messages.map(m => ({
           sender: m.pengirim,
@@ -322,7 +331,7 @@ async function callGeminiBulk(leadsContext) {
   const nowStr = new Date().toISOString().split('T')[0];
 
   const SYSTEM_PROMPT = `Kamu adalah sistem analis CRM untuk perusahaan Trip Banyuwangi.
-Saya akan memberikan data JSON Input yang berisi daftar leads yang perlu dianalisis beserta state saat ini, rangkuman analisis sebelumnya (jika ada), dan pesan-pesan baru yang belum dianalisis.
+Saya akan memberikan data JSON Input yang berisi daftar leads yang perlu dianalisis beserta state saat ini, status 'admin_has_replied' (apakah admin/CS sudah pernah membalas percakapan lead ini), rangkuman analisis sebelumnya (jika ada), dan pesan-pesan baru yang belum dianalisis.
 
 Tugasmu:
 1. Analisis 'new_messages' untuk setiap lead secara independen. Jangan mencampuradukkan data antar lead.
@@ -335,7 +344,8 @@ Tugasmu:
    - 'referral_source' (dari mana mengetahui TripBwi, wajib pilih salah satu dari: "instagram", "tiktok", "website", "rekomendasi", "facebook", "lainnya", atau "tidak diketahui").
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka integer rupiah, jika tidak ada, isi dengan null).
 4. Tentukan 'status_lead' dengan salah satu dari pilihan berikut:
-   - PROSPECT: Pelanggan bertanya informasi umum, harga, atau fasilitas. Belum ada kepastian jadwal/jumlah orang.
+   - NEW: Status awal lead masuk. Jika 'admin_has_replied' bernilai false (admin/CS belum pernah membalas chat sama sekali untuk lead ini), status WAJIB tetap 'NEW'. Pengecualian hanya jika pelanggan menunjukkan kondisi mendesak/urgent untuk segera melakukan transaksi/booking saat itu juga (contoh: "saya mau booking tur ijen malam ini juga", "minta rekening mau transfer sekarang"). Jika tidak ada kondisi mendesak/urgent dari pelanggan dan admin belum membalas, status tidak boleh beranjak dari 'NEW'.
+   - PROSPECT: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
    - QUALIFIED: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
    - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (rekening, invoice, atau berjanji transfer).
    - CLOSED WON: Pelanggan mengirimkan bukti transfer atau konfirmasi pembayaran berhasil.
