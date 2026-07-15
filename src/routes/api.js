@@ -642,7 +642,7 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
       referral = '',
       date_from = '',
       date_to = '',
-      sort_by = 'updatedAt',
+      sort_by = 'last_activity_at',
       sort_order = 'desc'
     } = req.query;
 
@@ -691,7 +691,13 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
           admin: true,
           _count: { select: { messages: true } }
         },
-        orderBy: [{ [sortField]: sortDir }, { updatedAt: 'desc' }],
+        // Always push leads with null last_activity_at to the bottom
+        orderBy: [
+          ...(sortField === 'last_activity_at'
+            ? [{ last_activity_at: { sort: sortDir, nulls: 'last' } }]
+            : [{ [sortField]: sortDir }, { last_activity_at: { sort: 'desc', nulls: 'last' } }]
+          )
+        ],
         skip,
         take: limitNum
       }),
@@ -718,6 +724,7 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
         estimasi_nilai_order: l.estimasi_nilai_order,
         messagesCount: l._count.messages,
         ai_summary: l.ai_summary || null,
+        last_activity_at: l.last_activity_at,
         createdAt: l.createdAt,
         updatedAt: l.updatedAt
       })),

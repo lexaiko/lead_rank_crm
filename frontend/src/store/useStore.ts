@@ -11,7 +11,7 @@ const DEFAULT_LEADS_PARAMS: LeadsParams = {
   referral: '',
   date_from: '',
   date_to: '',
-  sort_by: 'updatedAt',
+  sort_by: 'last_activity_at',
   sort_order: 'desc',
 };
 

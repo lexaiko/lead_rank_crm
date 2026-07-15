@@ -110,6 +110,7 @@ export interface LeadListItem {
   estimasi_nilai_order: number | null;
   messagesCount: number;
   ai_summary?: string | null;
+  last_activity_at: string | null;
   createdAt: string;
   updatedAt: string;
 }

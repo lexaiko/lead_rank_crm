@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, Phone } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 
 export const Leads: React.FC = () => {
@@ -30,6 +30,35 @@ export const Leads: React.FC = () => {
 
   // Note modal
   const [activeNoteModal, setActiveNoteModal] = useState<string | null>(null);
+
+  // Follow Up modal state
+  const [followUpLead, setFollowUpLead] = useState<{ name: string; phone: string; destination: string } | null>(null);
+  const [followUpTemplate, setFollowUpTemplate] = useState(0);
+
+  const getFollowUpTemplates = (name: string, destination: string) => [
+    {
+      label: '👋 Sapa & Tanya Kabar',
+      message: `Halo Kak ${name || 'Kak'}! 😊\n\nSaya dari TripBanyuwangi ingin menanyakan bagaimana kabarnya? Apakah Kakak sudah memiliki rencana untuk trip ${destination || 'wisata'} dalam waktu dekat? Kami siap membantu mempersiapkan perjalanan yang tak terlupakan! 🌿`
+    },
+    {
+      label: '📅 Follow Up Jadwal',
+      message: `Halo Kak ${name || 'Kak'}! 🙏\n\nIni dari TripBanyuwangi. Kami ingin menindaklanjuti pertanyaan Kakak sebelumnya mengenai trip ${destination || 'ke Banyuwangi'}.\n\nApakah Kakak sudah menentukan tanggal yang cocok? Kami bisa bantu menyiapkan itinerary sesuai kebutuhan Kakak. 🗓️`
+    },
+    {
+      label: '💡 Tawarkan Promo',
+      message: `Halo Kak ${name || 'Kak'}! 🎉\n\nAda kabar baik dari TripBanyuwangi! Kami sedang ada promo spesial untuk trip ${destination || 'wisata Banyuwangi'}.\n\nJangan sampai kelewatan ya Kak! Mau tahu detailnya? 🌟`
+    },
+    {
+      label: '✅ Konfirmasi Booking',
+      message: `Halo Kak ${name || 'Kak'}! 😊\n\nTerima kasih sudah tertarik dengan paket trip ${destination || 'kami'}. Boleh kami tanyakan, apakah Kakak sudah siap untuk mengkonfirmasi pemesanan? Kami siap memandu langkah selanjutnya! 🤩`
+    },
+  ];
+
+  const handleOpenWhatsApp = (phone: string, message: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    const normalized = cleaned.startsWith('0') ? '62' + cleaned.slice(1) : cleaned;
+    window.open(`https://wa.me/${normalized}?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
   // Initial load
   useEffect(() => {
@@ -68,7 +97,7 @@ export const Leads: React.FC = () => {
     setSearchInput('');
     setDateFilterType('ALL');
     resetLeadsParams();
-    fetchLeads({ page: 1, limit: leadsParams.limit, search: '', status: '', admin_id: '', referral: '', date_from: '', date_to: '', sort_by: 'updatedAt', sort_order: 'desc' });
+    fetchLeads({ page: 1, limit: leadsParams.limit, search: '', status: '', admin_id: '', referral: '', date_from: '', date_to: '', sort_by: 'last_activity_at', sort_order: 'desc' });
   };
 
   const hasActiveFilters =
@@ -313,6 +342,9 @@ export const Leads: React.FC = () => {
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Trip Date</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Note</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    <SortButton field="last_activity_at" label="Last Chat" />
+                  </th>
+                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                     <SortButton field="estimasi_nilai_order" label="Order Value" />
                   </th>
                 </tr>
@@ -320,13 +352,13 @@ export const Leads: React.FC = () => {
               <tbody className="divide-y divide-border/55">
                 {leadsLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center">
+                    <td colSpan={9} className="px-5 py-12 text-center">
                       <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
                     </td>
                   </tr>
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No leads found matching current filtering queries.
                     </td>
                   </tr>
@@ -363,7 +395,7 @@ export const Leads: React.FC = () => {
                         {lead.estimasi_waktu ? lead.estimasi_waktu.split('T')[0] : '-'}
                       </td>
                       <td
-                        className="px-5 py-4 text-xs font-semibold text-muted-foreground"
+                        className="px-5 py-4"
                         onClick={(e) => {
                           if (lead.catatan_khusus) {
                             e.stopPropagation();
@@ -372,18 +404,40 @@ export const Leads: React.FC = () => {
                         }}
                       >
                         {lead.catatan_khusus ? (
-                          <div className="flex items-start gap-1 hover:text-primary transition-colors cursor-pointer select-none">
-                            <MessageSquare size={12} className="text-primary shrink-0 mt-0.5" />
-                            <span className="break-words whitespace-pre-wrap max-w-[280px] font-sans font-semibold normal-case leading-relaxed">
-                              {lead.catatan_khusus}
+                          <div title={lead.catatan_khusus} className="flex items-center gap-1.5 hover:text-primary transition-colors cursor-pointer select-none group">
+                            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors shrink-0">
+                              <MessageSquare size={13} className="text-primary" />
+                            </div>
+                            <span className="text-xs text-muted-foreground font-semibold group-hover:text-primary transition-colors truncate max-w-[100px]">
+                              {lead.catatan_khusus.length > 30
+                                ? lead.catatan_khusus.slice(0, 30) + '…'
+                                : lead.catatan_khusus}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground/45">-</span>
+                          <span className="text-muted-foreground/35 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading">
-                        {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '-'}
+                      {/* Last Chat column */}
+                      <td className="px-5 py-4 text-xs font-semibold font-mono whitespace-nowrap">
+                        {lead.last_activity_at ? (
+                          <span className={`${
+                            // Red if > 3 days, yellow if > 1 day, green if < 1 day
+                            (Date.now() - new Date(lead.last_activity_at).getTime()) > 3 * 86400000
+                              ? 'text-rose-500'
+                              : (Date.now() - new Date(lead.last_activity_at).getTime()) > 86400000
+                                ? 'text-amber-500'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {new Date(lead.last_activity_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}{' '}
+                            <span className="opacity-70">{new Date(lead.last_activity_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/40">-</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading whitespace-nowrap">
+                        {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '—'}
                       </td>
                     </tr>
                   ))
@@ -507,6 +561,18 @@ export const Leads: React.FC = () => {
                       {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : 'Rp -'}
                     </span>
                   </div>
+                  {/* Follow Up Button (mobile web card) */}
+                  <div className="border-t border-border/40 pt-2 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        setFollowUpTemplate(0);
+                        setFollowUpLead({ name: lead.customerNama || '', phone: lead.customerHp, destination: lead.minat_destinasi || '' });
+                      }}
+                      className="w-full py-2 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center gap-1.5 transition-all shadow-sm select-none cursor-pointer"
+                    >
+                      <Phone size={12} /> Follow Up via WhatsApp
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -577,6 +643,87 @@ export const Leads: React.FC = () => {
             <div className="flex justify-end mt-1">
               <button onClick={() => setActiveNoteModal(null)} className="px-5 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-all cursor-pointer">
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow Up Modal */}
+      {followUpLead && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col text-foreground">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                <Phone size={16} />
+                <span className="font-heading font-black text-sm uppercase tracking-wider">Follow Up via WhatsApp</span>
+              </div>
+              <button onClick={() => setFollowUpLead(null)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Customer info */}
+            <div className="px-5 pt-4 pb-3">
+              <div className="bg-muted/60 border border-border/80 rounded-xl px-4 py-2.5 flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                  {(followUpLead.name || 'WA').slice(0, 2)}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-sm text-foreground truncate">{followUpLead.name || 'Pelanggan WA'}</span>
+                  <span className="text-xs text-muted-foreground font-mono">{followUpLead.phone}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Template selector */}
+            <div className="px-5 pb-3">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Pilih Template Pesan</span>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {getFollowUpTemplates(followUpLead.name, followUpLead.destination).map((tpl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setFollowUpTemplate(idx)}
+                    className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left leading-snug cursor-pointer select-none ${
+                      followUpTemplate === idx
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {tpl.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="px-5 pb-4">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Preview Pesan</span>
+              <div className="mt-2 p-3.5 rounded-xl bg-muted/50 border border-border/80 text-xs font-semibold text-foreground leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
+                {getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="px-5 pb-5 flex items-center gap-2">
+              <button
+                onClick={() => setFollowUpLead(null)}
+                className="flex-1 py-2.5 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  handleOpenWhatsApp(
+                    followUpLead.phone,
+                    getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate].message
+                  );
+                  setFollowUpLead(null);
+                }}
+                className="flex-[2] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Phone size={13} /> Buka WhatsApp
               </button>
             </div>
           </div>

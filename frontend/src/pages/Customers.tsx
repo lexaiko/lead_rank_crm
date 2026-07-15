@@ -206,8 +206,8 @@ export const Customers: React.FC = () => {
             />
           </div>
 
-          {/* Buttons container: stacked on mobile, row on desktop */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+          {/* Buttons container: full-width column on mobile, row on sm+ */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             {canWrite && (
               <button
                 onClick={() => {
@@ -216,7 +216,7 @@ export const Customers: React.FC = () => {
                   setCreateMsg(null);
                   setIsCreateOpen(true);
                 }}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none"
               >
                 <Plus size={14} /> Tambah Pelanggan
               </button>
@@ -224,7 +224,7 @@ export const Customers: React.FC = () => {
 
             <button
               onClick={() => setShowIgnored(!showIgnored)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none ${
+              className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none ${
                 showIgnored 
                   ? 'bg-rose-500/10 text-rose-500 border border-rose-500/25 hover:bg-rose-500/20' 
                   : 'bg-muted text-muted-foreground border border-border hover:bg-muted/80'
@@ -232,11 +232,11 @@ export const Customers: React.FC = () => {
             >
               {showIgnored ? (
                 <>
-                  <EyeOff size={14} /> Kontak Diabaikan (Spam)
+                  <EyeOff size={14} /> Kontak Diabaikan
                 </>
               ) : (
                 <>
-                  <Eye size={14} /> Tampilkan Kontak
+                  <Eye size={14} /> Tampilkan Kontak Diabaikan
                 </>
               )}
             </button>
