@@ -58,8 +58,6 @@ interface StoreState {
   updateCustomer: (id: number, data: Partial<{ nama_kontak: string; nomor_hp: string; is_ignored: boolean }>) => Promise<boolean>;
   deleteCustomer: (id: number) => Promise<boolean>;
   fetchAIQueue: () => Promise<void>;
-  createAIJob: (leadId: number) => Promise<boolean>;
-  updateAIJob: (id: number, data: Partial<{ status: string; retry_count: number }>) => Promise<boolean>;
   deleteAIJob: (id: number) => Promise<boolean>;
   fetchMessages: (leadId: number) => Promise<void>;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
@@ -331,33 +329,6 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  createAIJob: async (leadId) => {
-    try {
-      const res = await api.createAIJob({ lead_id: leadId });
-      if (res.success) {
-        await get().fetchAIQueue();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.error('Error creating AI job', e);
-      return false;
-    }
-  },
-
-  updateAIJob: async (id, data) => {
-    try {
-      const res = await api.updateAIJob(id, data);
-      if (res.success) {
-        await get().fetchAIQueue();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.error('Error updating AI job', e);
-      return false;
-    }
-  },
 
   deleteAIJob: async (id) => {
     try {

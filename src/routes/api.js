@@ -1043,65 +1043,7 @@ router.get('/ai-queue', authMiddleware, permissionMiddleware('queue', 'read'), a
   }
 });
 
-// Create AI Job manually
-router.post('/ai-queue', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
-  try {
-    const { lead_id } = req.body;
-    if (!lead_id) {
-      return res.status(400).json({ success: false, error: 'Lead ID is required.' });
-    }
 
-    const leadIdInt = parseInt(lead_id);
-    const lead = await prisma.lead.findUnique({
-      where: { id: leadIdInt }
-    });
-    if (!lead) {
-      return res.status(404).json({ success: false, error: 'Lead not found.' });
-    }
-
-    const existing = await prisma.aIJob.findFirst({
-      where: { lead_id: leadIdInt }
-    });
-    if (existing) {
-      const updated = await prisma.aIJob.update({
-        where: { id: existing.id },
-        data: { status: 'WAITING', retry_count: 0, execute_at: new Date() }
-      });
-      return res.json({ success: true, data: updated, message: 'Existing AI job reset to WAITING.' });
-    }
-
-    const newJob = await prisma.aIJob.create({
-      data: {
-        lead_id: leadIdInt,
-        status: 'WAITING',
-        execute_at: new Date()
-      }
-    });
-    res.json({ success: true, data: newJob });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Update AI Job status or retries
-router.patch('/ai-queue/:id', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
-  try {
-    const jobId = parseInt(req.params.id);
-    const { status, retry_count } = req.body;
-
-    const updateData = {};
-    if (status !== undefined) updateData.status = status;
-    if (retry_count !== undefined) updateData.retry_count = parseInt(retry_count) || 0;
-
-    const updated = await prisma.aIJob.update({
-      where: { id: jobId },
-      data: updateData
-    });
-    res.json({ success: true, data: updated });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // Delete AI Job from queue
 router.delete('/ai-queue/:id', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {

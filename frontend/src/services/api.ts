@@ -142,23 +142,7 @@ export const api = {
     return res.json();
   },
 
-  async createAIJob(data: { lead_id: number }): Promise<{ success: boolean; data: any }> {
-    const res = await fetch(`${API_BASE}/ai-queue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.json();
-  },
 
-  async updateAIJob(id: number, data: Partial<{ status: string; retry_count: number }>): Promise<{ success: boolean; data: any }> {
-    const res = await fetch(`${API_BASE}/ai-queue/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.json();
-  },
 
   async deleteAIJob(id: number): Promise<{ success: boolean; message?: string }> {
     const res = await fetch(`${API_BASE}/ai-queue/${id}`, {

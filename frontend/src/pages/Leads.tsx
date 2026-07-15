@@ -14,6 +14,8 @@ export const Leads: React.FC = () => {
     setLeadsParams,
     resetLeadsParams,
     setSelectedLeadId,
+    admins,
+    fetchAdmins,
   } = useStore();
 
   // Local debounced search input
@@ -32,6 +34,7 @@ export const Leads: React.FC = () => {
   // Initial load
   useEffect(() => {
     fetchLeads();
+    fetchAdmins();
   }, []);
 
   // Debounced search → trigger server fetch on change
@@ -79,7 +82,7 @@ export const Leads: React.FC = () => {
   const activeFiltersCount = [leadsParams.status, leadsParams.admin_id, leadsParams.referral, leadsParams.date_from || leadsParams.date_to]
     .filter(Boolean).length;
 
-  const admins = dashboardData?.admins || [];
+
 
   const { total = 0, page = 1, limit = 20, totalPages = 1 } = leadsMeta || {};
   const startIndex = (page - 1) * limit;

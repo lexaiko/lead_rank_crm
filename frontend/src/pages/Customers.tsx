@@ -192,8 +192,9 @@ export const Customers: React.FC = () => {
       </div>
 
       {/* Search and Stats bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-4 border border-border/80 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card p-4 border border-border/80 rounded-2xl shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+          {/* Search bar */}
           <div className="relative w-full sm:max-w-xs">
             <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
             <input
@@ -201,44 +202,47 @@ export const Customers: React.FC = () => {
               placeholder="Search customer name or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+              className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary h-10"
             />
           </div>
 
-          {canWrite && (
-            <button
-              onClick={() => {
-                setCreateName('');
-                setCreatePhone('');
-                setCreateMsg(null);
-                setIsCreateOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus size={13} /> Tambah Pelanggan
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowIgnored(!showIgnored)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-              showIgnored 
-                ? 'bg-rose-500/10 text-rose-500 border border-rose-500/25 hover:bg-rose-500/20' 
-                : 'bg-muted text-muted-foreground border border-border hover:bg-muted/80'
-            }`}
-          >
-            {showIgnored ? (
-              <>
-                <EyeOff size={13} /> Kontak Diabaikan (Spam)
-              </>
-            ) : (
-              <>
-                <Eye size={13} /> Tampilkan Kontak Diabaikan
-              </>
+          {/* Buttons container: stacked on mobile, row on desktop */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            {canWrite && (
+              <button
+                onClick={() => {
+                  setCreateName('');
+                  setCreatePhone('');
+                  setCreateMsg(null);
+                  setIsCreateOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none"
+              >
+                <Plus size={14} /> Tambah Pelanggan
+              </button>
             )}
-          </button>
+
+            <button
+              onClick={() => setShowIgnored(!showIgnored)}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer h-10 select-none ${
+                showIgnored 
+                  ? 'bg-rose-500/10 text-rose-500 border border-rose-500/25 hover:bg-rose-500/20' 
+                  : 'bg-muted text-muted-foreground border border-border hover:bg-muted/80'
+              }`}
+            >
+              {showIgnored ? (
+                <>
+                  <EyeOff size={14} /> Kontak Diabaikan (Spam)
+                </>
+              ) : (
+                <>
+                  <Eye size={14} /> Tampilkan Kontak
+                </>
+              )}
+            </button>
+          </div>
         </div>
-        <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider shrink-0">
+        <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider shrink-0 lg:text-right mt-1 lg:mt-0">
           {showIgnored ? 'Kontak Diabaikan: ' : 'Registered Clients: '}
           <strong className="text-foreground">{activeCustomersList.length}</strong>
         </span>
@@ -505,52 +509,7 @@ export const Customers: React.FC = () => {
                         <span className="text-xs text-muted-foreground font-mono">{client.nomor_hp}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2.5">
-                        
-                        {/* Edit & Delete for Mobile */}
-                        {canWrite && (
-                          <div className="flex items-center gap-1.5 mr-1">
-                            <button
-                              onClick={() => {
-                                setEditName(client.nama_kontak || '');
-                                setEditPhone(client.nomor_hp);
-                                setEditMsg(null);
-                                setEditingCustomer(client);
-                              }}
-                              className="p-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
-                            >
-                              <Edit size={11} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCustomer(client.id, displayName)}
-                              className="p-1.5 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg shadow-sm transition-all cursor-pointer"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-1 border-l border-border pl-2.5">
-                          <span className="text-[10px] font-bold text-muted-foreground">
-                            {isActive ? 'Aktif' : 'Spam'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
-                            disabled={!canWrite}
-                            className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                            } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                                isActive ? 'translate-x-3.5' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
                           Rp {client.totalRevenue.toLocaleString('id-ID')}
@@ -562,6 +521,50 @@ export const Customers: React.FC = () => {
                       {isExpanded ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
                     </div>
                   </div>
+
+                  {/* Touch-friendly mobile action row at the bottom of the card */}
+                  {canWrite && (
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          {isActive ? 'Aktif' : 'Spam'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                              isActive ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditName(client.nama_kontak || '');
+                            setEditPhone(client.nomor_hp);
+                            setEditMsg(null);
+                            setEditingCustomer(client);
+                          }}
+                          className="px-3.5 py-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1 h-8 select-none"
+                        >
+                          <Edit size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomer(client.id, displayName)}
+                          className="px-3.5 py-1.5 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-1 h-8 select-none"
+                        >
+                          <Trash2 size={12} /> Hapus
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expandable Lead History Drawer for Mobile */}
                   {isExpanded && (
