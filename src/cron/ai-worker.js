@@ -259,7 +259,13 @@ export async function processAIQueue(force = false) {
       // Build updates object dynamically, ignoring null/undefined to keep existing database values if LLM doesn't update them
       const updates = {};
       if (result.status_lead) updates.status_lead = result.status_lead;
-      if (result.minat_destinasi !== undefined && result.minat_destinasi !== null) updates.minat_destinasi = result.minat_destinasi;
+      if (result.minat_destinasi !== undefined && result.minat_destinasi !== null) {
+        if (Array.isArray(result.minat_destinasi)) {
+          updates.minat_destinasi = result.minat_destinasi.join(', ');
+        } else {
+          updates.minat_destinasi = String(result.minat_destinasi);
+        }
+      }
       if (result.jumlah_peserta !== undefined && result.jumlah_peserta !== null) updates.jumlah_peserta = Number(result.jumlah_peserta);
       
       if (result.estimasi_waktu) {
@@ -373,7 +379,7 @@ Tugasmu:
 1. Analisis 'new_messages' untuk setiap lead secara independen. Jangan mencampuradukkan data antar lead.
 2. Gabungkan konteks 'new_messages' dengan 'previous_summary' (jika ada) untuk mengidentifikasi pembaharuan informasi lead.
 3. Ekstrak informasi secara presisi:
-   - 'minat_destinasi' (misal: Ijen, Baluran, Djawatan, dsb. Jika tidak ada info baru, tetap pertahankan info lama dari current_lead).
+   - 'minat_destinasi' (wajib berupa string tunggal, jika ada beberapa destinasi gabungkan dengan koma, misal: "Ijen, Baluran, Djawatan". Jika tidak ada info baru, tetap pertahankan info lama dari current_lead).
    - 'jumlah_peserta' (dalam format angka numerik).
    - 'estimasi_waktu' (format tanggal ISO YYYY-MM-DD. Jika pelanggan menyebutkan tanggal relatif, hitung berdasarkan tanggal hari ini: ${nowStr}).
    - 'analysis_summary' (catatan atau ringkasan singkat mengenai kebutuhan spesifik pelanggan, kesepakatan penting, atau rangkuman inti percakapan mereka).

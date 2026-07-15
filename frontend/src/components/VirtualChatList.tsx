@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChatMessage } from '../types';
 
 interface VirtualChatListProps {
@@ -9,20 +8,12 @@ interface VirtualChatListProps {
 export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Configure virtualizer
-  const rowVirtualizer = useVirtualizer({
-    count: messages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 80, // Estimated bubble height + padding
-    overscan: 5,
-  });
-
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (messages.length > 0) {
-      rowVirtualizer.scrollToIndex(messages.length - 1, { align: 'end' });
+    if (parentRef.current) {
+      parentRef.current.scrollTop = parentRef.current.scrollHeight;
     }
-  }, [messages.length, rowVirtualizer]);
+  }, [messages.length]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -45,36 +36,20 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
   return (
     <div
       ref={parentRef}
-      className="flex-1 overflow-y-auto px-4 py-6 bg-chat-bg border border-border/50 rounded-2xl relative"
-      style={{ contentVisibility: 'auto' }}
+      className="flex-1 overflow-y-auto px-4 py-6 bg-chat-bg border border-border/50 rounded-2xl relative flex flex-col gap-1"
     >
       {messages.length === 0 ? (
         <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
           No chat history found for this lead.
         </div>
       ) : (
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const message = messages[virtualRow.index];
+        <div className="flex flex-col w-full gap-1">
+          {messages.map((message, index) => {
             const isAdmin = message.pengirim === 'admin';
-            const showDateHeader = shouldShowDateHeader(virtualRow.index);
+            const showDateHeader = shouldShowDateHeader(index);
 
             return (
-              <div
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                className="absolute left-0 w-1/1 flex flex-col w-full"
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
+              <div key={message.id || index} className="flex flex-col w-full">
                 {/* Date Header Separator */}
                 {showDateHeader && (
                   <div className="flex justify-center my-3">
@@ -88,7 +63,7 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
                 <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'} my-1`}>
                   <div className={`flex flex-col max-w-[75%] gap-0.5 ${isAdmin ? 'items-end' : 'items-start'}`}>
                     <div
-                      className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm font-normal break-words ${
+                      className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm font-normal break-words whitespace-pre-wrap ${
                         isAdmin
                           ? 'bg-teal-600 dark:bg-teal-700 text-white rounded-tr-none'
                           : 'bg-card text-foreground border border-border/80 rounded-tl-none'
