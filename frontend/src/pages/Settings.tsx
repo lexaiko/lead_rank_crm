@@ -5,8 +5,8 @@ import { api } from '../services/api';
 
 export const Settings: React.FC = () => {
   const { 
-    dashboardData, 
-    fetchDashboard, 
+    admins, 
+    fetchAdmins, 
     toggleAdmin,
     logoutAdmin,
     isLoading 
@@ -20,7 +20,7 @@ export const Settings: React.FC = () => {
   const [logoutConfirmAdmin, setLogoutConfirmAdmin] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
-    fetchDashboard();
+    fetchAdmins();
   }, []);
 
   // Poll connection status while QR modal is open
@@ -40,7 +40,7 @@ export const Settings: React.FC = () => {
           setTimeout(() => {
             if (isMounted) {
               setQrModalAdmin(null);
-              fetchDashboard();
+              fetchAdmins();
             }
           }, 2000);
         }
@@ -55,15 +55,13 @@ export const Settings: React.FC = () => {
     };
   }, [qrModalAdmin]);
 
-  if (!dashboardData) {
+  if (admins.length === 0 && isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-border border-t-primary" />
       </div>
     );
   }
-
-  const { admins } = dashboardData;
 
   const handleOpenQr = (id: number, name: string) => {
     setIsConnected(false);
@@ -83,10 +81,10 @@ export const Settings: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          WhatsApp Connection Management
+          Koneksi WhatsApp
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Monitor WhatsApp Baileys active connection sockets, link or scan QR code tokens, and check connection logs.
+          Pantau status soket aktif WhatsApp Web Baileys, hubungkan perangkat baru (scan QR), atau putuskan sesi admin CS.
         </p>
       </div>
 

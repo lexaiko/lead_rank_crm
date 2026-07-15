@@ -78,10 +78,10 @@ export const Reports: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          Analytics & Performance Reports (Bulan Ini)
+          Laporan Analisis & Performa
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Review sales pipelines funnel conversion, booking values, travel package demands, and sales agents performance (Metrics: Current Month / Bulan Ini).
+          Analisis konversi pipeline sales, nilai booking, destinasi terfavorit, serta performa balasan masing-masing CS bulan ini.
         </p>
       </div>
 

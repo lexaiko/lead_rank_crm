@@ -109,10 +109,10 @@ export const Customers: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          Customers Directory
+          Daftar Kontak
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Customer statistics, repeat inquiries history tracker, and total transaction values.
+          Direktori data pelanggan, riwayat pemesanan berulang, serta total nilai transaksi yang tercatat.
         </p>
       </div>
 

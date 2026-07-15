@@ -4,8 +4,8 @@ import { UserPlus, Edit, Trash2, ToggleLeft, ToggleRight, Loader2, Phone, Shield
 
 export const Users: React.FC = () => {
   const { 
-    dashboardData, 
-    fetchDashboard, 
+    admins, 
+    fetchAdmins, 
     createAdmin, 
     updateAdmin, 
     deleteAdmin, 
@@ -18,7 +18,8 @@ export const Users: React.FC = () => {
 
   useEffect(() => {
     fetchRoles();
-  }, [fetchRoles]);
+    fetchAdmins();
+  }, [fetchRoles, fetchAdmins]);
 
   // Local state for forms
   const [nameInput, setNameInput] = useState('');
@@ -37,15 +38,13 @@ export const Users: React.FC = () => {
   const [editRoleId, setEditRoleId] = useState(2);
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  if (!dashboardData) {
+  if (roles.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-border border-t-primary" />
       </div>
     );
   }
-
-  const { admins } = dashboardData;
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +65,7 @@ export const Users: React.FC = () => {
       setUsernameInput('');
       setPasswordInput('');
       setRoleIdInput(roles[0]?.id || 2);
-      fetchDashboard();
+      fetchAdmins();
     } else {
       setFormMsg({ type: 'error', text: 'Failed to register user. Username or phone may already exist.' });
     }
@@ -102,7 +101,7 @@ export const Users: React.FC = () => {
       setEditMsg({ type: 'success', text: 'User profile updated successfully!' });
       setTimeout(() => {
         setEditingUser(null);
-        fetchDashboard();
+        fetchAdmins();
       }, 1500);
     } else {
       setEditMsg({ type: 'error', text: 'Failed to update. Username/phone is taken.' });
@@ -122,7 +121,7 @@ export const Users: React.FC = () => {
     const res = await deleteAdmin(id);
     if (res.success) {
       alert('User account deleted successfully.');
-      fetchDashboard();
+      fetchAdmins();
     } else {
       alert(res.message || 'Failed to delete user.');
     }
@@ -134,10 +133,10 @@ export const Users: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          User Account Management (CRUD)
+          Manajemen Pengguna
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Create, edit credentials, adjust roles, toggle active states, or terminate console admin sessions.
+          Tambah, edit kredensial, sesuaikan peran (role), dan aktifkan/nonaktifkan akun admin & CS.
         </p>
       </div>
 

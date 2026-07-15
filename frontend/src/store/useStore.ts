@@ -17,6 +17,7 @@ const DEFAULT_LEADS_PARAMS: LeadsParams = {
 
 interface StoreState {
   dashboardData: DashboardData | null;
+  admins: Admin[];
   customers: CustomerStats[];
   ignoredCustomers: CustomerStats[];
   aiQueue: AIJob[];
@@ -47,6 +48,7 @@ interface StoreState {
   createRole: (name: string) => Promise<boolean>;
 
   fetchDashboard: () => Promise<void>;
+  fetchAdmins: () => Promise<void>;
   fetchLeads: (params?: Partial<LeadsParams>) => Promise<void>;
   setLeadsParams: (params: Partial<LeadsParams>) => void;
   resetLeadsParams: () => void;
@@ -71,12 +73,13 @@ interface StoreState {
 
 export const useStore = create<StoreState>((set, get) => ({
   dashboardData: null,
+  admins: [],
   customers: [],
   ignoredCustomers: [],
   aiQueue: [],
   activeChatMessages: [],
   selectedLeadId: null,
-  activeTab: 'dashboard',
+  activeTab: (localStorage.getItem('activeTab') as StoreState['activeTab']) || 'dashboard',
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
   isLoading: false,
   isLoadingMessages: false,
@@ -197,6 +200,17 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  fetchAdmins: async () => {
+    try {
+      const res = await api.getAdmins();
+      if (res.success) {
+        set({ admins: res.data });
+      }
+    } catch (e) {
+      console.error('Error fetching admins', e);
+    }
+  },
+
   fetchLeads: async (params) => {
     const currentParams = get().leadsParams;
     const merged = params ? { ...currentParams, ...params } : currentParams;
@@ -309,7 +323,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.createAdmin(payload);
       if (res.success) {
-        await get().fetchDashboard();
+        await get().fetchAdmins();
         return true;
       }
       return false;
@@ -326,7 +340,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.updateAdmin(id, payload);
       if (res.success) {
-        await get().fetchDashboard();
+        await get().fetchAdmins();
         return true;
       }
       return false;
@@ -343,7 +357,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.deleteAdmin(id);
       if (res.success) {
-        await get().fetchDashboard();
+        await get().fetchAdmins();
         return { success: true, message: res.message };
       }
       return { success: false, message: res.error || 'Failed to delete account' };
@@ -357,14 +371,14 @@ export const useStore = create<StoreState>((set, get) => ({
 
   toggleAdmin: async (id: number) => {
     try {
-      const { dashboardData } = get();
-      const admin = dashboardData?.admins?.find((a: any) => a.id === id);
+      const { admins } = get();
+      const admin = admins?.find((a: any) => a.id === id);
       const isCurrentlyActive = admin?.is_active ?? true;
       const res = isCurrentlyActive
         ? await api.deactivateAdmin(id)
         : await api.activateAdmin(id);
       if (res.success) {
-        await get().fetchDashboard();
+        await get().fetchAdmins();
       }
     } catch (e) {
       console.error('Error toggling admin', e);
@@ -376,7 +390,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.logoutAdmin(id);
       if (res.success) {
-        await get().fetchDashboard();
+        await get().fetchAdmins();
         return true;
       }
       return false;
@@ -415,7 +429,10 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  setTab: (tab) => set({ activeTab: tab }),
+  setTab: (tab) => {
+    localStorage.setItem('activeTab', tab);
+    set({ activeTab: tab });
+  },
 
   setTheme: (theme) => {
     localStorage.setItem('theme', theme);

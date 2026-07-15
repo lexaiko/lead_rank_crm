@@ -130,10 +130,10 @@ export const Leads: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-            Leads Intelligence Sheet
+            Manajemen Leads
           </h1>
           <p className="text-xs text-muted-foreground font-semibold">
-            Track inquiries, update destinations, qualify status, and review customer chat logs.
+            Pantau masuknya pesan, perbarui status kualifikasi, destinasi wisata, serta lihat riwayat percakapan.
           </p>
         </div>
         <button

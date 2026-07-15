@@ -53,10 +53,10 @@ export const Dashboard: React.FC = () => {
       {/* Welcome Banner */}
       <div className="flex flex-col gap-1.5 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          Core Operations Console
+          Dashboard Utama
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Real-time WhatsApp passive tracking, AI data extraction, and customer conversions (Metrics: Current Month / Bulan Ini).
+          Ringkasan metrik pelacakan WhatsApp, analisis kualifikasi AI, dan performa lead bulan ini.
         </p>
       </div>
 

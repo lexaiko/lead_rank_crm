@@ -80,10 +80,10 @@ export const Roles: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-            Role Permissions Matrix & Access Control
+            Hak Akses & Role
           </h1>
           <p className="text-xs text-muted-foreground font-semibold">
-            Configure module permissions (none, read, write) per role and create dynamic user roles.
+            Atur kebijakan izin modul (none, read, write) untuk tiap tingkatan akun pengguna.
           </p>
         </div>
         
