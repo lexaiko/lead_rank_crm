@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Search, UserCheck, MessageSquare, Compass, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, UserCheck, MessageSquare, Compass, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Eye, EyeOff, CheckCircle2, XCircle, Plus, Edit, Trash2, X } from 'lucide-react';
 import { Lead } from '../types';
 
 export const Customers: React.FC = () => {
@@ -9,9 +9,23 @@ export const Customers: React.FC = () => {
     ignoredCustomers, 
     fetchCustomers, 
     fetchIgnoredCustomers, 
+    createCustomer,
     updateCustomer, 
+    deleteCustomer,
     user 
   } = useStore();
+
+  // Create Customer Form State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createPhone, setCreatePhone] = useState('');
+  const [createMsg, setCreateMsg] = useState<string | null>(null);
+
+  // Edit Customer Form State
+  const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editMsg, setEditMsg] = useState<string | null>(null);
   
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -76,6 +90,54 @@ export const Customers: React.FC = () => {
     });
   };
 
+  const handleCreateCustomer = async () => {
+    if (!createPhone) {
+      setCreateMsg('Nomor WhatsApp wajib diisi.');
+      return;
+    }
+    setCreateMsg(null);
+    const success = await createCustomer({ nama_kontak: createName, nomor_hp: createPhone });
+    if (success) {
+      setIsCreateOpen(false);
+      showToast('Pelanggan baru berhasil ditambahkan.', 'success');
+    } else {
+      setCreateMsg('Gagal menambahkan pelanggan. Pastikan nomor WhatsApp unik.');
+    }
+  };
+
+  const handleEditCustomer = async () => {
+    if (!editPhone) {
+      setEditMsg('Nomor WhatsApp wajib diisi.');
+      return;
+    }
+    setEditMsg(null);
+    const success = await updateCustomer(editingCustomer.id, { nama_kontak: editName, nomor_hp: editPhone });
+    if (success) {
+      setEditingCustomer(null);
+      showToast('Data pelanggan berhasil diperbarui.', 'success');
+    } else {
+      setEditMsg('Gagal memperbarui data. Pastikan nomor WhatsApp unik.');
+    }
+  };
+
+  const handleDeleteCustomer = (id: number, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Pelanggan Permanen?',
+      message: `Apakah Anda yakin ingin menghapus pelanggan "${name}" secara permanen? PENTING: Menghapus pelanggan akan menghapus seluruh data prospek (leads) dan histori chat WhatsApp terkait dari database. Tindakan ini TIDAK DAPAT dibatalkan.`,
+      confirmText: 'Ya, Hapus',
+      confirmColor: 'bg-rose-600 hover:bg-rose-700',
+      onConfirm: async () => {
+        const success = await deleteCustomer(id);
+        if (success) {
+          showToast('Pelanggan berhasil dihapus.', 'success');
+        } else {
+          showToast('Gagal menghapus pelanggan.', 'error');
+        }
+      }
+    });
+  };
+
   const activeCustomersList = showIgnored ? ignoredCustomers : customers;
 
   const filtered = activeCustomersList.filter(c => {
@@ -86,6 +148,19 @@ export const Customers: React.FC = () => {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedCustomers = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+  const getPageNumbers = () => {
+    if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [];
+    pages.push(1);
+    if (currentPage > 3) pages.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
 
   const toggleExpand = (id: number) => {
     setExpandedId(prev => prev === id ? null : id);
@@ -129,6 +204,20 @@ export const Customers: React.FC = () => {
               className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
             />
           </div>
+
+          {canWrite && (
+            <button
+              onClick={() => {
+                setCreateName('');
+                setCreatePhone('');
+                setCreateMsg(null);
+                setIsCreateOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus size={13} /> Tambah Pelanggan
+            </button>
+          )}
 
           <button
             onClick={() => setShowIgnored(!showIgnored)}
@@ -215,24 +304,51 @@ export const Customers: React.FC = () => {
                             Rp {client.totalRevenue.toLocaleString('id-ID')}
                           </td>
                           <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="text-[11px] font-bold text-muted-foreground">
-                                {isActive ? 'Aktif' : 'Spam'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
-                                disabled={!canWrite}
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                                } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                                    isActive ? 'translate-x-4' : 'translate-x-0'
-                                  }`}
-                                />
-                              </button>
+                            <div className="flex items-center justify-end gap-3.5">
+                              {/* Edit & Delete Action Buttons */}
+                              {canWrite && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setEditName(client.nama_kontak || '');
+                                      setEditPhone(client.nomor_hp);
+                                      setEditMsg(null);
+                                      setEditingCustomer(client);
+                                    }}
+                                    className="p-2 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                                    title="Edit data pelanggan"
+                                  >
+                                    <Edit size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCustomer(client.id, displayName)}
+                                    className="p-2 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl shadow-sm transition-all cursor-pointer"
+                                    title="Hapus pelanggan"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center gap-1.5 border-l border-border pl-3.5">
+                                <span className="text-[11px] font-bold text-muted-foreground">
+                                  {isActive ? 'Aktif' : 'Spam'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
+                                  disabled={!canWrite}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                    isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                  } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                      isActive ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -332,20 +448,22 @@ export const Customers: React.FC = () => {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
+                {getPageNumbers().map((p, i) => {
+                  const isEllipsis = p === '...';
+                  const isCurrent = currentPage === p;
+                  return isEllipsis ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-muted-foreground font-bold">...</span>
+                  ) : (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
                       className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
                         isCurrent 
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
-                      {page}
+                      {p}
                     </button>
                   );
                 })}
@@ -388,24 +506,50 @@ export const Customers: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 mr-1">
-                        <span className="text-[10px] font-bold text-muted-foreground">
-                          {isActive ? 'Aktif' : 'Spam'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
-                          disabled={!canWrite}
-                          className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                          } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                              isActive ? 'translate-x-3.5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
+                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2.5">
+                        
+                        {/* Edit & Delete for Mobile */}
+                        {canWrite && (
+                          <div className="flex items-center gap-1.5 mr-1">
+                            <button
+                              onClick={() => {
+                                setEditName(client.nama_kontak || '');
+                                setEditPhone(client.nomor_hp);
+                                setEditMsg(null);
+                                setEditingCustomer(client);
+                              }}
+                              className="p-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                            >
+                              <Edit size={11} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(client.id, displayName)}
+                              className="p-1.5 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg shadow-sm transition-all cursor-pointer"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1 border-l border-border pl-2.5">
+                          <span className="text-[10px] font-bold text-muted-foreground">
+                            {isActive ? 'Aktif' : 'Spam'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleIgnore(client.id, displayName, isActive)}
+                            disabled={!canWrite}
+                            className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                            } ${!canWrite && 'opacity-55 cursor-not-allowed'}`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                isActive ? 'translate-x-3.5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
@@ -490,20 +634,22 @@ export const Customers: React.FC = () => {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
+                {getPageNumbers().map((p, i) => {
+                  const isEllipsis = p === '...';
+                  const isCurrent = currentPage === p;
+                  return isEllipsis ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-muted-foreground font-bold">...</span>
+                  ) : (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
                       className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
                         isCurrent 
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
-                      {page}
+                      {p}
                     </button>
                   );
                 })}
@@ -519,6 +665,126 @@ export const Customers: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Create Customer Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-border/85 pb-2.5">
+              <span className="font-heading font-black text-sm text-foreground flex items-center gap-2">
+                <Plus size={16} className="text-primary" /> Tambah Pelanggan Baru
+              </span>
+              <button onClick={() => setIsCreateOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            
+            {createMsg && (
+              <div className="p-2.5 rounded-lg text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold leading-relaxed">
+                {createMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nama Kontak</label>
+                <input
+                  type="text"
+                  placeholder="Masukkan nama pelanggan..."
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nomor WhatsApp</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 628123456789"
+                  value={createPhone}
+                  onChange={(e) => setCreatePhone(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleCreateCustomer}
+                className="px-5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {editingCustomer && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-border/85 pb-2.5">
+              <span className="font-heading font-black text-sm text-foreground flex items-center gap-2">
+                <Edit size={14} className="text-primary" /> Edit Data Pelanggan
+              </span>
+              <button onClick={() => setEditingCustomer(null)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            
+            {editMsg && (
+              <div className="p-2.5 rounded-lg text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold leading-relaxed">
+                {editMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nama Kontak</label>
+                <input
+                  type="text"
+                  placeholder="Masukkan nama pelanggan..."
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Nomor WhatsApp</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 628123456789"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => setEditingCustomer(null)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleEditCustomer}
+                className="px-5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom Confirmation Modal */}
       {confirmModal?.isOpen && (

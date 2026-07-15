@@ -54,8 +54,13 @@ interface StoreState {
   resetLeadsParams: () => void;
   fetchCustomers: () => Promise<void>;
   fetchIgnoredCustomers: () => Promise<void>;
-  updateCustomer: (id: number, data: Partial<{ is_ignored: boolean }>) => Promise<boolean>;
+  createCustomer: (data: { nama_kontak: string; nomor_hp: string }) => Promise<boolean>;
+  updateCustomer: (id: number, data: Partial<{ nama_kontak: string; nomor_hp: string; is_ignored: boolean }>) => Promise<boolean>;
+  deleteCustomer: (id: number) => Promise<boolean>;
   fetchAIQueue: () => Promise<void>;
+  createAIJob: (leadId: number) => Promise<boolean>;
+  updateAIJob: (id: number, data: Partial<{ status: string; retry_count: number }>) => Promise<boolean>;
+  deleteAIJob: (id: number) => Promise<boolean>;
   fetchMessages: (leadId: number) => Promise<void>;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
   createAdmin: (payload: { nama_admin: string; nomor_wa?: string; username: string; password: string; role_id: number }) => Promise<boolean>;
@@ -259,6 +264,24 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  createCustomer: async (data) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.createCustomer(data);
+      if (res.success) {
+        await get().fetchCustomers();
+        await get().fetchIgnoredCustomers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error creating customer', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   updateCustomer: async (id, data) => {
     set({ isLoading: true });
     try {
@@ -278,6 +301,25 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  deleteCustomer: async (id) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.deleteCustomer(id);
+      if (res.success) {
+        await get().fetchDashboard();
+        await get().fetchCustomers();
+        await get().fetchIgnoredCustomers();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error deleting customer', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   fetchAIQueue: async () => {
     try {
       const res = await api.getAIQueue();
@@ -286,6 +328,48 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     } catch (e) {
       console.error('Error fetching AI queue', e);
+    }
+  },
+
+  createAIJob: async (leadId) => {
+    try {
+      const res = await api.createAIJob({ lead_id: leadId });
+      if (res.success) {
+        await get().fetchAIQueue();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error creating AI job', e);
+      return false;
+    }
+  },
+
+  updateAIJob: async (id, data) => {
+    try {
+      const res = await api.updateAIJob(id, data);
+      if (res.success) {
+        await get().fetchAIQueue();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error updating AI job', e);
+      return false;
+    }
+  },
+
+  deleteAIJob: async (id) => {
+    try {
+      const res = await api.deleteAIJob(id);
+      if (res.success) {
+        await get().fetchAIQueue();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error deleting AI job', e);
+      return false;
     }
   },
 

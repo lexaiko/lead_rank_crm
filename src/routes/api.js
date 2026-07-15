@@ -1043,6 +1043,79 @@ router.get('/ai-queue', authMiddleware, permissionMiddleware('queue', 'read'), a
   }
 });
 
+// Create AI Job manually
+router.post('/ai-queue', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
+  try {
+    const { lead_id } = req.body;
+    if (!lead_id) {
+      return res.status(400).json({ success: false, error: 'Lead ID is required.' });
+    }
+
+    const leadIdInt = parseInt(lead_id);
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadIdInt }
+    });
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead not found.' });
+    }
+
+    const existing = await prisma.aIJob.findFirst({
+      where: { lead_id: leadIdInt }
+    });
+    if (existing) {
+      const updated = await prisma.aIJob.update({
+        where: { id: existing.id },
+        data: { status: 'WAITING', retry_count: 0, execute_at: new Date() }
+      });
+      return res.json({ success: true, data: updated, message: 'Existing AI job reset to WAITING.' });
+    }
+
+    const newJob = await prisma.aIJob.create({
+      data: {
+        lead_id: leadIdInt,
+        status: 'WAITING',
+        execute_at: new Date()
+      }
+    });
+    res.json({ success: true, data: newJob });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update AI Job status or retries
+router.patch('/ai-queue/:id', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
+  try {
+    const jobId = parseInt(req.params.id);
+    const { status, retry_count } = req.body;
+
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (retry_count !== undefined) updateData.retry_count = parseInt(retry_count) || 0;
+
+    const updated = await prisma.aIJob.update({
+      where: { id: jobId },
+      data: updateData
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete AI Job from queue
+router.delete('/ai-queue/:id', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
+  try {
+    const jobId = parseInt(req.params.id);
+    await prisma.aIJob.delete({
+      where: { id: jobId }
+    });
+    res.json({ success: true, message: 'AI Job deleted successfully.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Get Customers with Lead statistics
 // Supports: GET /customers          → active customers
 //           GET /customers?ignored=true → ignored customers
@@ -1084,7 +1157,39 @@ router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read
   }
 });
 
-// Update Customer details (e.g. is_ignored)
+// Create Customer manually
+router.post('/customers', authMiddleware, async (req, res, next) => {
+  try {
+    const permissions = req.admin?.role?.permissions || {};
+    const canWrite = permissions.leads === 'write' || permissions.customers === 'write';
+    if (!canWrite) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions to create customer.' });
+    }
+    const { nama_kontak, nomor_hp } = req.body;
+    if (!nomor_hp) {
+      return res.status(400).json({ success: false, error: 'Phone number is required.' });
+    }
+
+    const existing = await prisma.customer.findUnique({
+      where: { nomor_hp }
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Customer with this phone number already exists.' });
+    }
+
+    const newCustomer = await prisma.customer.create({
+      data: {
+        nama_kontak,
+        nomor_hp
+      }
+    });
+    res.json({ success: true, data: newCustomer });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update Customer details
 router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
   try {
     const permissions = req.admin?.role?.permissions || {};
@@ -1093,14 +1198,45 @@ router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions to update customer.' });
     }
     const customerId = parseInt(req.params.id);
-    const { is_ignored } = req.body;
+    const { is_ignored, nama_kontak, nomor_hp } = req.body;
+
+    const updateData = {};
+    if (is_ignored !== undefined) updateData.is_ignored = is_ignored;
+    if (nama_kontak !== undefined) updateData.nama_kontak = nama_kontak;
+    if (nomor_hp !== undefined) {
+      const existing = await prisma.customer.findFirst({
+        where: { nomor_hp, NOT: { id: customerId } }
+      });
+      if (existing) {
+        return res.status(400).json({ success: false, error: 'Another customer with this phone number already exists.' });
+      }
+      updateData.nomor_hp = nomor_hp;
+    }
 
     const updated = await prisma.customer.update({
       where: { id: customerId },
-      data: { is_ignored }
+      data: updateData
     });
 
     res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete Customer
+router.delete('/customers/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const permissions = req.admin?.role?.permissions || {};
+    const canWrite = permissions.leads === 'write' || permissions.customers === 'write';
+    if (!canWrite) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Insufficient permissions to delete customer.' });
+    }
+    const customerId = parseInt(req.params.id);
+    await prisma.customer.delete({
+      where: { id: customerId }
+    });
+    res.json({ success: true, message: 'Customer deleted successfully.' });
   } catch (err) {
     next(err);
   }

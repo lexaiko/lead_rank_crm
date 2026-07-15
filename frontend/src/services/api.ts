@@ -117,11 +117,52 @@ export const api = {
     return res.json();
   },
 
-  async updateCustomer(id: number, data: Partial<{ is_ignored: boolean }>): Promise<{ success: boolean; data: any }> {
+  async createCustomer(data: { nama_kontak: string; nomor_hp: string }): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async updateCustomer(id: number, data: Partial<{ nama_kontak: string; nomor_hp: string; is_ignored: boolean }>): Promise<{ success: boolean; data: any }> {
     const res = await fetch(`${API_BASE}/customers/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteCustomer(id: number): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  async createAIJob(data: { lead_id: number }): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/ai-queue`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async updateAIJob(id: number, data: Partial<{ status: string; retry_count: number }>): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/ai-queue/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteAIJob(id: number): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${API_BASE}/ai-queue/${id}`, {
+      method: 'DELETE',
     });
     return res.json();
   },

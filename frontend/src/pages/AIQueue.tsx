@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Bot, RefreshCw, AlertCircle, Play, CheckCircle2, Loader2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, RefreshCw, AlertCircle, Play, CheckCircle2, Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Edit, Trash2, X, XCircle } from 'lucide-react';
 
 const CountdownTimer: React.FC<{ targetDateStr: string | null; status: string }> = ({ targetDateStr, status }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -45,10 +45,56 @@ const CountdownTimer: React.FC<{ targetDateStr: string | null; status: string }>
 };
 
 export const AIQueue: React.FC = () => {
-  const { aiQueue, fetchAIQueue, triggerAIWorker, triggerSweeper, isLoading } = useStore();
+  const { 
+    aiQueue, 
+    fetchAIQueue, 
+    triggerAIWorker, 
+    triggerSweeper, 
+    isLoading,
+    user,
+    leads,
+    fetchLeads,
+    createAIJob,
+    updateAIJob,
+    deleteAIJob
+  } = useStore();
+
   const [runningAI, setRunningAI] = useState(false);
   const [runningSweeper, setRunningSweeper] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
+
+  const canWrite = user?.permissions?.queue === 'write';
+
+  // Create Job Modal State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState<string>('');
+  const [createMsg, setCreateMsg] = useState<string | null>(null);
+
+  // Edit Job Modal State
+  const [editingJob, setEditingJob] = useState<any | null>(null);
+  const [editStatus, setEditStatus] = useState<string>('WAITING');
+  const [editRetryCount, setEditRetryCount] = useState<number>(0);
+  const [editMsg, setEditMsg] = useState<string | null>(null);
+
+  // Confirm and Toast Notifications
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    confirmColor: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ isOpen: true, message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,6 +105,19 @@ export const AIQueue: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedQueue = aiQueue.slice(startIndex, startIndex + itemsPerPage);
 
+  const getPageNumbers = () => {
+    if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [];
+    pages.push(1);
+    if (currentPage > 3) pages.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
+
   // Auto-refresh queue every 5 seconds
   useEffect(() => {
     fetchAIQueue();
@@ -67,6 +126,60 @@ export const AIQueue: React.FC = () => {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (isCreateOpen) {
+      fetchLeads({ limit: 100 });
+    }
+  }, [isCreateOpen]);
+
+  const handleCreateJob = async () => {
+    if (!selectedLeadId) {
+      setCreateMsg('Silakan pilih atau masukkan Lead ID.');
+      return;
+    }
+    setCreateMsg(null);
+    const success = await createAIJob(parseInt(selectedLeadId));
+    if (success) {
+      setIsCreateOpen(false);
+      showToast('Pekerjaan AI berhasil ditambahkan ke antrean.', 'success');
+    } else {
+      setCreateMsg('Gagal menambahkan pekerjaan ke antrean AI.');
+    }
+  };
+
+  const handleEditJob = async () => {
+    if (!editStatus) {
+      setEditMsg('Status wajib dipilih.');
+      return;
+    }
+    setEditMsg(null);
+    const success = await updateAIJob(editingJob.id, { status: editStatus, retry_count: editRetryCount });
+    if (success) {
+      setEditingJob(null);
+      showToast('Status antrean AI berhasil diperbarui.', 'success');
+    } else {
+      setEditMsg('Gagal memperbarui status antrean.');
+    }
+  };
+
+  const handleDeleteJob = (id: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus dari Antrean AI?',
+      message: `Apakah Anda yakin ingin menghapus pekerjaan AI ini dari antrean? Prospek terkait tidak akan diproses oleh AI Worker kecuali ditambahkan kembali secara manual.`,
+      confirmText: 'Ya, Hapus',
+      confirmColor: 'bg-rose-600 hover:bg-rose-700',
+      onConfirm: async () => {
+        const success = await deleteAIJob(id);
+        if (success) {
+          showToast('Pekerjaan AI berhasil dihapus.', 'success');
+        } else {
+          showToast('Gagal menghapus pekerjaan AI.', 'error');
+        }
+      }
+    });
+  };
 
   const handleSweeper = async () => {
     setRunningSweeper(true);
@@ -138,6 +251,19 @@ export const AIQueue: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
+          {canWrite && (
+            <button
+              onClick={() => {
+                setSelectedLeadId('');
+                setCreateMsg(null);
+                setIsCreateOpen(true);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer select-none"
+            >
+              <Plus size={13} />
+              Tambah Antrean
+            </button>
+          )}
           <button
             onClick={() => fetchAIQueue()}
             className="flex items-center gap-2 px-3 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all cursor-pointer select-none"
@@ -223,12 +349,13 @@ export const AIQueue: React.FC = () => {
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Execute At</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Retries</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Updated At</th>
+                  {canWrite && <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60 text-sm font-semibold">
                 {paginatedQueue.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={canWrite ? 9 : 8} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No active background jobs present in the queue database.
                     </td>
                   </tr>
@@ -278,6 +405,31 @@ export const AIQueue: React.FC = () => {
                       <td className="px-5 py-4 font-mono font-normal text-muted-foreground">
                         {formatDate(job.updatedAt)}
                       </td>
+                      {canWrite && (
+                        <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setEditStatus(job.status);
+                                setEditRetryCount(job.retry_count);
+                                setEditMsg(null);
+                                setEditingJob(job);
+                              }}
+                              className="p-2 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                              title="Edit status antrean"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteJob(job.id)}
+                              className="p-2 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl shadow-sm transition-all cursor-pointer"
+                              title="Hapus dari antrean"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -317,20 +469,22 @@ export const AIQueue: React.FC = () => {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
+                {getPageNumbers().map((p, i) => {
+                  const isEllipsis = p === '...';
+                  const isCurrent = currentPage === p;
+                  return isEllipsis ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-muted-foreground font-bold">...</span>
+                  ) : (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
                       className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
                         isCurrent 
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
-                      {page}
+                      {p}
                     </button>
                   );
                 })}
@@ -395,6 +549,27 @@ export const AIQueue: React.FC = () => {
                     )}
                   </div>
                 </div>
+                {canWrite && (
+                  <div className="flex items-center justify-end gap-2 border-t border-border/50 pt-2.5 mt-1">
+                    <button
+                      onClick={() => {
+                        setEditStatus(job.status);
+                        setEditRetryCount(job.retry_count);
+                        setEditMsg(null);
+                        setEditingJob(job);
+                      }}
+                      className="p-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Edit size={11} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteJob(job.id)}
+                      className="p-1.5 border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 size={11} /> Hapus
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -432,20 +607,22 @@ export const AIQueue: React.FC = () => {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1;
-                  const isCurrent = currentPage === page;
-                  return (
+                {getPageNumbers().map((p, i) => {
+                  const isEllipsis = p === '...';
+                  const isCurrent = currentPage === p;
+                  return isEllipsis ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-muted-foreground font-bold">...</span>
+                  ) : (
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
                       className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
                         isCurrent 
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                       }`}
                     >
-                      {page}
+                      {p}
                     </button>
                   );
                 })}
@@ -461,6 +638,188 @@ export const AIQueue: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Create AI Job Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-border/85 pb-2.5">
+              <span className="font-heading font-black text-sm text-foreground flex items-center gap-2">
+                <Plus size={16} className="text-primary" /> Tambah Antrean AI Baru
+              </span>
+              <button onClick={() => setIsCreateOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            
+            {createMsg && (
+              <div className="p-2.5 rounded-lg text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold leading-relaxed">
+                {createMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Pilih Prospek/Lead</label>
+                <select
+                  value={selectedLeadId}
+                  onChange={(e) => setSelectedLeadId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="">-- Pilih Prospek --</option>
+                  {leads.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.kode_lead} - {l.customerNama || 'Tanpa Nama'} ({l.minat_destinasi || 'No Destination'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="text-center text-[10px] font-bold text-muted-foreground">ATAU</div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Input Numeric Lead ID Secara Manual</label>
+                <input
+                  type="number"
+                  placeholder="Masukkan ID Lead (angka), misal: 388"
+                  value={selectedLeadId}
+                  onChange={(e) => setSelectedLeadId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleCreateJob}
+                className="px-5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit AI Job Modal */}
+      {editingJob && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-border/85 pb-2.5">
+              <span className="font-heading font-black text-sm text-foreground flex items-center gap-2">
+                <Edit size={14} className="text-primary" /> Edit Status Antrean AI
+              </span>
+              <button onClick={() => setEditingJob(null)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            
+            {editMsg && (
+              <div className="p-2.5 rounded-lg text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20 font-semibold leading-relaxed">
+                {editMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status Pekerjaan</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="WAITING">WAITING</option>
+                  <option value="PROCESSING">PROCESSING</option>
+                  <option value="DONE">DONE</option>
+                  <option value="FAILED">FAILED</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Jumlah Percobaan Ulang (Retry Count)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={3}
+                  value={editRetryCount}
+                  onChange={(e) => setEditRetryCount(Math.min(3, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="w-full px-3 py-2 text-xs font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 mt-2 justify-end">
+              <button
+                onClick={() => setEditingJob(null)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleEditJob}
+                className="px-5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center gap-3 text-orange-500">
+              <AlertCircle size={24} className="shrink-0" />
+              <span className="font-heading font-black text-base text-foreground">
+                {confirmModal.title}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center gap-3 mt-2 justify-end">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className={`px-5 py-2 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer ${confirmModal.confirmColor}`}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast?.isOpen && (
+        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-in-right ${
+          toast.type === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle2 size={16} className="shrink-0" />
+          ) : (
+            <XCircle size={16} className="shrink-0" />
+          )}
+          <span className="text-xs font-bold font-heading">{toast.message}</span>
+        </div>
+      )}
 
     </div>
   );
