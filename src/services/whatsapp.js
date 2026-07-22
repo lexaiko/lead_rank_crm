@@ -908,8 +908,15 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
   }
 
   // 6. Simpan Pesan to ChatMessage
-  const waktu_pesan = msg.messageTimestamp 
-    ? new Date(Number(msg.messageTimestamp) * 1000) 
+  let timestampSec = msg.messageTimestamp;
+  if (timestampSec && typeof timestampSec === 'object' && typeof timestampSec.toNumber === 'function') {
+    timestampSec = timestampSec.toNumber();
+  } else if (timestampSec) {
+    timestampSec = Number(timestampSec);
+  }
+
+  const waktu_pesan = (timestampSec && !isNaN(timestampSec))
+    ? new Date(timestampSec * 1000) 
     : new Date();
 
   // Download & compress image attachments (e.g. payment proofs) so the AI worker can analyze them later
