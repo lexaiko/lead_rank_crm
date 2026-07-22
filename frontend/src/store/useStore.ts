@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../services/api';
-import { DashboardData, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role, LeadListItem, LeadsMeta, LeadsParams } from '../types';
+import { DashboardData, DashboardParams, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role, LeadListItem, LeadsMeta, LeadsParams } from '../types';
 
 const DEFAULT_LEADS_PARAMS: LeadsParams = {
   page: 1,
@@ -13,6 +13,7 @@ const DEFAULT_LEADS_PARAMS: LeadsParams = {
   date_to: '',
   sort_by: 'last_activity_at',
   sort_order: 'desc',
+  deep_analysis: 'ALL',
 };
 
 interface StoreState {
@@ -23,6 +24,7 @@ interface StoreState {
   aiQueue: AIJob[];
   activeChatMessages: ChatMessage[];
   selectedLeadId: number | null;
+  openDeepAnalysisModal: boolean;
   activeTab: 'dashboard' | 'leads' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles';
   theme: 'light' | 'dark';
   isLoading: boolean;
@@ -35,7 +37,7 @@ interface StoreState {
   leadsParams: LeadsParams;
 
   // Auth State
-  user: (Admin & { permissions: Record<string, 'read' | 'write' | 'none'> }) | null;
+  user: (Admin & { permissions: Record<string, 'read' | 'write' | 'none'>; data_scope: 'all' | 'own' }) | null;
   checkingAuth: boolean;
   roles: Role[];
 
@@ -45,9 +47,10 @@ interface StoreState {
   checkAuth: () => Promise<void>;
   fetchRoles: () => Promise<void>;
   updateRolePermissions: (roleId: number, permissions: any) => Promise<boolean>;
+  updateRoleDataScope: (roleId: number, data_scope: 'all' | 'own') => Promise<boolean>;
   createRole: (name: string) => Promise<boolean>;
 
-  fetchDashboard: () => Promise<void>;
+  fetchDashboard: (params?: DashboardParams) => Promise<void>;
   fetchAdmins: () => Promise<void>;
   fetchLeads: (params?: Partial<LeadsParams>) => Promise<void>;
   setLeadsParams: (params: Partial<LeadsParams>) => void;
@@ -62,7 +65,7 @@ interface StoreState {
   fetchMessages: (leadId: number) => Promise<void>;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
   createAdmin: (payload: { nama_admin: string; nomor_wa?: string; username: string; password: string; role_id: number }) => Promise<boolean>;
-  updateAdmin: (id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>) => Promise<boolean>;
+  updateAdmin: (id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>) => Promise<{ success: boolean; error?: string }>;
   deleteAdmin: (id: number) => Promise<{ success: boolean; message?: string }>;
   toggleAdmin: (id: number) => Promise<void>;
   logoutAdmin: (id: number) => Promise<boolean>;
@@ -72,6 +75,7 @@ interface StoreState {
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
   setSelectedLeadId: (id: number | null) => void;
+  setOpenDeepAnalysisModal: (open: boolean) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -82,6 +86,7 @@ export const useStore = create<StoreState>((set, get) => ({
   aiQueue: [],
   activeChatMessages: [],
   selectedLeadId: null,
+  openDeepAnalysisModal: false,
   activeTab: (localStorage.getItem('activeTab') as StoreState['activeTab']) || 'dashboard',
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
   isLoading: false,
@@ -175,6 +180,27 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  updateRoleDataScope: async (roleId, data_scope) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.updateRoleDataScope(roleId, data_scope);
+      if (res.success) {
+        await get().fetchRoles();
+        const currentUser = get().user;
+        if (currentUser && currentUser.role_id === roleId) {
+          set({ user: { ...currentUser, data_scope } });
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error updating role data scope', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   createRole: async (name: string) => {
     set({ isLoading: true });
     try {
@@ -192,9 +218,9 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  fetchDashboard: async () => {
+  fetchDashboard: async (params) => {
     try {
-      const res = await api.getDashboard();
+      const res = await api.getDashboard(params);
       if (res.success) {
         set({ dashboardData: res.data });
       }
@@ -396,12 +422,12 @@ export const useStore = create<StoreState>((set, get) => ({
       const res = await api.updateAdmin(id, payload);
       if (res.success) {
         await get().fetchAdmins();
-        return true;
+        return { success: true };
       }
-      return false;
+      return { success: false, error: (res as any).error || 'Failed to update admin.' };
     } catch (e) {
       console.error('Error updating admin', e);
-      return false;
+      return { success: false, error: 'Network error or server error.' };
     } finally {
       set({ isLoading: false });
     }
@@ -505,4 +531,5 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setSelectedLeadId: (id) => set({ selectedLeadId: id }),
+  setOpenDeepAnalysisModal: (open) => set({ openDeepAnalysisModal: open }),
 }));

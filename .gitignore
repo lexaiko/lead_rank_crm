@@ -6,6 +6,9 @@ web_modules/
 # WhatsApp session files and dynamic state caches (contains auth state, QR, and mapping)
 sessions/
 
+# Chat media uploads (compressed WhatsApp images)
+uploads/
+
 # Local env files (contains sensitive API keys and db credentials)
 .env
 .env.local

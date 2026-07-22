@@ -2,6 +2,7 @@ export interface Role {
   id: number;
   name: string;
   permissions: Record<string, 'read' | 'write' | 'none'>;
+  data_scope: 'all' | 'own';
   createdAt: string;
   updatedAt: string;
 }
@@ -53,13 +54,21 @@ export interface Lead {
   _count?: {
     messages: number;
   };
+  customer_nama?: string | null;
 }
 
 export interface ChatMessage {
   id: number;
+  wa_message_id?: string | null;
   lead_id: number;
   pengirim: 'admin' | 'customer';
   pesan: string;
+  media_type?: string | null;
+  media_path?: string | null;
+  media_mime?: string | null;
+  reply_to_wa_id?: string | null;
+  reply_to_sender?: string | null;
+  reply_to_snippet?: string | null;
   waktu_pesan: string;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +120,7 @@ export interface LeadListItem {
   messagesCount: number;
   ai_summary?: string | null;
   last_activity_at: string | null;
+  has_deep_analysis?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,6 +143,13 @@ export interface LeadsParams {
   date_to: string;
   sort_by: string;
   sort_order: 'asc' | 'desc';
+  deep_analysis?: string;
+}
+
+export interface GreetingRule {
+  id: number;
+  keyword: string;
+  source: string;
 }
 
 export interface DashboardStats {
@@ -141,16 +158,23 @@ export interface DashboardStats {
     total: number;
     today: number;
     byStatus: Record<string, number>;
-    revenue: number;
+    potentialWon: number;
+    potentialLost: number;
     byReferral: Record<string, number>;
     byDestination: Record<string, number>;
     byDay: Array<{ date: string; count: number }>;
   };
 }
 
+export interface DashboardParams {
+  admin_id?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
 export interface DashboardData {
   admins: Array<Admin & {
-    thisMonth: { assigned: number; won: number; revenue: number };
+    thisMonth: { assigned: number; won: number; potentialValue: number };
   }>;
   stats: DashboardStats;
   recentLeads: Array<{

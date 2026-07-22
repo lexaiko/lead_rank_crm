@@ -228,7 +228,7 @@ export const AIQueue: React.FC = () => {
 
       {/* Trigger Notifications Banner */}
       {aiMessage && (
-        <div className="p-4 rounded-xl border border-orange-500/20 bg-orange-500/5 text-orange-600 dark:text-orange-400 text-xs font-bold flex items-center gap-2.5 animate-pulse">
+        <div className="p-4 rounded-xl border border-orange-500/20 bg-orange-500/5 text-orange-600 dark:text-orange-400 text-xs font-bold flex items-center gap-2.5">
           <Bot size={16} />
           {aiMessage}
         </div>
@@ -312,7 +312,7 @@ export const AIQueue: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-foreground">{job.lead?.adminName || '-'}</td>
                       <td className="px-5 py-4">
-                        <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(job.status)}`}>
+                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(job.status)}`}>
                           {job.status}
                         </span>
                       </td>
@@ -425,7 +425,7 @@ export const AIQueue: React.FC = () => {
         </div>
 
         {/* Mobile View Card List */}
-        <div className="block md:hidden flex flex-col gap-3">
+        <div className="md:hidden flex flex-col gap-3">
           {paginatedQueue.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm">
               No active background jobs present in the queue database.
@@ -435,7 +435,7 @@ export const AIQueue: React.FC = () => {
               <div key={job.id} className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-2.5 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground font-semibold">Job #{job.id}</span>
-                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(job.status)}`}>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(job.status)}`}>
                     {job.status}
                   </span>
                 </div>
@@ -590,7 +590,7 @@ export const AIQueue: React.FC = () => {
 
       {/* Toast Notification */}
       {toast?.isOpen && (
-        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-in-right ${
+        <div className={`fixed bottom-20 left-4 right-4 md:bottom-6 md:left-auto md:right-6 z-[200] flex items-center justify-center md:justify-start gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-up md:animate-slide-in-right ${
           toast.type === 'success'
             ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
             : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'

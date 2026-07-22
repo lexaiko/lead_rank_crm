@@ -1,10 +1,15 @@
-import { DashboardData, Admin, ChatMessage, AIJob, CustomerStats, Lead, LeadListItem, LeadsMeta, LeadsParams } from '../types';
+import { DashboardData, DashboardParams, Admin, ChatMessage, AIJob, CustomerStats, Lead, LeadListItem, LeadsMeta, LeadsParams, GreetingRule } from '../types';
 
 const API_BASE = '/api';
 
 export const api = {
-  async getDashboard(): Promise<{ success: boolean; data: DashboardData }> {
-    const res = await fetch(`${API_BASE}/dashboard`);
+  async getDashboard(params: DashboardParams = {}): Promise<{ success: boolean; data: DashboardData }> {
+    const query = new URLSearchParams();
+    if (params.admin_id)  query.set('admin_id',  params.admin_id);
+    if (params.date_from) query.set('date_from', params.date_from);
+    if (params.date_to)   query.set('date_to',   params.date_to);
+    const qs = query.toString();
+    const res = await fetch(`${API_BASE}/dashboard${qs ? `?${qs}` : ''}`);
     return res.json();
   },
 
@@ -84,6 +89,7 @@ export const api = {
     if (params.date_to)   query.set('date_to',    params.date_to);
     if (params.sort_by)   query.set('sort_by',    params.sort_by);
     if (params.sort_order)query.set('sort_order', params.sort_order);
+    if (params.deep_analysis) query.set('deep_analysis', params.deep_analysis);
     const res = await fetch(`${API_BASE}/leads?${query.toString()}`);
     return res.json();
   },
@@ -98,6 +104,36 @@ export const api = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async getGreetingRules(): Promise<{ success: boolean; data: GreetingRule[] }> {
+    const res = await fetch(`${API_BASE}/greeting-rules`);
+    return res.json();
+  },
+
+  async createGreetingRule(data: { keyword: string; source: string }): Promise<{ success: boolean; data?: GreetingRule; error?: string }> {
+    const res = await fetch(`${API_BASE}/greeting-rules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async updateGreetingRule(id: number, data: Partial<{ keyword: string; source: string }>): Promise<{ success: boolean; data?: GreetingRule; error?: string }> {
+    const res = await fetch(`${API_BASE}/greeting-rules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteGreetingRule(id: number): Promise<{ success: boolean; error?: string }> {
+    const res = await fetch(`${API_BASE}/greeting-rules/${id}`, {
+      method: 'DELETE',
     });
     return res.json();
   },
@@ -200,11 +236,43 @@ export const api = {
     return res.json();
   },
 
+  async updateRoleDataScope(id: number, data_scope: 'all' | 'own'): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${API_BASE}/roles/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data_scope }),
+    });
+    return res.json();
+  },
+
   async createRole(name: string): Promise<{ success: boolean; data: any }> {
     const res = await fetch(`${API_BASE}/roles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
+    });
+    return res.json();
+  },
+
+  async getDeepAnalysis(id: number): Promise<{ success: boolean; data: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/leads/${id}/deep-analysis`);
+    return res.json();
+  },
+
+  async deepAnalyzeLead(id: number): Promise<{ success: boolean; data: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/leads/${id}/deep-analysis`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  async addManualMessage(leadId: number, data: { pengirim: 'admin' | 'customer'; pesan: string; waktu_pesan: string }): Promise<{ success: boolean; data?: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/leads/${leadId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
     });
     return res.json();
   },

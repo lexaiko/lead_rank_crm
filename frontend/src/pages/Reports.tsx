@@ -1,17 +1,39 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { 
-  DestinationsChart, 
-  ReferralChart 
+import {
+  DestinationsChart,
+  ReferralChart
 } from '../components/Charts';
-import { TrendingUp, Award, Target, HelpCircle } from 'lucide-react';
+import { DateRangePicker } from '../components/DateRangePicker';
+import { TrendingUp, TrendingDown, Award, Target, HelpCircle, Filter, RotateCcw } from 'lucide-react';
 
 export const Reports: React.FC = () => {
-  const { dashboardData, fetchDashboard } = useStore();
+  const { dashboardData, fetchDashboard, admins: allAdmins, fetchAdmins, user } = useStore();
+  const isOwnScope = user?.data_scope === 'own';
+
+  const [adminFilter, setAdminFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [dateFilterType, setDateFilterType] = useState('ALL');
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (!isOwnScope) fetchAdmins();
+  }, [isOwnScope]);
+
+  useEffect(() => {
+    fetchDashboard({
+      admin_id: adminFilter !== 'ALL' ? adminFilter : undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    });
+  }, [adminFilter, dateFrom, dateTo]);
+
+  const resetFilters = () => {
+    setAdminFilter('ALL');
+    setDateFrom('');
+    setDateTo('');
+    setDateFilterType('ALL');
+  };
 
   if (!dashboardData) {
     return (
@@ -37,7 +59,8 @@ export const Reports: React.FC = () => {
   const totalLeads = thisMonth.total;
   const totalWon = counts.WON;
   const conversionRate = totalLeads > 0 ? ((totalWon / totalLeads) * 100).toFixed(1) : '0.0';
-  const revenueTotal = thisMonth.revenue;
+  const potentialWonTotal = thisMonth.potentialWon;
+  const potentialLostTotal = thisMonth.potentialLost;
 
   const formatResponseTime = (seconds: number | null | undefined) => {
     if (seconds === null || seconds === undefined) return '-';
@@ -56,18 +79,18 @@ export const Reports: React.FC = () => {
       name: adm.nama_admin,
       assigned: adm.thisMonth.assigned,
       won: adm.thisMonth.won,
-      sales: adm.thisMonth.revenue,
+      potential: adm.thisMonth.potentialValue,
       rate: adm.thisMonth.assigned > 0
         ? ((adm.thisMonth.won / adm.thisMonth.assigned) * 100).toFixed(1)
         : '0.0',
       avgReplyTime: adm.avgReplyTime
     }))
-    .sort((a, b) => b.sales - a.sales);
+    .sort((a, b) => b.potential - a.potential);
 
   const funnelStages = [
     { label: 'New lead incoming', count: counts.NEW, color: 'bg-slate-400' },
-    { label: 'Prospect asking price', count: counts.PROSPECT, color: 'bg-blue-500' },
-    { label: 'Qualified trip set', count: counts.QUALIFIED, color: 'bg-cyan-500' },
+    { label: 'Qualified asking price', count: counts.QUALIFIED, color: 'bg-cyan-500' },
+    { label: 'Prospect trip set', count: counts.PROSPECT, color: 'bg-blue-500' },
     { label: 'HOT payment pending', count: counts.HOT, color: 'bg-orange-500' },
     { label: 'CLOSED WON paid', count: counts.WON, color: 'bg-emerald-500' },
   ];
@@ -81,26 +104,104 @@ export const Reports: React.FC = () => {
           Laporan Analisis & Performa
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Analisis konversi pipeline sales, nilai booking, destinasi terfavorit, serta performa balasan masing-masing CS bulan ini.
+          Analisis konversi pipeline sales, nilai booking, destinasi terfavorit, serta performa balasan masing-masing CS.
         </p>
       </div>
 
+      {/* Filter Bar — admin/CS filter & date range */}
+      <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-border/50 pb-3">
+          <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+            <Filter size={16} className="text-primary" />
+            <span>Filter Analisis</span>
+          </div>
+          {(adminFilter !== 'ALL' || dateFrom || dateTo) && (
+            <button
+              onClick={resetFilters}
+              className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 transition-all cursor-pointer"
+            >
+              <RotateCcw size={12} /> Reset Filter
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {!isOwnScope ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">CS Agent</label>
+                <select
+                  value={adminFilter}
+                  onChange={(e) => setAdminFilter(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-border/80 rounded-xl bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary shadow-sm"
+                >
+                  <option value="ALL">Semua CS Agent</option>
+                  {allAdmins.map(a => (
+                    <option key={a.id} value={String(a.id)}>{a.nama_admin}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Periode Waktu</label>
+                <DateRangePicker
+                  startDate={dateFrom}
+                  endDate={dateTo}
+                  presetType={dateFilterType}
+                  onChange={(start, end, preset) => {
+                    setDateFilterType(preset);
+                    setDateFrom(start);
+                    setDateTo(end);
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-1.5 md:col-span-3">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Periode Waktu</label>
+              <DateRangePicker
+                startDate={dateFrom}
+                endDate={dateTo}
+                presetType={dateFilterType}
+                onChange={(start, end, preset) => {
+                  setDateFilterType(preset);
+                  setDateFrom(start);
+                  setDateTo(end);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Stats Summary Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total Sales Revenue (Bulan Ini)</span>
-            <span className="text-2xl font-extrabold text-orange-600 dark:text-orange-400 mt-1 font-heading">
-              Rp {revenueTotal.toLocaleString('id-ID')}
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Potential Won (Periode Terpilih)</span>
+            <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 font-heading">
+              Rp {potentialWonTotal.toLocaleString('id-ID')}
             </span>
+            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Nilai pipeline aktif QUALIFIED-HOT</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <TrendingUp size={20} />
           </div>
         </div>
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Conversion Rate (Bulan Ini)</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Potential Lost (Periode Terpilih)</span>
+            <span className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1 font-heading">
+              Rp {potentialLostTotal.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Nilai lead batal / lost</span>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <TrendingDown size={20} />
+          </div>
+        </div>
+        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Conversion Rate (Periode Terpilih)</span>
             <span className="text-2xl font-extrabold text-foreground mt-1 font-heading">
               {conversionRate} %
             </span>
@@ -111,7 +212,7 @@ export const Reports: React.FC = () => {
         </div>
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performing Agent (Bulan Ini)</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performing Agent (Periode Terpilih)</span>
             <span className="text-sm font-bold text-foreground mt-1 truncate max-w-[150px]">
               {adminStats[0]?.name || 'No Agent'}
             </span>
@@ -133,8 +234,8 @@ export const Reports: React.FC = () => {
             const maxVal = Math.max(...funnelStages.map(s => s.count), 1);
             const pct = (stage.count / maxVal) * 100;
             return (
-              <div key={i} className="flex items-center gap-4">
-                <span className="w-36 text-xs font-bold text-foreground truncate">{stage.label}</span>
+              <div key={i} className="flex items-center gap-2.5 sm:gap-4">
+                <span className="w-24 sm:w-36 text-[11px] sm:text-xs font-bold text-foreground truncate" title={stage.label}>{stage.label}</span>
                 <div className="flex-1 h-7 bg-muted rounded-lg overflow-hidden relative border border-border/60">
                   <div 
                     className={`h-full rounded-r-lg ${stage.color} opacity-85 transition-all duration-500`}
@@ -187,7 +288,7 @@ export const Reports: React.FC = () => {
                 <th className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Closed Won Deals</th>
                 <th className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Conversion Rate</th>
                 <th className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Avg Response Time</th>
-                <th className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Revenue Contributed</th>
+                <th className="px-5 py-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">Potential Pipeline Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 text-sm font-semibold">
@@ -210,8 +311,8 @@ export const Reports: React.FC = () => {
                     <td className="px-5 py-4 text-center font-mono text-muted-foreground font-normal">{stat.won}</td>
                     <td className="px-5 py-4 text-center text-emerald-500 font-bold font-mono">{stat.rate} %</td>
                     <td className="px-5 py-4 text-center font-mono text-xs text-muted-foreground">{formatResponseTime(stat.avgReplyTime)}</td>
-                    <td className="px-5 py-4 text-right text-orange-600 dark:text-orange-400 font-heading font-extrabold">
-                      Rp {stat.sales.toLocaleString('id-ID')}
+                    <td className="px-5 py-4 text-right text-emerald-600 dark:text-emerald-400 font-heading font-extrabold">
+                      Rp {stat.potential.toLocaleString('id-ID')}
                     </td>
                   </tr>
                 ))
@@ -221,7 +322,7 @@ export const Reports: React.FC = () => {
         </div>
 
         {/* Mobile View Card List */}
-        <div className="block md:hidden flex flex-col gap-3">
+        <div className="md:hidden flex flex-col gap-3">
           {adminStats.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm">
               No active CS agents stats available.
@@ -236,8 +337,8 @@ export const Reports: React.FC = () => {
                     </div>
                     <span className="font-bold text-sm text-foreground">{stat.name}</span>
                   </div>
-                  <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
-                    Rp {stat.sales.toLocaleString('id-ID')}
+                  <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 font-heading">
+                    Rp {stat.potential.toLocaleString('id-ID')}
                   </span>
                 </div>
 

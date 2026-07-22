@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Sparkles, TrendingUp, CheckCircle2, XCircle, Flame, Hourglass } from 'lucide-react';
+import { Database, Sparkles, TrendingUp, XCircle, Flame, Hourglass } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export const DashboardWidget: React.FC = () => {
@@ -12,15 +12,25 @@ export const DashboardWidget: React.FC = () => {
   const byStatus = thisMonth.byStatus;
 
   const waitingJobs = aiQueue.filter(j => j.status === 'WAITING' || j.status === 'PROCESSING').length;
+  const pipelineCount = (byStatus['QUALIFIED'] || 0) + (byStatus['PROSPECT'] || 0) + (byStatus['HOT'] || 0);
+  const lostCount = byStatus['CLOSED LOST'] || 0;
 
   const items = [
     {
-      label: 'Closed Revenue (Bulan Ini)',
-      value: `Rp ${thisMonth.revenue.toLocaleString('id-ID')}`,
+      label: 'Potential Won (Bulan Ini)',
+      value: `Rp ${thisMonth.potentialWon.toLocaleString('id-ID')}`,
       icon: TrendingUp,
       color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
-      desc: 'Completed sales value this month',
-      fullWidth: true
+      desc: `Nilai pipeline aktif QUALIFIED-HOT (${pipelineCount} leads)`,
+      halfWidth: true
+    },
+    {
+      label: 'Potential Lost (Bulan Ini)',
+      value: `Rp ${thisMonth.potentialLost.toLocaleString('id-ID')}`,
+      icon: XCircle,
+      color: 'text-rose-500 bg-rose-500/10 dark:bg-rose-500/5',
+      desc: `Nilai lead batal/lost (${lostCount} leads)`,
+      halfWidth: true
     },
     {
       label: 'Total Leads (Bulan Ini)',
@@ -44,20 +54,6 @@ export const DashboardWidget: React.FC = () => {
       desc: 'Nearing transaction this month'
     },
     {
-      label: 'Closed Deals (Bulan Ini)',
-      value: byStatus['CLOSED WON'] || 0,
-      icon: CheckCircle2,
-      color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/5',
-      desc: 'Successful trips this month'
-    },
-    {
-      label: 'Lost Deals (Bulan Ini)',
-      value: byStatus['CLOSED LOST'] || 0,
-      icon: XCircle,
-      color: 'text-rose-500 bg-rose-500/10 dark:bg-rose-500/5',
-      desc: 'Inactive/Cancelled this month'
-    },
-    {
       label: 'AI Queue Jobs',
       value: waitingJobs,
       icon: Hourglass,
@@ -74,17 +70,17 @@ export const DashboardWidget: React.FC = () => {
           <div
             key={i}
             className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-3 ${
-              stat.fullWidth ? 'col-span-full' : ''
+              stat.halfWidth ? 'col-span-2' : ''
             }`}
           >
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[9px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
                 {stat.label}
               </span>
               <span className="text-base sm:text-2xl font-black font-heading leading-tight tracking-tight text-foreground truncate">
                 {stat.value}
               </span>
-              <span className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
+              <span className="text-[10px] text-muted-foreground mt-0.5 truncate">
                 {stat.desc}
               </span>
             </div>

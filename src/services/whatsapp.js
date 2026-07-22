@@ -1,10 +1,13 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, BufferJSON } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, BufferJSON, downloadMediaMessage } from '@whiskeysockets/baileys';
 import pino from 'pino';
+import sharp from 'sharp';
 import fs from 'fs';
+import path from 'path';
 import qrcode from 'qrcode-terminal';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { enqueueAIJob } from './ai-queue.js';
+import { detectReferralSourceFromGreeting } from './greeting-rules.js';
 
 function logDebug(...args) {
   if (process.env.BAILEYS_LOG_LEVEL && process.env.BAILEYS_LOG_LEVEL !== 'silent') {
@@ -204,23 +207,23 @@ async function mergeLidCustomerRecord(lid, phone) {
   try {
     const lidCust = await prisma.customer.findUnique({
       where: { nomor_hp: lid },
-      include: { leads: { include: { messages: true } } }
+      include: { lead: { include: { messages: true } } }
     });
-    
+
     if (!lidCust) return;
-    
+
     const phoneCust = await prisma.customer.findUnique({
       where: { nomor_hp: phone },
-      include: { leads: true }
+      include: { lead: true }
     });
-    
+
     if (phoneCust) {
       console.log(`[LID Merge] Merging duplicate customer JID ${lid} into ${phone}...`);
-      
+
       // Get target lead for the real phone customer
-      let targetLead = phoneCust.leads[0];
+      let targetLead = phoneCust.lead;
       if (!targetLead) {
-        const adminId = lidCust.leads[0]?.admin_id || 10;
+        const adminId = lidCust.lead?.admin_id || 10;
         const kode_lead = await generateKodeLead(adminId);
         targetLead = await prisma.lead.create({
           data: {
@@ -231,15 +234,15 @@ async function mergeLidCustomerRecord(lid, phone) {
           }
         });
       }
-      
+
       // Move all messages to the target lead
-      for (const lead of lidCust.leads) {
+      if (lidCust.lead) {
         await prisma.chatMessage.updateMany({
-          where: { lead_id: lead.id },
+          where: { lead_id: lidCust.lead.id },
           data: { lead_id: targetLead.id }
         });
       }
-      
+
       // Enqueue the target lead to AI queue
       await enqueueAIJob(targetLead.id);
       
@@ -377,10 +380,9 @@ export async function startAdminSession(adminId) {
 
   // Sync contacts and messages from messaging history set (triggered on connection reconnects/syncs)
   sock.ev.on('messaging-history.set', async ({ contacts, messages }) => {
-    // Only sync contacts/LID mappings. Intentionally skip old message history to avoid
-    // polluting the lead list with stale data from weeks or months ago.
+    // 1. Sync contacts/LID mappings
     if (contacts) {
-      console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts. Skipping ${messages?.length ?? 0} old history messages.`);
+      console.log(`[Contacts Sync] messaging-history.set triggered with ${contacts.length} contacts.`);
       const named = contacts.filter(c => c.name);
       if (named.length > 0) {
         console.log(`[Contacts Sync] Sample named contacts from history (first 3):`, JSON.stringify(named.slice(0, 3), null, 2));
@@ -391,6 +393,29 @@ export async function startAdminSession(adminId) {
         }
         await updateCustomerFromContact(c);
       }
+    }
+
+    // 2. Process recent messages from history sync to capture chats that occurred while the server was offline
+    if (messages && messages.length > 0) {
+      console.log(`[History Sync] messaging-history.set triggered with ${messages.length} messages. Processing recent ones.`);
+      
+      // Sync messages from the last 10 days (handles 1 week server downtime) to catch up missed messages
+      const cutoffTime = Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60; // 10 days ago
+      
+      let processedCount = 0;
+      for (const msg of messages) {
+        const timestamp = Number(msg.messageTimestamp || 0);
+        if (timestamp >= cutoffTime) {
+          try {
+            // Process message as history sync
+            await handleIncomingMessage(sock, msg, adminId, true);
+            processedCount++;
+          } catch (err) {
+            console.error('[History Sync Error] Failed to handle message:', err);
+          }
+        }
+      }
+      console.log(`[History Sync] Processed ${processedCount} recent messages out of ${messages.length} total messages.`);
     }
   });
 
@@ -497,9 +522,181 @@ function extractMessageText(message) {
   if (message.ephemeralMessage?.message) return extractMessageText(message.ephemeralMessage.message);
   if (message.viewOnceMessage?.message) return extractMessageText(message.viewOnceMessage.message);
   if (message.viewOnceMessageV2?.message) return extractMessageText(message.viewOnceMessageV2.message);
-  
+
   return '';
 }
+
+/**
+ * Builds a short human-readable description of a Baileys catalog product message.
+ */
+function describeCatalogProduct(productMessage) {
+  const product = productMessage?.product;
+  if (!product) return '';
+  const parts = [];
+  if (product.title) parts.push(`"${product.title}"`);
+  if (product.description) parts.push(product.description);
+  if (product.priceAmount1000) {
+    const price = Number(product.priceAmount1000) / 1000;
+    parts.push(`harga ${product.currencyCode || 'IDR'} ${price.toLocaleString('id-ID')}`);
+  }
+  return parts.join(' - ');
+}
+
+/**
+ * Extracts business catalog context from a Baileys message:
+ * a product sent from the catalog, a cart order, or a reply quoting a catalog product.
+ * Returns an empty string when the message has no catalog context.
+ */
+function extractCatalogContext(message) {
+  if (!message) return '';
+  if (message.ephemeralMessage?.message) return extractCatalogContext(message.ephemeralMessage.message);
+  if (message.viewOnceMessage?.message) return extractCatalogContext(message.viewOnceMessage.message);
+  if (message.viewOnceMessageV2?.message) return extractCatalogContext(message.viewOnceMessageV2.message);
+
+  if (message.productMessage) {
+    const desc = describeCatalogProduct(message.productMessage);
+    return desc ? `[Produk katalog: ${desc}]` : '[Produk katalog]';
+  }
+
+  if (message.orderMessage) {
+    const order = message.orderMessage;
+    const total = order.totalAmount1000
+      ? ` total ${order.totalCurrencyCode || 'IDR'} ${(Number(order.totalAmount1000) / 1000).toLocaleString('id-ID')}`
+      : '';
+    return `[Order dari katalog: ${order.itemCount || 0} item${total}]`;
+  }
+
+  const quoted = message.extendedTextMessage?.contextInfo?.quotedMessage;
+  if (quoted?.productMessage) {
+    const desc = describeCatalogProduct(quoted.productMessage);
+    return desc ? `[Membalas produk katalog: ${desc}]` : '[Membalas produk katalog]';
+  }
+
+  return '';
+}
+
+/**
+ * Returns the unwrapped imageMessage node from a Baileys message, or null if the message has no image.
+ */
+function extractImageMessage(message) {
+  if (!message) return null;
+  if (message.imageMessage) return message.imageMessage;
+  if (message.ephemeralMessage?.message) return extractImageMessage(message.ephemeralMessage.message);
+  if (message.viewOnceMessage?.message) return extractImageMessage(message.viewOnceMessage.message);
+  if (message.viewOnceMessageV2?.message) return extractImageMessage(message.viewOnceMessageV2.message);
+  return null;
+}
+
+/**
+ * Finds the Baileys contextInfo carrying a quoted (replied-to) message, across message types and wrappers.
+ */
+function extractContextInfo(message) {
+  if (!message) return null;
+  if (message.ephemeralMessage?.message) return extractContextInfo(message.ephemeralMessage.message);
+  if (message.viewOnceMessage?.message) return extractContextInfo(message.viewOnceMessage.message);
+  if (message.viewOnceMessageV2?.message) return extractContextInfo(message.viewOnceMessageV2.message);
+
+  const nodes = [
+    message.extendedTextMessage,
+    message.imageMessage,
+    message.videoMessage,
+    message.documentMessage,
+    message.audioMessage,
+    message.stickerMessage,
+    message.buttonsResponseMessage,
+    message.templateButtonReplyMessage
+  ];
+  for (const node of nodes) {
+    if (node?.contextInfo?.quotedMessage) return node.contextInfo;
+  }
+  return null;
+}
+
+/**
+ * Builds WhatsApp-style reply context fields for a message that quotes another message.
+ * Returns { reply_to_wa_id, reply_to_sender, reply_to_snippet } or null if the message is not a reply.
+ */
+function buildReplyContext(message, customerHp) {
+  const ctx = extractContextInfo(message);
+  if (!ctx) return null;
+
+  const quoted = ctx.quotedMessage;
+  let snippet = extractMessageText(quoted);
+  if (!snippet || !snippet.trim()) {
+    if (quoted.productMessage?.product?.title) snippet = `Produk: ${quoted.productMessage.product.title}`;
+    else if (extractImageMessage(quoted)) snippet = '[Gambar]';
+    else if (quoted.videoMessage) snippet = '[Video]';
+    else if (quoted.audioMessage) snippet = '[Pesan suara]';
+    else if (quoted.documentMessage) snippet = `[Dokumen] ${quoted.documentMessage.fileName || ''}`.trim();
+    else if (quoted.stickerMessage) snippet = '[Stiker]';
+    else snippet = '[Pesan]';
+  }
+  snippet = snippet.trim().slice(0, 300);
+
+  // Determine who wrote the quoted message by comparing the participant JID with the customer's number
+  let sender = null;
+  if (ctx.participant) {
+    let participantJid = ctx.participant;
+    if (participantJid.endsWith('@lid')) {
+      const mapped = lidToPhoneMap.get(normalizePhoneNumber(participantJid));
+      if (mapped) participantJid = mapped + '@s.whatsapp.net';
+    }
+    const participantHp = normalizePhoneNumber(participantJid);
+    if (participantHp) {
+      sender = participantHp === customerHp ? 'customer' : 'admin';
+    }
+  }
+
+  return {
+    reply_to_wa_id: ctx.stanzaId || null,
+    reply_to_sender: sender,
+    reply_to_snippet: snippet
+  };
+}
+
+const CHAT_MEDIA_DIR = path.join('uploads', 'chat-media');
+
+/**
+ * Downloads an incoming image, compresses it (max 1280px, JPEG q70) to keep storage small,
+ * and writes it to uploads/chat-media. Returns { media_type, media_path, media_mime } or null on failure.
+ */
+async function downloadAndCompressImage(sock, msg, messageId) {
+  try {
+    const buffer = await downloadMediaMessage(
+      msg,
+      'buffer',
+      {},
+      {
+        logger: pino({ level: 'silent' }),
+        reuploadRequest: sock.updateMediaMessage
+      }
+    );
+    if (!buffer || buffer.length === 0) return null;
+
+    const compressed = await sharp(buffer)
+      .rotate() // respect EXIF orientation
+      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70, mozjpeg: true })
+      .toBuffer();
+
+    fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
+    const safeId = String(messageId || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '');
+    const filePath = path.join(CHAT_MEDIA_DIR, `${safeId}.jpg`);
+    fs.writeFileSync(filePath, compressed);
+
+    console.log(`[Media] Saved compressed image for message ${messageId}: ${filePath} (${(buffer.length / 1024).toFixed(0)}KB -> ${(compressed.length / 1024).toFixed(0)}KB)`);
+    // Store with forward slashes so the path works as a URL on the dashboard
+    return {
+      media_type: 'image',
+      media_path: filePath.split(path.sep).join('/'),
+      media_mime: 'image/jpeg'
+    };
+  } catch (err) {
+    console.error(`[Media] Failed to download/compress image for message ${messageId}:`, err.message);
+    return null;
+  }
+}
+
 
 /**
  * Handles incoming/outgoing messages tracked by Baileys.
@@ -543,7 +740,17 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
   const fromMe = msg.key.fromMe;
   const pengirim = fromMe ? 'admin' : 'customer';
   
-  const text = extractMessageText(msg.message);
+  const rawText = extractMessageText(msg.message);
+  const catalogContext = extractCatalogContext(msg.message);
+  const imageMessage = extractImageMessage(msg.message);
+  let text = rawText;
+  if (catalogContext) {
+    // Include the business catalog context so the AI classifier knows which product/order is being discussed
+    text = rawText && rawText.trim() ? `${rawText.trim()}\n${catalogContext}` : catalogContext;
+  }
+  if ((!text || !text.trim()) && imageMessage) {
+    text = '[Gambar]'; // Image without caption still gets tracked
+  }
   if (!text || !text.trim()) {
     return; // Ignore empty texts/media with no captions
   }
@@ -655,52 +862,23 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     }
   }
 
-  // 4. Pengecekan Lead
-  let lead = await prisma.lead.findFirst({
-    where: {
-      customer_id: customer.id,
-      NOT: [
-        { status_lead: 'CLOSED WON' },
-        { status_lead: 'CLOSED LOST' }
-      ]
-    }
-  });
+  // 4. Pengecekan Lead — one customer has exactly one lead, so always reuse it
+  let lead = await prisma.lead.findUnique({ where: { customer_id: customer.id } });
 
-  // Reopen logic if no active lead
-  if (!lead) {
-    const latestClosedLead = await prisma.lead.findFirst({
-      where: {
-        customer_id: customer.id,
-        status_lead: { in: ['CLOSED WON', 'CLOSED LOST'] }
-      },
-      orderBy: {
-        closed_at: 'desc'
-      }
-    });
-
-    if (latestClosedLead && latestClosedLead.closed_at) {
-      const reopenWindowDays = parseInt(process.env.LEAD_REOPEN_WINDOW_DAYS, 10) || 30;
-      const diffTime = Math.abs(new Date() - new Date(latestClosedLead.closed_at));
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays <= reopenWindowDays) {
-        try {
-          lead = await prisma.lead.update({
-            where: { id: latestClosedLead.id },
-            data: {
-              status_lead: 'PROSPECT',
-              closed_at: null
-            }
-          });
-          console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp} (Closed ${diffDays} days ago)`);
-        } catch (reopenErr) {
-          console.error(`[Lead Reopen] Failed to reopen lead ${latestClosedLead.kode_lead}:`, reopenErr);
-        }
-      }
+  // Reopen it if it was previously closed — there's no separate lead to fall back to
+  if (lead && (lead.status_lead === 'CLOSED WON' || lead.status_lead === 'CLOSED LOST')) {
+    try {
+      lead = await prisma.lead.update({
+        where: { id: lead.id },
+        data: { status_lead: 'QUALIFIED', closed_at: null }
+      });
+      console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp}`);
+    } catch (reopenErr) {
+      console.error(`[Lead Reopen] Failed to reopen lead ${lead.kode_lead}:`, reopenErr);
     }
   }
 
-  // 5. Buat Lead Baru if none active or reopened
+  // 5. Buat Lead Baru if this customer has never had one
   if (!lead) {
     if (isHistorySync) {
       // Skip creating new leads for historical sync messages
@@ -708,26 +886,23 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     }
     try {
       const kode_lead = await generateKodeLead(admin.id);
+      // Classify referral source from the customer's opening greeting (rules stored in DB, cached in memory)
+      const greetingSource = pengirim === 'customer' ? await detectReferralSourceFromGreeting(rawText) : null;
       lead = await prisma.lead.create({
         data: {
           kode_lead,
           customer_id: customer.id,
           admin_id: admin.id,
-          status_lead: 'NEW'
+          status_lead: 'NEW',
+          ...(greetingSource ? { referral_source: greetingSource } : {})
         }
       });
-      console.log(`Created new active lead ${kode_lead} for customer ${customerHp}`);
+      console.log(`Created new active lead ${kode_lead} for customer ${customerHp}${greetingSource ? ` (referral: ${greetingSource} via greeting)` : ''}`);
     } catch (leadErr) {
-      // If lead creation fails due to race conditions, query the active lead again
-      lead = await prisma.lead.findFirst({
-        where: {
-          customer_id: customer.id,
-          NOT: [
-            { status_lead: 'CLOSED WON' },
-            { status_lead: 'CLOSED LOST' }
-          ]
-        }
-      });
+      // If lead creation fails due to a race condition, another request already created it
+      if (leadErr.code === 'P2002') {
+        lead = await prisma.lead.findUnique({ where: { customer_id: customer.id } });
+      }
       if (!lead) throw leadErr;
     }
   }
@@ -737,6 +912,15 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     ? new Date(Number(msg.messageTimestamp) * 1000) 
     : new Date();
 
+  // Download & compress image attachments (e.g. payment proofs) so the AI worker can analyze them later
+  let media = null;
+  if (imageMessage && !isHistorySync) {
+    media = await downloadAndCompressImage(sock, msg, messageId);
+  }
+
+  // Capture WhatsApp reply (quote) context so the dashboard can render it like WhatsApp
+  const replyContext = buildReplyContext(msg.message, customerHp);
+
   try {
     // 1. Create chat message
     await prisma.chatMessage.create({
@@ -745,7 +929,9 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
         lead_id: lead.id,
         pengirim,
         pesan: text,
-        waktu_pesan
+        waktu_pesan,
+        ...(media ? media : {}),
+        ...(replyContext ? replyContext : {})
       }
     });
 

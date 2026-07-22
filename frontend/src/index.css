@@ -133,3 +133,25 @@ body {
 .animate-slide-up {
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Mobile friendliness tweaks */
+@media (max-width: 767px) {
+  /* iOS Safari auto-zooms into focused fields when their font-size < 16px */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Remove blue tap flash on Android/iOS for buttons and clickable cards */
+button,
+a,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Respect iPhone home-indicator safe area on the fixed bottom navigation */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

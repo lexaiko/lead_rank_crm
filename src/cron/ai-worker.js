@@ -1,5 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
 import { prisma } from '../config/prisma.js';
+import { getGreetingRules } from '../services/greeting-rules.js';
+
+// Limits for image attachments sent to Gemini (images are already compressed at ingest time)
+const MAX_IMAGES_PER_LEAD = 3;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 let workerIntervalId = null;
 
@@ -139,6 +145,7 @@ export async function processAIQueue(force = false) {
 
   // 4. Build Context for LLM
   const leadsContext = [];
+  const imageAttachments = []; // { lead_id, ref, mimeType, data } — labeled per lead so images never get mixed up between leads
   const latestMessageIds = new Map(); // Map lead_id -> latest message ID
 
   for (const job of jobsToProcess) {
@@ -188,6 +195,31 @@ export async function processAIQueue(force = false) {
       });
       const adminHasReplied = adminMessageCount > 0;
 
+      // Attach images (e.g. payment proofs) from the newest unanalyzed messages.
+      // Each image gets a unique ref (IMG_<messageId>) bound to this lead_id so the LLM cannot confuse
+      // images between different leads inside the same bulk batch.
+      const leadImageRefs = new Map(); // message.id -> ref
+      const imageMessages = messages
+        .filter(m => m.media_type === 'image' && m.media_path)
+        .slice(-MAX_IMAGES_PER_LEAD);
+      for (const m of imageMessages) {
+        try {
+          if (!fs.existsSync(m.media_path)) continue;
+          const stat = fs.statSync(m.media_path);
+          if (stat.size === 0 || stat.size > MAX_IMAGE_BYTES) continue;
+          const ref = `IMG_${m.id}`;
+          imageAttachments.push({
+            lead_id: lead.id,
+            ref,
+            mimeType: m.media_mime || 'image/jpeg',
+            data: fs.readFileSync(m.media_path).toString('base64')
+          });
+          leadImageRefs.set(m.id, ref);
+        } catch (imgErr) {
+          console.warn(`[AI Worker] Failed to read image attachment for message ${m.id} (Lead ${lead.id}):`, imgErr.message);
+        }
+      }
+
       leadsContext.push({
         lead_id: lead.id,
         current_lead: {
@@ -202,7 +234,9 @@ export async function processAIQueue(force = false) {
         previous_summary: lead.ai_summary || null,
         new_messages: messages.map(m => ({
           sender: m.pengirim,
-          message: m.pesan
+          message: m.pesan,
+          ...(m.reply_to_snippet ? { reply_to: m.reply_to_snippet } : {}),
+          ...(leadImageRefs.has(m.id) ? { image_ref: leadImageRefs.get(m.id) } : {})
         }))
       });
     } catch (ctxErr) {
@@ -219,7 +253,7 @@ export async function processAIQueue(force = false) {
   let aiResults = [];
   let useFallbackIndividual = false;
   try {
-    aiResults = await callGeminiBulk(leadsContext);
+    aiResults = await callGeminiBulk(leadsContext, imageAttachments);
   } catch (apiErr) {
     console.warn('[AI Worker] Gemini bulk call failed. Falling back to individual processing to prevent poison pills. Error:', apiErr.message);
     useFallbackIndividual = true;
@@ -229,7 +263,7 @@ export async function processAIQueue(force = false) {
     for (const ctx of leadsContext) {
       try {
         console.log(`[AI Worker] Analyzing Lead ${ctx.lead_id} individually...`);
-        const individualResult = await callGeminiBulk([ctx]);
+        const individualResult = await callGeminiBulk([ctx], imageAttachments.filter(img => img.lead_id === ctx.lead_id));
         if (individualResult && individualResult.length > 0) {
           aiResults.push(individualResult[0]);
         }
@@ -364,13 +398,20 @@ async function rescheduleFailedJob(job) {
 
 /**
  * Call Gemini API with bulk leads context payload.
- * 
- * @param {Array} leadsContext 
+ *
+ * @param {Array} leadsContext
+ * @param {Array} imageAttachments [{ lead_id, ref, mimeType, data }] images labeled per lead
  * @returns {Promise<Array>}
  */
-async function callGeminiBulk(leadsContext) {
+async function callGeminiBulk(leadsContext, imageAttachments = []) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const nowStr = new Date().toISOString().split('T')[0];
+
+  // Greeting -> referral source mapping is managed in the database (cached in memory)
+  const greetingRules = await getGreetingRules();
+  const greetingRuleText = greetingRules.length > 0
+    ? greetingRules.map(r => `"${r.keyword}" berarti "${r.source}"`).join(', ')
+    : 'tidak ada aturan sapaan yang terdaftar';
 
   const SYSTEM_PROMPT = `Kamu adalah sistem analis CRM untuk perusahaan Trip Banyuwangi.
 Saya akan memberikan data JSON Input yang berisi daftar leads yang perlu dianalisis beserta state saat ini, status 'admin_has_replied' (apakah admin/CS sudah pernah membalas percakapan lead ini), rangkuman analisis sebelumnya (jika ada), dan pesan-pesan baru yang belum dianalisis.
@@ -378,17 +419,25 @@ Saya akan memberikan data JSON Input yang berisi daftar leads yang perlu dianali
 Tugasmu:
 1. Analisis 'new_messages' untuk setiap lead secara independen. Jangan mencampuradukkan data antar lead.
 2. Gabungkan konteks 'new_messages' dengan 'previous_summary' (jika ada) untuk mengidentifikasi pembaharuan informasi lead.
+2b. LAMPIRAN GAMBAR: Beberapa pesan memiliki key 'image_ref' (misal "IMG_123"). Gambar aslinya dilampirkan setelah data JSON, masing-masing didahului teks label yang menyebutkan image_ref DAN lead_id pemiliknya. ATURAN KETAT: setiap gambar HANYA boleh dipakai sebagai konteks untuk lead yang lead_id-nya tertulis di label gambar tersebut — JANGAN PERNAH menggunakan gambar milik lead lain, meskipun isinya tampak relevan. Analisis isi gambar untuk konteks tambahan, misalnya: bukti transfer/struk pembayaran (kuat mengindikasikan CLOSED WON), screenshot paket/harga, atau foto form reservasi.
 3. Ekstrak informasi secara presisi:
-   - 'minat_destinasi' (wajib berupa string tunggal, jika ada beberapa destinasi gabungkan dengan koma, misal: "Ijen, Baluran, Djawatan". Jika tidak ada info baru, tetap pertahankan info lama dari current_lead).
+   - 'minat_destinasi' (wajib berupa string tunggal). Ikuti urutan prioritas berikut:
+     a. NAMA PAKET dari katalog: jika pelanggan membalas/mengirim produk katalog (ditandai marker seperti [Membalas produk katalog: "..."] atau [Produk katalog: ...] dalam pesan), gunakan JUDUL produknya sebagai minat_destinasi. Buang awalan "Trip Banyuwangi" jika ada. Contoh: judul "Trip Banyuwangi 3H2M (opsi A)" maka isi "3H2M (opsi A)".
+     b. NAMA PAKET dari form reservasi: jika dalam percakapan ada FORM RESERVASI (dikirim oleh admin maupun diisi/dikirim balik oleh pelanggan), gunakan nama paket yang tertulis di form tersebut, biasanya diapit tanda bintang. Contoh: "*Private Trip 2H1M*" maka isi "Private Trip 2H1M"; "*PRIVATE TRIP 2H1M Custome*" maka isi "PRIVATE TRIP 2H1M Custome".
+     Jika ada lebih dari satu sinyal (katalog dan form), gunakan yang PALING BARU dalam percakapan.
+     c. Jika tidak ada nama paket dari katalog/form, baru gunakan nama destinasi wisata yang disebut pelanggan; jika ada beberapa gabungkan dengan koma, misal: "Ijen, Baluran, Djawatan".
+     d. Jika tidak ada info baru sama sekali, pertahankan info lama dari current_lead.
    - 'jumlah_peserta' (dalam format angka numerik).
    - 'estimasi_waktu' (format tanggal ISO YYYY-MM-DD. Jika pelanggan menyebutkan tanggal relatif, hitung berdasarkan tanggal hari ini: ${nowStr}).
    - 'analysis_summary' (catatan atau ringkasan singkat mengenai kebutuhan spesifik pelanggan, kesepakatan penting, atau rangkuman inti percakapan mereka).
    - 'referral_source' (dari mana mengetahui TripBwi, wajib pilih salah satu dari: "instagram", "tiktok", "website", "rekomendasi", "facebook", "lainnya", atau "tidak diketahui").
+     Aturan khusus kata sapaan: HANYA berlaku jika pesan PALING AWAL dari seluruh percakapan dikirim oleh pelanggan (pelanggan yang memulai chat) DAN kalimatnya DIAWALI kata sapaan tersebut: ${greetingRuleText}. Sapaan di tengah percakapan atau di tengah kalimat TIDAK berlaku. Jika tidak ada sapaan yang cocok dan pelanggan tidak pernah menyebutkan sumbernya, isi "tidak diketahui". Jika 'referral_source' pada current_lead sudah terisi (bukan "tidak diketahui"), PERTAHANKAN nilai tersebut kecuali pelanggan secara eksplisit menyebutkan sumber lain.
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka integer rupiah, jika tidak ada, isi dengan null).
 4. Tentukan 'status_lead' dengan salah satu dari pilihan berikut:
    - NEW: Status awal lead masuk. Jika 'admin_has_replied' bernilai false (admin/CS belum pernah membalas chat sama sekali untuk lead ini), status WAJIB tetap 'NEW'. Pengecualian hanya jika pelanggan menunjukkan kondisi mendesak/urgent untuk segera melakukan transaksi/booking saat itu juga (contoh: "saya mau booking tur ijen malam ini juga", "minta rekening mau transfer sekarang"). Jika tidak ada kondisi mendesak/urgent dari pelanggan dan admin belum membalas, status tidak boleh beranjak dari 'NEW'.
-   - PROSPECT: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
-   - QUALIFIED: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
+   - QUALIFIED: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
+   - PROSPECT: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
+   Urutan tahapan funnel: NEW -> QUALIFIED -> PROSPECT -> HOT -> CLOSED. Status hanya boleh naik mengikuti urutan tersebut, kecuali ada pembatalan (CLOSED LOST).
    - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (rekening, invoice, atau berjanji transfer).
    - CLOSED WON: Pelanggan mengirimkan bukti transfer atau konfirmasi pembayaran berhasil.
    - CLOSED LOST: Pelanggan secara eksplisit membatalkan rencana, menolak tawaran, atau komplain keras.
@@ -412,11 +461,19 @@ Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \
         systemInstruction: SYSTEM_PROMPT
       });
 
+      // Build multimodal parts: the JSON payload first, then each image preceded by a
+      // label part binding it to its owning lead_id + image_ref (prevents cross-lead mixups)
+      const parts = [{ text: JSON.stringify(leadsContext) }];
+      for (const img of imageAttachments) {
+        parts.push({ text: `Gambar berikut adalah lampiran dengan image_ref "${img.ref}" dan HANYA milik lead_id ${img.lead_id}:` });
+        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+      }
+
       const response = await model.generateContent({
         contents: [
           {
             role: 'user',
-            parts: [{ text: JSON.stringify(leadsContext) }]
+            parts
           }
         ],
         generationConfig: {

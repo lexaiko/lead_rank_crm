@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, Phone } from 'lucide-react';
+import { Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, Phone, Brain } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
+import { LeadListItem } from '../types';
 
 export const Leads: React.FC = () => {
   const {
@@ -14,8 +15,10 @@ export const Leads: React.FC = () => {
     setLeadsParams,
     resetLeadsParams,
     setSelectedLeadId,
+    setOpenDeepAnalysisModal,
     admins,
     fetchAdmins,
+    user,
   } = useStore();
 
   // Local debounced search input
@@ -34,6 +37,9 @@ export const Leads: React.FC = () => {
   // Follow Up modal state
   const [followUpLead, setFollowUpLead] = useState<{ name: string; phone: string; destination: string } | null>(null);
   const [followUpTemplate, setFollowUpTemplate] = useState(0);
+
+  // Deep Analysis Confirmation modal state
+  const [confirmAnalysisLead, setConfirmAnalysisLead] = useState<LeadListItem | null>(null);
 
   const getFollowUpTemplates = (name: string, destination: string) => [
     {
@@ -97,7 +103,7 @@ export const Leads: React.FC = () => {
     setSearchInput('');
     setDateFilterType('ALL');
     resetLeadsParams();
-    fetchLeads({ page: 1, limit: leadsParams.limit, search: '', status: '', admin_id: '', referral: '', date_from: '', date_to: '', sort_by: 'last_activity_at', sort_order: 'desc' });
+    fetchLeads({ page: 1, limit: leadsParams.limit, search: '', status: '', admin_id: '', referral: '', date_from: '', date_to: '', sort_by: 'last_activity_at', sort_order: 'desc', deep_analysis: 'ALL' });
   };
 
   const hasActiveFilters =
@@ -106,10 +112,16 @@ export const Leads: React.FC = () => {
     leadsParams.admin_id ||
     leadsParams.referral ||
     leadsParams.date_from ||
-    leadsParams.date_to;
+    leadsParams.date_to ||
+    (leadsParams.deep_analysis && leadsParams.deep_analysis !== 'ALL');
 
-  const activeFiltersCount = [leadsParams.status, leadsParams.admin_id, leadsParams.referral, leadsParams.date_from || leadsParams.date_to]
-    .filter(Boolean).length;
+  const activeFiltersCount = [
+    leadsParams.status,
+    leadsParams.admin_id,
+    leadsParams.referral,
+    leadsParams.date_from || leadsParams.date_to,
+    leadsParams.deep_analysis && leadsParams.deep_analysis !== 'ALL' ? 'deep_analysis' : ''
+  ].filter(Boolean).length;
 
 
 
@@ -174,7 +186,7 @@ export const Leads: React.FC = () => {
           className="self-start md:self-auto flex items-center gap-2 px-4 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all disabled:opacity-60"
         >
           {leadsLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-          Reload Sheet
+          Muat Ulang
         </button>
       </div>
 
@@ -183,7 +195,7 @@ export const Leads: React.FC = () => {
         {/* Desktop Title */}
         <div className="hidden md:flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-wider">
           <Filter size={14} />
-          Sheet Filters
+          Filter Pencarian
         </div>
 
         {/* Mobile Filter Trigger Row */}
@@ -192,7 +204,7 @@ export const Leads: React.FC = () => {
             <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search name, phone, destinations..."
+              placeholder="Cari nama, nomor HP, atau destinasi..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
@@ -219,7 +231,21 @@ export const Leads: React.FC = () => {
 
         {/* Filter Grid */}
         <div className={`${isMobileFiltersExpanded ? 'block' : 'hidden'} md:block`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+
+            {/* Deep Analysis Filter */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Deep AI Analysis</span>
+              <select
+                value={leadsParams.deep_analysis || 'ALL'}
+                onChange={(e) => handleFilterChange({ deep_analysis: e.target.value })}
+                className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value="ALL">Semua</option>
+                <option value="YES">Sudah di-analisis</option>
+                <option value="NO">Belum di-analisis</option>
+              </select>
+            </div>
 
             {/* Keyword Search (Desktop) */}
             <div className="hidden md:flex flex-col gap-1.5">
@@ -228,7 +254,7 @@ export const Leads: React.FC = () => {
                 <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search name, phone, destinations..."
+                  placeholder="Cari nama, nomor HP, atau destinasi..."
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
@@ -246,8 +272,8 @@ export const Leads: React.FC = () => {
               >
                 <option value="">All Statuses</option>
                 <option value="NEW">NEW</option>
-                <option value="PROSPECT">PROSPECT</option>
                 <option value="QUALIFIED">QUALIFIED</option>
+                <option value="PROSPECT">PROSPECT</option>
                 <option value="HOT">HOT</option>
                 <option value="CLOSED WON">CLOSED WON</option>
                 <option value="CLOSED LOST">CLOSED LOST</option>
@@ -274,19 +300,21 @@ export const Leads: React.FC = () => {
             </div>
 
             {/* Admin Filter */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assigned Admin</span>
-              <select
-                value={leadsParams.admin_id}
-                onChange={(e) => handleFilterChange({ admin_id: e.target.value })}
-                className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
-              >
-                <option value="">All Admin CS</option>
-                {admins.map((adm) => (
-                  <option key={adm.id} value={String(adm.id)}>{adm.nama_admin}</option>
-                ))}
-              </select>
-            </div>
+            {user?.data_scope !== 'own' && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assigned Admin</span>
+                <select
+                  value={leadsParams.admin_id}
+                  onChange={(e) => handleFilterChange({ admin_id: e.target.value })}
+                  className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+                >
+                  <option value="">All Admin CS</option>
+                  {admins.map((adm) => (
+                    <option key={adm.id} value={String(adm.id)}>{adm.nama_admin}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Timeframe Filter */}
             <div className="flex flex-col gap-1.5">
@@ -309,13 +337,13 @@ export const Leads: React.FC = () => {
         {hasActiveFilters && (
           <div className="flex items-center justify-between border-t border-border/60 pt-3">
             <span className="text-xs text-muted-foreground font-semibold">
-              Found <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> matching leads
+              Ditemukan <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> leads sesuai filter
             </span>
             <button
               onClick={handleReset}
-              className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-bold border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-lg transition-all"
+              className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-bold border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
             >
-              <X size={12} /> Clear Filters
+              <X size={12} /> Hapus Filter
             </button>
           </div>
         )}
@@ -342,24 +370,38 @@ export const Leads: React.FC = () => {
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Trip Date</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Note</th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    <SortButton field="last_activity_at" label="Last Chat" />
+                    <SortButton field="last_activity_at" label="Deep AI" />
                   </th>
                   <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                     <SortButton field="estimasi_nilai_order" label="Order Value" />
                   </th>
+                  <th className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">FU</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/55">
                 {leadsLoading ? (
                   <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center">
+                    <td colSpan={10} className="px-5 py-12 text-center">
                       <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
                     </td>
                   </tr>
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-sm text-muted-foreground">
-                      No leads found matching current filtering queries.
+                    <td colSpan={10} className="px-5 py-14 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center">
+                          <Search size={20} className="text-muted-foreground/60" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-bold text-foreground">Tidak ada leads yang cocok</span>
+                          <span className="text-xs text-muted-foreground">Coba ubah kata kunci atau hapus filter yang aktif.</span>
+                        </div>
+                        {hasActiveFilters && (
+                          <button onClick={handleReset} className="mt-1 flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-bold border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                            <X size={12} /> Hapus Filter
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -418,26 +460,43 @@ export const Leads: React.FC = () => {
                           <span className="text-muted-foreground/35 text-xs">—</span>
                         )}
                       </td>
-                      {/* Last Chat column */}
-                      <td className="px-5 py-4 text-xs font-semibold font-mono whitespace-nowrap">
-                        {lead.last_activity_at ? (
-                          <span className={`${
-                            // Red if > 3 days, yellow if > 1 day, green if < 1 day
-                            (Date.now() - new Date(lead.last_activity_at).getTime()) > 3 * 86400000
-                              ? 'text-rose-500'
-                              : (Date.now() - new Date(lead.last_activity_at).getTime()) > 86400000
-                                ? 'text-amber-500'
-                                : 'text-emerald-600 dark:text-emerald-400'
-                          }`}>
-                            {new Date(lead.last_activity_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}{' '}
-                            <span className="opacity-70">{new Date(lead.last_activity_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </span>
+                      {/* Deep AI column */}
+                      <td className="px-5 py-4 text-xs font-semibold whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {lead.has_deep_analysis ? (
+                          <button
+                            onClick={() => {
+                              setSelectedLeadId(lead.id);
+                              setOpenDeepAnalysisModal(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 hover:bg-violet-500 hover:text-white transition-all cursor-pointer shadow-sm select-none"
+                          >
+                            <Brain size={11} className="animate-pulse" /> Sudah Analisis
+                          </button>
                         ) : (
-                          <span className="text-muted-foreground/40">-</span>
+                          <button
+                            onClick={() => {
+                              setConfirmAnalysisLead(lead);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground border border-border/80 hover:bg-violet-500/10 hover:text-violet-500 hover:border-violet-500/20 transition-all cursor-pointer select-none"
+                          >
+                            <Brain size={11} /> Belum Analisis
+                          </button>
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm font-extrabold text-orange-600 dark:text-orange-400 font-heading whitespace-nowrap">
                         {lead.estimasi_nilai_order ? `Rp ${lead.estimasi_nilai_order.toLocaleString('id-ID')}` : '—'}
+                      </td>
+                      <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => {
+                            setFollowUpTemplate(0);
+                            setFollowUpLead({ name: lead.customerNama || '', phone: lead.customerHp, destination: lead.minat_destinasi || '' });
+                          }}
+                          title="Follow Up via WhatsApp"
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer"
+                        >
+                          <Phone size={13} />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -447,15 +506,15 @@ export const Leads: React.FC = () => {
           </div>
 
           {/* Desktop Pagination Footer */}
-          <div className="flex items-center justify-between border-t border-border/60 py-4 px-6 bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 py-4 px-6 bg-card">
             <div className="flex items-center gap-4">
               <span className="text-xs text-muted-foreground font-semibold">
-                Showing <strong className="text-foreground">{total > 0 ? startIndex + 1 : 0}</strong> to{' '}
-                <strong className="text-foreground">{Math.min(startIndex + limit, total)}</strong> of{' '}
-                <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> entries
+                Menampilkan <strong className="text-foreground">{total > 0 ? startIndex + 1 : 0}</strong>–
+                <strong className="text-foreground">{Math.min(startIndex + limit, total)}</strong> dari{' '}
+                <strong className="text-foreground">{total.toLocaleString('id-ID')}</strong> leads
               </span>
               <div className="flex items-center gap-2 border-l border-border pl-4">
-                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Show:</span>
+                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Tampil:</span>
                 <select
                   value={limit}
                   onChange={(e) => handleLimitChange(Number(e.target.value))}
@@ -473,7 +532,7 @@ export const Leads: React.FC = () => {
                 <button
                   disabled={page === 1}
                   onClick={() => handlePageChange(page - 1)}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -497,7 +556,7 @@ export const Leads: React.FC = () => {
                 <button
                   disabled={page === totalPages}
                   onClick={() => handlePageChange(page + 1)}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -513,8 +572,19 @@ export const Leads: React.FC = () => {
               <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
             </div>
           ) : leads.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm">
-              No leads found matching current filtering queries.
+            <div className="p-8 text-center bg-card border border-border/80 rounded-2xl shadow-sm flex flex-col items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center">
+                <Search size={20} className="text-muted-foreground/60" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-bold text-foreground">Tidak ada leads yang cocok</span>
+                <span className="text-xs text-muted-foreground">Coba ubah kata kunci atau hapus filter yang aktif.</span>
+              </div>
+              {hasActiveFilters && (
+                <button onClick={handleReset} className="mt-1 flex items-center gap-1 text-xs text-rose-500 hover:text-rose-600 font-bold border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                  <X size={12} /> Hapus Filter
+                </button>
+              )}
             </div>
           ) : (
             leads.map(lead => (
@@ -525,7 +595,7 @@ export const Leads: React.FC = () => {
               >
                 <div className="flex justify-between items-center">
                   <span className="font-mono text-sm font-bold text-primary">{lead.kode_lead}</span>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                     {lead.status_lead}
                   </span>
                 </div>
@@ -536,10 +606,52 @@ export const Leads: React.FC = () => {
                   </div>
                   {lead.minat_destinasi && (
                     <div className="flex flex-col gap-1 mt-0.5 border-t border-border/40 pt-2">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Destinations Interest</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Destinasi</span>
                       <span className="text-foreground text-sm font-semibold leading-relaxed">{lead.minat_destinasi}</span>
                     </div>
                   )}
+                  {/* Quick facts: pax, trip date, last chat recency */}
+                  <div className="flex items-center gap-2 flex-wrap border-t border-border/40 pt-2 mt-0.5">
+                    <span className="text-[11px] font-semibold bg-secondary/60 border border-border px-2 py-1 rounded-lg text-foreground">
+                      Pax: <strong>{lead.jumlah_peserta || '-'}</strong>
+                    </span>
+                    <span className="text-[11px] font-semibold bg-secondary/60 border border-border px-2 py-1 rounded-lg text-foreground font-mono">
+                      Trip: {lead.estimasi_waktu ? lead.estimasi_waktu.split('T')[0] : '-'}
+                    </span>
+                    {lead.last_activity_at && (
+                      <span className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${
+                        (Date.now() - new Date(lead.last_activity_at).getTime()) > 3 * 86400000
+                          ? 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                          : (Date.now() - new Date(lead.last_activity_at).getTime()) > 86400000
+                            ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        Chat: {new Date(lead.last_activity_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
+
+                    {/* Deep AI Analysis status badge in mobile card */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (lead.has_deep_analysis) {
+                          setSelectedLeadId(lead.id);
+                          setOpenDeepAnalysisModal(true);
+                        } else {
+                          setConfirmAnalysisLead(lead);
+                        }
+                      }}
+                      className={`text-[11px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 cursor-pointer select-none transition-all ${
+                        lead.has_deep_analysis
+                          ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500 hover:text-white'
+                          : 'bg-muted border-border/80 text-muted-foreground hover:bg-violet-500/10 hover:text-violet-500 hover:border-violet-500/20'
+                      }`}
+                    >
+                      <Brain size={10} className={lead.has_deep_analysis ? 'animate-pulse' : ''} />
+                      {lead.has_deep_analysis ? 'Sudah AI' : 'Belum AI'}
+                    </button>
+                  </div>
                   {lead.catatan_khusus && (
                     <div
                       onClick={(e) => { e.stopPropagation(); setActiveNoteModal(lead.catatan_khusus!); }}
@@ -582,10 +694,10 @@ export const Leads: React.FC = () => {
           <div className="flex flex-col items-center gap-3 py-4 px-4 bg-card border border-border/80 shadow-sm rounded-2xl mt-1 text-center">
             <div className="flex items-center justify-between w-full">
               <span className="text-xs text-muted-foreground font-semibold">
-                {total > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + limit, total)} of {total.toLocaleString('id-ID')}
+                {total > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + limit, total)} dari {total.toLocaleString('id-ID')}
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted-foreground font-bold">Show:</span>
+                <span className="text-[10px] text-muted-foreground font-bold">Tampil:</span>
                 <select
                   value={limit}
                   onChange={(e) => handleLimitChange(Number(e.target.value))}
@@ -601,7 +713,7 @@ export const Leads: React.FC = () => {
             {totalPages > 1 && (
               <div className="flex items-center gap-1 mt-1 flex-wrap justify-center">
                 <button disabled={page === 1} onClick={() => handlePageChange(page - 1)}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all">
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer">
                   <ChevronLeft size={16} />
                 </button>
                 {getPageNumbers().map((p, i) =>
@@ -615,7 +727,7 @@ export const Leads: React.FC = () => {
                   )
                 )}
                 <button disabled={page === totalPages} onClick={() => handlePageChange(page + 1)}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all">
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -652,7 +764,7 @@ export const Leads: React.FC = () => {
       {/* Follow Up Modal */}
       {followUpLead && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col text-foreground">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl flex flex-col text-foreground">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border p-5">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -724,6 +836,45 @@ export const Leads: React.FC = () => {
                 className="flex-[2] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <Phone size={13} /> Buka WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deep Analysis Confirmation Modal */}
+      {confirmAnalysisLead && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up text-foreground">
+            <div className="flex items-center gap-3 text-violet-600 dark:text-violet-400">
+              <Brain size={24} className="shrink-0" />
+              <span className="font-heading font-black text-base">Konfirmasi Deep Analysis</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+                Apakah Anda yakin ingin menganalisis percakapan dengan pelanggan <strong className="text-foreground">{confirmAnalysisLead.customerNama || 'Pelanggan WA'}</strong> secara mendalam menggunakan AI?
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic bg-muted/50 p-2.5 rounded-xl border border-border/40 mt-1 font-medium">
+                Analisis mendalam ini akan memindai seluruh riwayat chat untuk mengidentifikasi skor kualitas lead, tipe buyer, budget sensitivity, objection, serta memberikan saran respon berikutnya.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-2 justify-end">
+              <button
+                onClick={() => setConfirmAnalysisLead(null)}
+                className="px-4 py-2 border border-border hover:bg-muted font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer bg-card text-foreground"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  const leadId = confirmAnalysisLead.id;
+                  setConfirmAnalysisLead(null);
+                  setSelectedLeadId(leadId);
+                  setOpenDeepAnalysisModal(true);
+                }}
+                className="px-5 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-all cursor-pointer"
+              >
+                Mulai Analisis
               </button>
             </div>
           </div>

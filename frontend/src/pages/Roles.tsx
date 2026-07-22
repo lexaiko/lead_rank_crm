@@ -38,13 +38,14 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
 };
 
 export const Roles: React.FC = () => {
-  const { 
-    roles, 
-    fetchRoles, 
-    updateRolePermissions, 
+  const {
+    roles,
+    fetchRoles,
+    updateRolePermissions,
+    updateRoleDataScope,
     createRole,
     user,
-    isLoading 
+    isLoading
   } = useStore();
 
   // Create Role Modal state
@@ -110,7 +111,7 @@ export const Roles: React.FC = () => {
             {/* Role Title Section */}
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <Shield size={16} className="text-primary animate-pulse" />
+                <Shield size={16} className="text-primary" />
                 <span className="text-sm font-bold text-foreground tracking-tight uppercase">
                   {role.name} Access Permissions
                 </span>
@@ -118,6 +119,38 @@ export const Roles: React.FC = () => {
               <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
                 Role ID: #{role.id}
               </span>
+            </div>
+
+            {/* Data Scope Section — controls whether this role sees every account's data or only its own */}
+            <div className="p-4 rounded-xl bg-card border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col gap-1 text-left">
+                <span className="text-xs font-bold text-foreground font-sans">Cakupan Data (Data Scope)</span>
+                <span className="text-[10px] text-muted-foreground leading-relaxed font-normal">
+                  Menentukan apakah role ini melihat data leads &amp; customers milik semua akun, atau hanya miliknya sendiri.
+                </span>
+              </div>
+              <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-xl border border-border/40 w-full sm:w-auto">
+                {([
+                  { value: 'all', label: 'Semua Data' },
+                  { value: 'own', label: 'Data Sendiri' },
+                ] as const).map(({ value, label }) => {
+                  const isSelected = role.data_scope === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => updateRoleDataScope(role.id, value)}
+                      className={`flex-1 sm:flex-none px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground shadow-sm font-black'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Modules matrix grid inside Role (One row list) */}
@@ -159,7 +192,7 @@ export const Roles: React.FC = () => {
                               };
                               updateRolePermissions(role.id, updatedPerms);
                             }}
-                            className={`flex-1 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${
+                            className={`flex-1 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${
                               isSelected
                                 ? level === 'write'
                                   ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/10 font-black'

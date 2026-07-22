@@ -16,7 +16,6 @@ import {
   LogOut,
   UserCog,
   Shield,
-  Wifi,
   MoreHorizontal
 } from 'lucide-react';
 
@@ -40,7 +39,7 @@ export const Sidebar: React.FC = () => {
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'users', label: 'User Accounts', shortLabel: 'Users', icon: UserCog },
     { id: 'roles', label: 'Role Permissions', shortLabel: 'Roles', icon: Shield },
-    { id: 'settings', label: 'Setting WA', shortLabel: 'Setting WA', icon: Wifi },
+    { id: 'settings', label: 'Settings', shortLabel: 'Setting', icon: Settings },
     { id: 'reports', label: 'Analytics Reports', shortLabel: 'Reports', icon: BarChart3 },
   ] as const;
 
@@ -52,8 +51,8 @@ export const Sidebar: React.FC = () => {
         {/* Sidebar Header Logo */}
         <div className="flex items-center justify-between px-2 mb-8">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-md shadow-orange-500/20 animate-pulse">
-              <Compass size={22} className="animate-spin-slow" />
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-md shadow-orange-500/20">
+              <Compass size={22} />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col text-left">

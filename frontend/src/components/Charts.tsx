@@ -31,7 +31,7 @@ export const LeadStatusChart: React.FC = () => {
   if (!dashboardData) return null;
 
   const byStatus = dashboardData.stats.thisMonth.byStatus;
-  const labels = ['NEW', 'PROSPECT', 'QUALIFIED', 'HOT', 'CLOSED WON', 'CLOSED LOST'];
+  const labels = ['NEW', 'QUALIFIED', 'PROSPECT', 'HOT', 'CLOSED WON', 'CLOSED LOST'];
   const values = labels.map(s => byStatus[s] || 0);
 
   const isDark = theme === 'dark';
@@ -42,7 +42,7 @@ export const LeadStatusChart: React.FC = () => {
     datasets: [{
       label: 'Leads Count',
       data: values,
-      backgroundColor: ['#64748b', '#3b82f6', '#06b6d4', '#f97316', '#10b981', '#ef4444'],
+      backgroundColor: ['#64748b', '#06b6d4', '#3b82f6', '#f97316', '#10b981', '#ef4444'],
       borderWidth: 0,
     }],
   };

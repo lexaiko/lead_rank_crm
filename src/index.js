@@ -7,6 +7,7 @@ import { startAdminSession } from './services/whatsapp.js';
 import { initCronJobs } from './cron/jobs.js';
 import { startAIWorker } from './cron/ai-worker.js';
 import apiRouter from './routes/api.js';
+import { authMiddleware } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -45,6 +46,9 @@ const authLimiter = rateLimit({
 
 // Serve static assets from public
 app.use(express.static('public'));
+
+// Serve chat media (compressed WhatsApp images) — requires login since it may contain payment proofs
+app.use('/uploads', authMiddleware, express.static('uploads'));
 
 // Secure API routes with rate limiters
 app.use('/api/auth/login', authLimiter);

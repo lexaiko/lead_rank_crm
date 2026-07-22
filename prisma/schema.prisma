@@ -11,6 +11,7 @@ model Role {
   id          Int      @id @default(autoincrement())
   name        String   @unique @db.VarChar(50) // e.g., "ADMIN", "CS"
   permissions Json     // JSON mapping: { "dashboard": "read", "leads": "write", ... }
+  data_scope  String   @default("all") @db.VarChar(10) // "all" = see every account's data, "own" = only own leads/customers
   admins      Admin[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -35,7 +36,7 @@ model Customer {
   nomor_hp    String   @unique @db.VarChar(20)
   nama_kontak String?  @db.VarChar(100)
   is_ignored  Boolean  @default(false)
-  leads       Lead[]
+  lead        Lead?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -43,7 +44,7 @@ model Customer {
 model Lead {
   id                           Int           @id @default(autoincrement())
   kode_lead                    String        @unique @db.VarChar(50)
-  customer_id                  Int
+  customer_id                  Int           @unique
   customer                     Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
   admin_id                     Int
   admin                        Admin         @relation(fields: [admin_id], references: [id])
@@ -79,6 +80,12 @@ model ChatMessage {
   lead            Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
   pengirim        String   @db.VarChar(20) // "admin" atau "customer"
   pesan       String   @db.Text
+  media_type  String?  @db.VarChar(20)  // e.g. "image"
+  media_path  String?  @db.VarChar(255) // compressed file path relative to project root (uploads/chat-media/...)
+  media_mime  String?  @db.VarChar(50)
+  reply_to_wa_id   String? @db.VarChar(100) // wa_message_id of the quoted message (WhatsApp stanzaId)
+  reply_to_sender  String? @db.VarChar(20)  // "admin" / "customer" — who wrote the quoted message
+  reply_to_snippet String? @db.Text         // quoted message preview text captured at ingest time
   waktu_pesan DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -105,6 +112,14 @@ model AIAnalysis {
   createdAt   DateTime @default(now())
 
   @@index([lead_id])
+}
+
+model GreetingRule {
+  id        Int      @id @default(autoincrement())
+  keyword   String   @unique @db.VarChar(50) // greeting word at the start of the customer's first message
+  source    String   @db.VarChar(50)         // referral source it maps to (tiktok, website, instagram, ...)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model WhatsAppSession {

@@ -1,16 +1,81 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { ToggleLeft, ToggleRight, Wifi, WifiOff, X, Loader2 } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Wifi, WifiOff, X, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
+import { GreetingRule } from '../types';
+
+const REFERRAL_SOURCES = ['instagram', 'tiktok', 'website', 'rekomendasi', 'facebook', 'lainnya'];
 
 export const Settings: React.FC = () => {
-  const { 
-    admins, 
-    fetchAdmins, 
+  const {
+    admins,
+    fetchAdmins,
     toggleAdmin,
     logoutAdmin,
-    isLoading 
+    isLoading,
+    user
   } = useStore();
+
+  // Greeting rules state
+  const [greetingRules, setGreetingRules] = useState<GreetingRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [newSource, setNewSource] = useState('instagram');
+  const [ruleMsg, setRuleMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const canWriteSettings = user?.permissions?.settings === 'write';
+
+  const showRuleMsg = (text: string, type: 'success' | 'error') => {
+    setRuleMsg({ text, type });
+    setTimeout(() => setRuleMsg(null), 3500);
+  };
+
+  const loadGreetingRules = async () => {
+    setRulesLoading(true);
+    try {
+      const res = await api.getGreetingRules();
+      if (res.success) setGreetingRules(res.data);
+    } catch (e) {
+      console.error('Failed to load greeting rules', e);
+    } finally {
+      setRulesLoading(false);
+    }
+  };
+
+  const handleAddRule = async () => {
+    const keyword = newKeyword.trim().toLowerCase();
+    if (!keyword) {
+      showRuleMsg('Kata sapaan wajib diisi.', 'error');
+      return;
+    }
+    const res = await api.createGreetingRule({ keyword, source: newSource });
+    if (res.success) {
+      setNewKeyword('');
+      showRuleMsg(`Aturan "${keyword}" berhasil ditambahkan.`, 'success');
+      loadGreetingRules();
+    } else {
+      showRuleMsg(res.error || 'Gagal menambahkan aturan.', 'error');
+    }
+  };
+
+  const handleChangeRuleSource = async (rule: GreetingRule, source: string) => {
+    const res = await api.updateGreetingRule(rule.id, { source });
+    if (res.success) {
+      setGreetingRules(prev => prev.map(r => r.id === rule.id ? { ...r, source } : r));
+      showRuleMsg(`"${rule.keyword}" sekarang diarahkan ke ${source}.`, 'success');
+    } else {
+      showRuleMsg(res.error || 'Gagal memperbarui aturan.', 'error');
+    }
+  };
+
+  const handleDeleteRule = async (rule: GreetingRule) => {
+    const res = await api.deleteGreetingRule(rule.id);
+    if (res.success) {
+      setGreetingRules(prev => prev.filter(r => r.id !== rule.id));
+      showRuleMsg(`Aturan "${rule.keyword}" dihapus.`, 'success');
+    } else {
+      showRuleMsg(res.error || 'Gagal menghapus aturan.', 'error');
+    }
+  };
 
   // QR Modal State
   const [qrModalAdmin, setQrModalAdmin] = useState<{ id: number; name: string } | null>(null);
@@ -21,6 +86,7 @@ export const Settings: React.FC = () => {
 
   useEffect(() => {
     fetchAdmins();
+    loadGreetingRules();
   }, []);
 
   // Poll connection status while QR modal is open
@@ -81,10 +147,10 @@ export const Settings: React.FC = () => {
       {/* Title */}
       <div className="flex flex-col gap-1 border-b border-border pb-4">
         <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-          Koneksi WhatsApp
+          Settings
         </h1>
         <p className="text-xs text-muted-foreground font-semibold">
-          Pantau status soket aktif WhatsApp Web Baileys, hubungkan perangkat baru (scan QR), atau putuskan sesi admin CS.
+          Kelola koneksi WhatsApp CS (scan QR / logout sesi) dan aturan sapaan untuk klasifikasi sumber lead.
         </p>
       </div>
 
@@ -116,7 +182,7 @@ export const Settings: React.FC = () => {
                     {adm.nomor_wa || <span className="text-xs text-muted-foreground/50 italic font-sans">No WA Assigned</span>}
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
                       {adm.role}
                     </span>
                   </td>
@@ -164,7 +230,7 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* Mobile View Card List */}
-        <div className="block md:hidden flex flex-col gap-3">
+        <div className="md:hidden flex flex-col gap-3">
           {admins.map((adm) => (
             <div key={adm.id} className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-3 text-sm">
               <div className="flex items-center justify-between">
@@ -217,6 +283,104 @@ export const Settings: React.FC = () => {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Greeting Rules Section */}
+      <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <MessageCircle size={14} className="text-primary" /> Aturan Sapaan → Sumber Lead
+          </span>
+          <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
+            Kata sapaan di awal chat pertama customer menentukan sumber lead secara otomatis (contoh: "hola" = TikTok).
+            Perubahan langsung aktif tanpa restart server.
+          </p>
+        </div>
+
+        {ruleMsg && (
+          <div className={`p-2.5 rounded-lg text-xs font-bold border leading-relaxed ${
+            ruleMsg.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+              : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+          }`}>
+            {ruleMsg.text}
+          </div>
+        )}
+
+        {/* Rules list */}
+        {rulesLoading ? (
+          <div className="py-6 flex justify-center">
+            <Loader2 className="animate-spin text-muted-foreground" size={20} />
+          </div>
+        ) : greetingRules.length === 0 ? (
+          <span className="text-xs text-muted-foreground py-2">
+            Belum ada aturan sapaan. Tanpa aturan, sumber lead baru akan "tidak diketahui".
+          </span>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {greetingRules.map((rule) => (
+              <div key={rule.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/70 bg-muted/20">
+                <span className="font-mono font-bold text-sm text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-lg min-w-[70px] text-center">
+                  {rule.keyword}
+                </span>
+                <span className="text-muted-foreground text-xs font-bold shrink-0">→</span>
+                <select
+                  value={rule.source}
+                  onChange={(e) => handleChangeRuleSource(rule, e.target.value)}
+                  disabled={!canWriteSettings}
+                  className="flex-1 min-w-0 px-3 py-1.5 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary disabled:opacity-70 disabled:cursor-not-allowed capitalize"
+                >
+                  {REFERRAL_SOURCES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                  {!REFERRAL_SOURCES.includes(rule.source) && (
+                    <option value={rule.source}>{rule.source}</option>
+                  )}
+                </select>
+                {canWriteSettings && (
+                  <button
+                    onClick={() => handleDeleteRule(rule)}
+                    title={`Hapus aturan "${rule.keyword}"`}
+                    className="h-8 w-8 flex items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500 hover:text-white transition-all cursor-pointer shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add new rule */}
+        {canWriteSettings && (
+          <div className="flex flex-col sm:flex-row gap-2 border-t border-border/60 pt-4">
+            <input
+              type="text"
+              placeholder="Kata sapaan baru (satu kata, mis. hallo)"
+              value={newKeyword}
+              onChange={(e) => setNewKeyword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddRule(); }}
+              className="flex-1 px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
+            />
+            <div className="flex gap-2">
+              <select
+                value={newSource}
+                onChange={(e) => setNewSource(e.target.value)}
+                className="flex-1 sm:flex-none px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary capitalize"
+              >
+                {REFERRAL_SOURCES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAddRule}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none shrink-0"
+              >
+                <Plus size={14} /> Tambah
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* QR Code Link Modal */}

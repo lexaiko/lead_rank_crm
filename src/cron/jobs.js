@@ -19,6 +19,7 @@ export async function runGhostingSweeper() {
         updatedAt: {
           lt: threeDaysAgo
         }
+        
       },
       data: {
         status_lead: 'CLOSED LOST',

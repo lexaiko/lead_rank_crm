@@ -96,15 +96,15 @@ export const Users: React.FC = () => {
       payload.password = editPassword;
     }
 
-    const success = await updateAdmin(editingUser.id, payload);
-    if (success) {
+    const res = await updateAdmin(editingUser.id, payload);
+    if (res.success) {
       setEditMsg({ type: 'success', text: 'User profile updated successfully!' });
       setTimeout(() => {
         setEditingUser(null);
         fetchAdmins();
       }, 1500);
     } else {
-      setEditMsg({ type: 'error', text: 'Failed to update. Username/phone is taken.' });
+      setEditMsg({ type: 'error', text: res.error || 'Failed to update. Username/phone is taken.' });
     }
   };
 
@@ -169,7 +169,7 @@ export const Users: React.FC = () => {
                     <td className="px-4 py-3.5 text-foreground">{adm.nama_admin}</td>
                     <td className="px-4 py-3.5 font-mono text-muted-foreground font-normal">{adm.username}</td>
                     <td className="px-4 py-3.5">
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
                         {adm.role}
                       </span>
                     </td>
@@ -219,7 +219,7 @@ export const Users: React.FC = () => {
           </div>
 
           {/* Mobile View */}
-          <div className="block md:hidden flex flex-col gap-3">
+          <div className="md:hidden flex flex-col gap-3">
             {admins.map((adm) => (
               <div key={adm.id} className="p-4 bg-card border border-border/80 shadow-sm rounded-2xl flex flex-col gap-3 text-sm">
                 <div className="flex items-center justify-between">

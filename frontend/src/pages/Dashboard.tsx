@@ -109,7 +109,7 @@ export const Dashboard: React.FC = () => {
           
           <div className="flex flex-col gap-3.5 flex-1 justify-center">
             {recentLeads.length === 0 ? (
-              <span className="text-sm text-muted-foreground text-center">No recent activities available.</span>
+              <span className="text-sm text-muted-foreground text-center">Belum ada aktivitas lead terbaru.</span>
             ) : (
               recentLeads.map((lead, i) => (
                 <div 
@@ -136,7 +136,7 @@ export const Dashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2.5 shrink-0">
-                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                         {lead.status_lead}
                       </span>
                       <span className="text-[10px] text-muted-foreground font-mono">

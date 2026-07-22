@@ -45,6 +45,14 @@ export async function authMiddleware(req, res, next) {
 }
 
 /**
+ * Whether the given admin's role is restricted to only their own leads/customers
+ * ("own") as opposed to seeing every account's data ("all").
+ */
+export function isOwnScope(admin) {
+  return (admin?.role?.data_scope || 'all') === 'own';
+}
+
+/**
  * Middleware to restrict route access based on Role-Permission Matrix
  */
 export function permissionMiddleware(module, requiredLevel = 'read') {

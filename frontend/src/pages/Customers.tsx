@@ -199,7 +199,7 @@ export const Customers: React.FC = () => {
             <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search customer name or phone..."
+              placeholder="Cari nama atau nomor HP..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary h-10"
@@ -243,7 +243,7 @@ export const Customers: React.FC = () => {
           </div>
         </div>
         <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider shrink-0 lg:text-right mt-1 lg:mt-0">
-          {showIgnored ? 'Kontak Diabaikan: ' : 'Registered Clients: '}
+          {showIgnored ? 'Kontak Diabaikan: ' : 'Total Kontak Aktif: '}
           <strong className="text-foreground">{activeCustomersList.length}</strong>
         </span>
       </div>
@@ -267,8 +267,16 @@ export const Customers: React.FC = () => {
               <tbody className="divide-y divide-border/60">
                 {paginatedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-sm text-muted-foreground">
-                      No customers found matching search queries.
+                    <td colSpan={7} className="px-5 py-14 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center">
+                          <Search size={20} className="text-muted-foreground/60" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-bold text-foreground">Tidak ada kontak yang cocok</span>
+                          <span className="text-xs text-muted-foreground">Coba ubah kata kunci pencarian.</span>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -300,7 +308,7 @@ export const Customers: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-5 py-4">
-                            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(client.lastStatus)}`}>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(client.lastStatus)}`}>
                               {client.lastStatus}
                             </span>
                           </td>
@@ -377,7 +385,7 @@ export const Customers: React.FC = () => {
                                       >
                                         <div className="flex justify-between items-center">
                                           <span className="font-bold text-sm text-primary font-mono">{lead.kode_lead}</span>
-                                          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
+                                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                                             {lead.status_lead}
                                           </span>
                                         </div>
@@ -420,13 +428,13 @@ export const Customers: React.FC = () => {
             </table>
           </div>
           {/* Table Pagination Footer (Desktop) */}
-          <div className="flex items-center justify-between border-t border-border/60 py-4 px-6 bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 py-4 px-6 bg-card">
             <div className="flex items-center gap-4">
               <span className="text-xs text-muted-foreground font-semibold">
-                Showing <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong> to <strong className="text-foreground">{Math.min(startIndex + itemsPerPage, totalItems)}</strong> of <strong className="text-foreground">{totalItems}</strong> entries
+                Menampilkan <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong>–<strong className="text-foreground">{Math.min(startIndex + itemsPerPage, totalItems)}</strong> dari <strong className="text-foreground">{totalItems}</strong> kontak
               </span>
               <div className="flex items-center gap-2 border-l border-border pl-4">
-                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Show:</span>
+                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Tampil:</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => {
@@ -448,7 +456,7 @@ export const Customers: React.FC = () => {
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -474,7 +482,7 @@ export const Customers: React.FC = () => {
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -484,10 +492,16 @@ export const Customers: React.FC = () => {
         </div>
 
         {/* Mobile View Card List */}
-        <div className="block md:hidden flex flex-col gap-3">
+        <div className="md:hidden flex flex-col gap-3">
           {paginatedCustomers.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm">
-              No customers found matching search queries.
+            <div className="p-8 text-center bg-card border border-border/80 rounded-2xl shadow-sm flex flex-col items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center">
+                <Search size={20} className="text-muted-foreground/60" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-bold text-foreground">Tidak ada kontak yang cocok</span>
+                <span className="text-xs text-muted-foreground">Coba ubah kata kunci pencarian.</span>
+              </div>
             </div>
           ) : (
             paginatedCustomers.map((client) => {
@@ -582,7 +596,7 @@ export const Customers: React.FC = () => {
                           >
                             <div className="flex justify-between items-center">
                               <span className="font-bold text-xs text-primary font-mono">{lead.kode_lead}</span>
-                              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
                                 {lead.status_lead}
                               </span>
                             </div>
@@ -608,10 +622,10 @@ export const Customers: React.FC = () => {
           <div className="flex flex-col items-center gap-3 justify-between py-4 px-4 bg-card border border-border/80 shadow-sm rounded-2xl mt-1 text-center">
             <div className="flex items-center justify-between w-full">
               <span className="text-xs text-muted-foreground font-semibold">
-                Showing <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong>-{Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems}
+                <strong className="text-foreground">{totalItems > 0 ? startIndex + 1 : 0}</strong>–{Math.min(startIndex + itemsPerPage, totalItems)} dari {totalItems}
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted-foreground font-bold">Show:</span>
+                <span className="text-[10px] text-muted-foreground font-bold">Tampil:</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => {
@@ -629,11 +643,11 @@ export const Customers: React.FC = () => {
               </div>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1 mt-1">
+              <div className="flex items-center gap-1 mt-1 flex-wrap justify-center">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -659,7 +673,7 @@ export const Customers: React.FC = () => {
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  className="p-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all"
+                  className="h-8 w-8 flex items-center justify-center border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-all cursor-pointer"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -825,7 +839,7 @@ export const Customers: React.FC = () => {
 
       {/* Floating Toast Notification */}
       {toast?.isOpen && (
-        <div className={`fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-in-right ${
+        <div className={`fixed bottom-20 left-4 right-4 md:bottom-6 md:left-auto md:right-6 z-[200] flex items-center justify-center md:justify-start gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-up md:animate-slide-in-right ${
           toast.type === 'success'
             ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
             : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
