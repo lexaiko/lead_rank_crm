@@ -188,6 +188,23 @@ function loadLidMapping() {
       const data = JSON.parse(fs.readFileSync(MAPPING_FILE, 'utf-8'));
       lidToPhoneMap = new Map(Object.entries(data));
       console.log(`[LID Mapping] Loaded ${lidToPhoneMap.size} mappings from file.`);
+
+      // Perform database cleanup on startup to merge any existing duplicate LID customer records
+      setTimeout(async () => {
+        console.log('[LID Merge] Running startup cleanup to merge duplicate LID customers...');
+        let mergedCount = 0;
+        for (const [lid, phone] of lidToPhoneMap.entries()) {
+          try {
+            const merged = await mergeLidCustomerRecord(lid, phone);
+            if (merged) mergedCount++;
+          } catch (e) {
+            // Ignore individual error
+          }
+        }
+        if (mergedCount > 0) {
+          console.log(`[LID Merge] Startup cleanup completed. Merged ${mergedCount} duplicate LID customer records.`);
+        }
+      }, 5000);
     }
   } catch (e) {
     console.error('Failed to load LID mapping file:', e);
@@ -210,7 +227,7 @@ async function mergeLidCustomerRecord(lid, phone) {
       include: { lead: { include: { messages: true } } }
     });
 
-    if (!lidCust) return;
+    if (!lidCust) return false;
 
     const phoneCust = await prisma.customer.findUnique({
       where: { nomor_hp: phone },
@@ -259,8 +276,10 @@ async function mergeLidCustomerRecord(lid, phone) {
       });
       console.log(`[LID Merge] Phone customer did not exist. Renamed LID customer ${lid} to phone JID ${phone}.`);
     }
+    return true;
   } catch (err) {
     console.error(`[LID Merge] Failed to merge customer ${lid} into ${phone}:`, err);
+    return false;
   }
 }
 
@@ -880,10 +899,6 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
 
   // 5. Buat Lead Baru if this customer has never had one
   if (!lead) {
-    if (isHistorySync) {
-      // Skip creating new leads for historical sync messages
-      return;
-    }
     try {
       const kode_lead = await generateKodeLead(admin.id);
       // Classify referral source from the customer's opening greeting (rules stored in DB, cached in memory)
