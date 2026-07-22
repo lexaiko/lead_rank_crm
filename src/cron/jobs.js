@@ -3,13 +3,13 @@ import { prisma } from '../config/prisma.js';
 
 /**
  * Modul B: Ghosting Sweeper (Every day at 01:00 AM)
- * Cari Lead aktif yang tidak memiliki aktivitas (tidak ada update) selama 3 hari terakhir.
+ * Cari Lead aktif yang tidak memiliki aktivitas (tidak ada update) selama 14 hari terakhir.
  * Tutup secara otomatis.
  */
 export async function runGhostingSweeper() {
   console.log('[Ghosting Sweeper] Starting sweep at:', new Date().toISOString());
   try {
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     
     const result = await prisma.lead.updateMany({
       where: {
@@ -17,13 +17,13 @@ export async function runGhostingSweeper() {
           in: ['NEW', 'PROSPECT', 'QUALIFIED', 'HOT']
         },
         updatedAt: {
-          lt: threeDaysAgo
+          lt: twoWeeksAgo
         }
         
       },
       data: {
         status_lead: 'CLOSED LOST',
-        catatan_sistem: 'Auto-Closed Lost: Customer terindikasi ghosting (tidak ada respon > 3 hari).',
+        catatan_sistem: 'Auto-Closed Lost: Customer terindikasi ghosting (tidak ada respon > 14 hari).',
         closed_at: new Date()
       }
     });
