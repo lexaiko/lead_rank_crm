@@ -957,8 +957,8 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
       }
     });
 
-    // 2. Update Lead's timestamps
-    await prisma.lead.update({
+    // 2. Update Lead's timestamps (use updateMany to avoid P2025 errors if the record is not matched)
+    await prisma.lead.updateMany({
       where: {
         id: lead.id,
         ...(isHistorySync ? {
@@ -972,9 +972,6 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
         updatedAt: isHistorySync ? waktu_pesan : new Date(),
         last_activity_at: isHistorySync ? waktu_pesan : new Date()
       }
-    }).catch(() => {
-      // Silently ignore if the WHERE condition was not met (i.e., an older message
-      // tried to overwrite a newer last_activity_at — this is correct behavior)
     });
 
     console.log(`[${pengirim}] saved for Lead ID ${lead.id}: "${text.slice(0, 30)}..."`);
