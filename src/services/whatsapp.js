@@ -851,6 +851,8 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
       const currentSockName = sock.user?.name?.toLowerCase();
 
       const isIncorrectName = !customer.nama_kontak || 
+                              currentNameLower === 'pelanggan wa' ||
+                              currentNameLower === 'pelanggan' ||
                               (currentSockName && currentNameLower === currentSockName) ||
                               adminNames.includes(currentNameLower);
 
@@ -860,6 +862,8 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
         if (freshCustomer) {
           const freshNameLower = freshCustomer.nama_kontak?.toLowerCase();
           const stillIncorrect = !freshCustomer.nama_kontak ||
+                                 freshNameLower === 'pelanggan wa' ||
+                                 freshNameLower === 'pelanggan' ||
                                  (currentSockName && freshNameLower === currentSockName) ||
                                  adminNames.includes(freshNameLower);
           
