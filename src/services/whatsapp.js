@@ -189,21 +189,33 @@ function loadLidMapping() {
       lidToPhoneMap = new Map(Object.entries(data));
       console.log(`[LID Mapping] Loaded ${lidToPhoneMap.size} mappings from file.`);
 
-      // Perform database cleanup on startup to merge any existing duplicate LID customer records
+      // Perform database cleanup on startup to merge existing duplicate LID records and delete unresolved ones
       setTimeout(async () => {
-        console.log('[LID Merge] Running startup cleanup to merge duplicate LID customers...');
+        console.log('[LID Cleanup] Running startup cleanup to merge and clean up LID customers...');
         let mergedCount = 0;
-        for (const [lid, phone] of lidToPhoneMap.entries()) {
-          try {
-            const merged = await mergeLidCustomerRecord(lid, phone);
-            if (merged) mergedCount++;
-          } catch (e) {
-            // Ignore individual error
+        let deletedCount = 0;
+        try {
+          const allCustomers = await prisma.customer.findMany();
+          for (const customer of allCustomers) {
+            const isLidHp = customer.nomor_hp.length >= 14 && !customer.nomor_hp.startsWith('62');
+            if (isLidHp) {
+              const phone = lidToPhoneMap.get(customer.nomor_hp);
+              if (phone) {
+                const merged = await mergeLidCustomerRecord(customer.nomor_hp, phone);
+                if (merged) mergedCount++;
+              } else {
+                await prisma.customer.delete({
+                  where: { id: customer.id }
+                });
+                deletedCount++;
+              }
+            }
           }
+        } catch (cleanupErr) {
+          console.error('[LID Cleanup] Error during startup LID cleanup:', cleanupErr);
         }
-        if (mergedCount > 0) {
-          console.log(`[LID Merge] Startup cleanup completed. Merged ${mergedCount} duplicate LID customer records.`);
-        }
+
+        console.log(`[LID Cleanup] Startup cleanup completed. Merged: ${mergedCount}, Deleted unresolved: ${deletedCount}`);
       }, 5000);
     }
   } catch (e) {
@@ -797,7 +809,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
   }
 
   // Ignore status broadcast, groups, and LID fallback that cannot be resolved to a phone number
-  if (!remoteJid || (!remoteJid.endsWith('@s.whatsapp.net') && !remoteJid.endsWith('@lid'))) {
+  if (!remoteJid || !remoteJid.endsWith('@s.whatsapp.net')) {
     return;
   }
 
@@ -1001,9 +1013,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
 async function updateCustomerFromContact(contact) {
   try {
     let jid = contact.id;
-    if (!jid || (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid'))) {
-      return;
-    }
+    if (!jid) return;
 
     // Apply LID-to-Phone JID mapping to avoid recreating LID JID customer records on contact sync events
     if (jid.endsWith('@lid')) {
@@ -1012,6 +1022,10 @@ async function updateCustomerFromContact(contact) {
       if (mappedPhone) {
         jid = mappedPhone + '@s.whatsapp.net';
       }
+    }
+
+    if (!jid.endsWith('@s.whatsapp.net')) {
+      return;
     }
 
     const customerHp = normalizePhoneNumber(jid);
@@ -1072,9 +1086,7 @@ async function updateCustomerFromContact(contact) {
 async function updateCustomerNameFromChat(chat) {
   try {
     let jid = chat.id;
-    if (!jid || (!jid.endsWith('@s.whatsapp.net') && !jid.endsWith('@lid'))) {
-      return;
-    }
+    if (!jid) return;
 
     // Translate LID to Phone Number JID if mapping exists
     if (jid.endsWith('@lid')) {
@@ -1083,6 +1095,10 @@ async function updateCustomerNameFromChat(chat) {
       if (mappedPhone) {
         jid = mappedPhone + '@s.whatsapp.net';
       }
+    }
+
+    if (!jid.endsWith('@s.whatsapp.net')) {
+      return;
     }
 
     const customerHp = normalizePhoneNumber(jid);
