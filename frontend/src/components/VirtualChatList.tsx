@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { ChatMessage } from '../types';
+import { X, ExternalLink, ZoomIn } from 'lucide-react';
 
 interface VirtualChatListProps {
   messages: ChatMessage[];
@@ -10,6 +11,7 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedWaId, setHighlightedWaId] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -107,7 +109,7 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
                 <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'} my-1`}>
                   <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] gap-0.5 ${isAdmin ? 'items-end' : 'items-start'}`}>
                     <div
-                      className={`${hasImage || hasReply ? 'p-1.5' : 'px-4 py-3'} rounded-2xl text-sm leading-relaxed shadow-sm font-normal break-words whitespace-pre-wrap transition-shadow duration-300 ${
+                      className={`${hasImage || hasReply ? 'p-1.5' : 'px-4 py-3'} rounded-2xl text-sm leading-relaxed shadow-xs font-normal break-words whitespace-pre-wrap transition-shadow duration-300 ${
                         isAdmin
                           ? 'bg-teal-600 dark:bg-teal-700 text-white rounded-tr-none'
                           : 'bg-card text-foreground border border-border/80 rounded-tl-none'
@@ -142,20 +144,30 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
                               alt="Kutipan gambar"
                               loading="lazy"
                               className="w-12 h-full min-h-12 object-cover shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewImage(quotedThumb);
+                              }}
                             />
                           )}
                         </button>
                       )}
 
                       {hasImage && (
-                        <a href={`/${message.media_path}`} target="_blank" rel="noopener noreferrer">
+                        <div
+                          onClick={() => setPreviewImage(`/${message.media_path}`)}
+                          className="relative group cursor-pointer overflow-hidden rounded-xl"
+                        >
                           <img
                             src={`/${message.media_path}`}
                             alt="Lampiran gambar"
                             loading="lazy"
-                            className="rounded-xl max-h-64 max-w-full object-contain"
+                            className="rounded-xl max-h-64 max-w-full object-contain group-hover:opacity-90 transition-opacity"
                           />
-                        </a>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <ZoomIn size={22} />
+                          </div>
+                        </div>
                       )}
                       {!hideText && (
                         <div className={hasImage || hasReply ? 'px-2.5 py-1.5' : ''}>{message.pesan}</div>
@@ -169,6 +181,45 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Image Preview Lightbox Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-scale-up"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 self-end mb-1">
+              <a
+                href={previewImage}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted transition-all flex items-center gap-1.5 text-xs font-bold shadow-md"
+                title="Buka Ukuran Penuh di Tab Baru"
+              >
+                <ExternalLink size={14} />
+                <span>Buka Tab Baru</span>
+              </a>
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="p-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted transition-all cursor-pointer shadow-md"
+                title="Tutup"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <img
+              src={previewImage}
+              alt="WhatsApp Media Preview"
+              className="max-h-[80vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/20"
+            />
+          </div>
         </div>
       )}
     </div>

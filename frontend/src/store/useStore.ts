@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../services/api';
+import { api } from './services/api';
 import { DashboardData, DashboardParams, CustomerStats, AIJob, ChatMessage, Lead, Admin, Role, LeadListItem, LeadsMeta, LeadsParams } from '../types';
 
 const DEFAULT_LEADS_PARAMS: LeadsParams = {
@@ -385,17 +385,29 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateLead: async (leadId: number, data: Partial<Lead>) => {
-    set({ isLoading: true });
+    // Optimistically update local leads list for instant UI feedback
+    set((state) => ({
+      leads: state.leads.map((l) =>
+        l.id === leadId
+          ? {
+              ...l,
+              ...data,
+              customerNama: (data as any).customer_nama !== undefined ? (data as any).customer_nama : l.customerNama,
+            }
+          : l
+      ),
+    }));
     try {
       const res = await api.updateLead(leadId, data);
       if (res.success) {
-        // Refresh leads list to reflect changes
+        // Refresh leads list in background
+        await get().fetchLeads();
+      } else {
         await get().fetchLeads();
       }
     } catch (e) {
       console.error('Error updating lead', e);
-    } finally {
-      set({ isLoading: false });
+      await get().fetchLeads();
     }
   },
 

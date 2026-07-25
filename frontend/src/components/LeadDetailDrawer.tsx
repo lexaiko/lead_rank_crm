@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw } from 'lucide-react';
+import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert } from 'lucide-react';
 import { VirtualChatList } from './VirtualChatList';
 import { Lead } from '../types';
-import { api } from '../services/api';
+import { api } from '../store/services/api';
 
 export const LeadDetailDrawer: React.FC = () => {
   const { 
@@ -315,202 +315,196 @@ export const LeadDetailDrawer: React.FC = () => {
 
       {/* Slide-out Drawer */}
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col bg-background border-l border-border shadow-2xl transition-transform duration-300 transform translate-x-0">
-        
         {/* Drawer Header */}
-        <div className="border-b border-border bg-card text-foreground">
-          {/* Top row: lead info + close */}
-          <div className="flex items-center justify-between py-3 px-4">
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-heading font-black text-base tracking-tight text-primary">
-                  {localLead.kode_lead}
-                </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadgeClass(localLead.status_lead)}`}>
-                  {localLead.status_lead}
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
-                Managed by <strong className="text-foreground">{leadData.adminNama}</strong>
+        <div className="border-b border-border bg-card text-foreground shadow-xs">
+          {/* Top row: lead info + status + admin + close */}
+          <div className="flex items-center justify-between py-2 px-3 md:py-3.5 md:px-5">
+            <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+              <span className="font-heading font-black text-sm md:text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
+                {localLead.kode_lead}
               </span>
+              <span className={`text-[10px] md:text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadgeClass(localLead.status_lead)}`}>
+                {localLead.status_lead}
+              </span>
+              <div className="flex items-center gap-1 bg-muted/60 border border-border/80 px-2 py-0.5 rounded-full text-[11px] font-semibold text-muted-foreground">
+                <User size={11} className="text-primary" />
+                <span>CS: <strong className="text-foreground">{leadData.adminNama}</strong></span>
+              </div>
             </div>
+
             <button 
               onClick={() => setSelectedLeadId(null)}
-              className="ml-2 p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+              className="p-1.5 md:p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 cursor-pointer"
+              title="Tutup Modal"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
-          {/* Action buttons row — always visible, scrollable on very narrow screens */}
-          <div className="flex items-center gap-2 px-4 pb-3 overflow-x-auto">
-            {/* Follow Up Button */}
+          {/* Action buttons row — Follow Up, Deep AI, Abaikan */}
+          <div className="flex items-center gap-1.5 px-3 pb-2.5 md:px-5 md:pb-3.5 flex-wrap">
             <button
               type="button"
               onClick={() => { setFollowUpTemplate(0); setFollowUpModal(true); }}
-              className="flex-1 min-w-[120px] py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+              className="flex-1 py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] md:text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
             >
               <Phone size={13} /> Follow Up
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenDeepAnalysis}
+              className="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-[11px] md:text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
+            >
+              <Brain size={13} /> {deepAnalysisData ? 'Deep AI' : 'Mulai AI'}
             </button>
 
             {canIgnore && (
               <button
                 type="button"
                 onClick={handleIgnoreContact}
-                className="flex-1 min-w-[120px] py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs rounded-xl border border-rose-500/20 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                className="py-1.5 px-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-[11px] md:text-xs rounded-lg border border-rose-500/20 transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
               >
-                <AlertCircle size={13} /> Abaikan
+                <ShieldAlert size={13} /> Abaikan
               </button>
             )}
           </div>
         </div>
 
-        {/* Sub-tabs for mobile view */}
-        <div className="md:hidden flex border-b border-border bg-card shrink-0">
-          <button
-            onClick={() => setActiveSubTab('profile')}
-            className={`flex-1 py-3.5 text-center text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-              activeSubTab === 'profile'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground'
-            }`}
-          >
-            Lead Profile
-          </button>
-          <button
-            onClick={() => setActiveSubTab('chat')}
-            className={`flex-1 py-3.5 text-center text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-              activeSubTab === 'chat'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground'
-            }`}
-          >
-            WhatsApp Chat
-          </button>
+        {/* Segmented Control Sub-tabs for mobile view */}
+        <div className="md:hidden p-1.5 border-b border-border/80 bg-card/95 backdrop-blur-md shrink-0">
+          <div className="grid grid-cols-2 p-0.5 rounded-xl bg-muted/60 border border-border/60">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('profile')}
+              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all select-none cursor-pointer ${
+                activeSubTab === 'profile'
+                  ? 'bg-primary text-primary-foreground shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <UserCheck size={13} />
+              <span>Form Profile</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('chat')}
+              className={`py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all select-none cursor-pointer ${
+                activeSubTab === 'chat'
+                  ? 'bg-primary text-primary-foreground shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <MessageSquare size={13} />
+              <span>WA Chat Log</span>
+              {activeChatMessages.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
+                  activeSubTab === 'chat' ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                }`}>
+                  {activeChatMessages.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Drawer Content Layout */}
         <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
           
-          {/* Left Column: Lead Info Form */}
-          <div className={`w-full md:w-[45%] border-b md:border-b-0 md:border-r border-border p-4 md:p-6 overflow-y-auto flex flex-col justify-between ${
+          {/* Left Column: Redesigned Lead Info Form */}
+          <div className={`w-full md:w-[48%] border-b md:border-b-0 md:border-r border-border p-3 md:p-6 overflow-y-auto flex flex-col justify-between ${
             activeSubTab === 'profile' ? 'flex' : 'hidden md:flex'
           }`}>
-            <div className="flex flex-col gap-5">
-              <div className="border-b border-border pb-3">
-                <h3 className="font-heading font-bold text-sm uppercase tracking-wider text-muted-foreground">
-                  Lead Information
-                </h3>
+            <div className="flex flex-col gap-3 md:gap-5">
+              
+              {/* Form Section Title */}
+              <div className="flex items-center justify-between border-b border-border/60 pb-2 md:pb-3">
+                <div className="flex items-center gap-1.5 text-foreground font-heading font-black text-xs uppercase tracking-wider">
+                  <UserCheck size={13} className="text-primary" />
+                  <span>Detail Profile Lead</span>
+                </div>
+                {!canWriteLeads && (
+                  <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <LockKeyhole size={10} /> View Only
+                  </span>
+                )}
               </div>
 
-              {/* Customer Info Card */}
-              <div className="bg-muted/50 border border-border/80 p-4 rounded-xl flex flex-col gap-3">
+              {/* Card 1: Identitas Pelanggan & Kontak */}
+              <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs flex flex-col gap-2.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <User size={11} className="text-primary" /> Kontak Pelanggan
+                </span>
+
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nama Kontak</label>
-                  <input
-                    type="text"
-                    value={customerNama}
-                    onChange={(e) => setCustomerNama(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-border/80 rounded-xl bg-background text-foreground text-xs font-bold focus:outline-none focus:border-primary shadow-sm disabled:opacity-75 disabled:cursor-not-allowed"
-                    disabled={!canWriteLeads}
-                    placeholder="Pelanggan WA"
-                  />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Nomor WhatsApp</span>
-                  <span className="text-xs text-muted-foreground font-mono">{leadData.customerHp}</span>
-                </div>
-              </div>
-
-              {/* Edit Fields Form */}
-              <div className="flex flex-col gap-4">
-                
-                {/* Status Dropdown */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Status</label>
-                  <select
-                    value={localLead.status_lead}
-                    onChange={(e) => handleChange('status_lead', e.target.value)}
-                    disabled={!canWriteLeads}
-                    className="w-full px-3 py-2 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
-                  >
-                    <option value="NEW">NEW</option>
-                    <option value="QUALIFIED">QUALIFIED</option>
-                    <option value="PROSPECT">PROSPECT</option>
-                    <option value="HOT">HOT</option>
-                    <option value="CLOSED WON">CLOSED WON</option>
-                    <option value="CLOSED LOST">CLOSED LOST</option>
-                  </select>
-                </div>
-
-                {/* Destinations */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Destinations interest</label>
+                  <label className="text-xs font-semibold text-foreground">Nama Customer</label>
                   <div className="relative">
-                    <MapPin size={15} className="absolute left-3 top-3 text-muted-foreground" />
+                    <User size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <input
                       type="text"
-                      value={localLead.minat_destinasi || ''}
-                      onChange={(e) => handleChange('minat_destinasi', e.target.value)}
-                      placeholder="e.g. Ijen, Baluran, Djawatan"
+                      value={customerNama}
+                      onChange={(e) => setCustomerNama(e.target.value)}
+                      className="w-full pl-8 pr-2.5 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
                       disabled={!canWriteLeads}
-                      className="w-full pl-9 pr-3 py-2 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                      placeholder="Nama pelanggan WA"
                     />
                   </div>
                 </div>
 
-                {/* Pax & Date Group — stacks on mobile, side-by-side on sm+ */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Participants (Pax)</label>
-                    <div className="relative">
-                      <Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={localLead.jumlah_peserta || ''}
-                        onChange={(e) => handleChange('jumlah_peserta', e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder="Pax"
-                        disabled={!canWriteLeads}
-                        className="w-full pl-9 pr-3 py-3 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed h-11"
-                      />
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-foreground">Nomor WhatsApp</label>
+                  <div className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-muted/50 border border-border/80">
+                    <div className="flex items-center gap-1.5">
+                      <Phone size={13} className="text-emerald-500 shrink-0" />
+                      <span className="font-semibold text-sm text-foreground">{leadData.customerHp}</span>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar size={13} className="text-muted-foreground" /> Trip Date
-                    </label>
-                    <input
-                      type="date"
-                      value={localLead.estimasi_waktu ? localLead.estimasi_waktu.split('T')[0] : ''}
-                      onChange={(e) => handleChange('estimasi_waktu', e.target.value || null)}
-                      disabled={!canWriteLeads}
-                      className="w-full px-3 py-3 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed h-11 appearance-none"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(leadData.customerHp);
+                        showToast('Nomor WA berhasil disalin', 'success');
+                      }}
+                      className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                      title="Salin Nomor HP"
+                    >
+                      <Copy size={13} />
+                    </button>
                   </div>
                 </div>
+              </div>
 
-                {/* Estimate Value & Referral Group — stacks on mobile */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Order Value (Rp)</label>
-                    <div className="relative">
-                      <BadgePercent size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={localLead.estimasi_nilai_order || ''}
-                        onChange={(e) => handleChange('estimasi_nilai_order', e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder="Price"
-                        disabled={!canWriteLeads}
-                        className="w-full pl-9 pr-3 py-3 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed h-11"
-                      />
-                    </div>
+              {/* Card 2: Status Pipeline & Sumber Referral */}
+              <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs flex flex-col gap-2.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <Share2 size={11} className="text-primary" /> Status Pipeline & Channel
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-foreground">Status Lead</label>
+                    <select
+                      value={localLead.status_lead}
+                      onChange={(e) => handleChange('status_lead', e.target.value)}
+                      disabled={!canWriteLeads}
+                      className="w-full px-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-bold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                    >
+                      <option value="NEW">NEW</option>
+                      <option value="QUALIFIED">QUALIFIED</option>
+                      <option value="PROSPECT">PROSPECT</option>
+                      <option value="HOT">HOT</option>
+                      <option value="CLOSED WON">CLOSED WON</option>
+                      <option value="CLOSED LOST">CLOSED LOST</option>
+                    </select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Referral Source</label>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-foreground">Referral Source</label>
                     <select
                       value={localLead.referral_source}
                       onChange={(e) => handleChange('referral_source', e.target.value)}
                       disabled={!canWriteLeads}
-                      className="w-full px-3 py-2 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                      className="w-full px-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed capitalize"
                     >
                       <option value="tidak diketahui">Tidak Diketahui</option>
                       <option value="instagram">Instagram</option>
@@ -522,73 +516,132 @@ export const LeadDetailDrawer: React.FC = () => {
                     </select>
                   </div>
                 </div>
+              </div>
 
-                {/* Notes */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Special Notes</label>
-                  <textarea
-                    value={localLead.catatan_khusus || ''}
-                    onChange={(e) => handleChange('catatan_khusus', e.target.value)}
-                    placeholder="Enter itinerary details, food requirements, pick-up address, etc."
-                    rows={3}
-                    disabled={!canWriteLeads}
-                    className="w-full px-3 py-2 border border-border/80 rounded-xl bg-card text-foreground text-sm font-semibold focus:outline-none focus:border-primary resize-none disabled:opacity-75 disabled:cursor-not-allowed"
-                  />
+              {/* Card 3: Detail Perjalanan & Anggaran */}
+              <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs flex flex-col gap-2.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <MapPin size={11} className="text-primary" /> Detail Trip & Estimasi Order
+                </span>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-foreground">Destinasi Wisata</label>
+                  <div className="relative">
+                    <MapPin size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-primary" />
+                    <input
+                      type="text"
+                      value={localLead.minat_destinasi || ''}
+                      onChange={(e) => handleChange('minat_destinasi', e.target.value)}
+                      placeholder="e.g. Kawah Ijen, Baluran"
+                      disabled={!canWriteLeads}
+                      className="w-full pl-8 pr-2.5 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                    />
+                  </div>
                 </div>
 
-                {/* AI Summary Card (If analyzed) */}
-                {localLead.ai_summary && (
-                  <div className="p-4 rounded-xl border border-orange-500/20 bg-orange-500/5 dark:bg-orange-500/[0.02]">
-                    <div className="flex items-center gap-2 mb-2 text-orange-600 dark:text-orange-400">
-                      <SparklesIcon />
-                      <span className="text-xs font-bold uppercase tracking-wider">Premium AI Insights</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-foreground">Peserta (Pax)</label>
+                    <div className="relative">
+                      <Users size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-500" />
+                      <input
+                        type="number"
+                        value={localLead.jumlah_peserta || ''}
+                        onChange={(e) => handleChange('jumlah_peserta', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="Pax"
+                        disabled={!canWriteLeads}
+                        className="w-full pl-8 pr-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {localLead.ai_summary}
-                    </p>
                   </div>
-                )}
 
-                {/* System Alerts */}
-                {localLead.catatan_sistem && (
-                  <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 flex gap-2 text-rose-500">
-                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold uppercase tracking-wider">System Alert</span>
-                      <span className="text-xs mt-1 text-rose-600 dark:text-rose-400 font-medium">
-                        {localLead.catatan_sistem}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-foreground">Tanggal Trip</label>
+                    <div className="relative">
+                      <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
+                      <input
+                        type="date"
+                        value={localLead.estimasi_waktu ? localLead.estimasi_waktu.split('T')[0] : ''}
+                        onChange={(e) => handleChange('estimasi_waktu', e.target.value || null)}
+                        disabled={!canWriteLeads}
+                        className="w-full pl-8 pr-1 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-foreground">Estimasi Nilai Order (Rp)</label>
+                    {localLead.estimasi_nilai_order ? (
+                      <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
+                        Rp {localLead.estimasi_nilai_order.toLocaleString('id-ID')}
                       </span>
-                    </div>
+                    ) : null}
                   </div>
-                )}
-
+                  <div className="relative">
+                    <BadgePercent size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-500" />
+                    <input
+                      type="number"
+                      value={localLead.estimasi_nilai_order || ''}
+                      onChange={(e) => handleChange('estimasi_nilai_order', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="Nominal transaksi"
+                      disabled={!canWriteLeads}
+                      className="w-full pl-8 pr-2.5 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
               </div>
+
+              {/* Card 4: Catatan */}
+              <div className="p-3 rounded-xl bg-card border border-border/80 shadow-2xs flex flex-col gap-2.5">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <MessageSquare size={11} className="text-primary" /> Catatan
+                </span>
+                <textarea
+                  value={localLead.catatan_khusus || ''}
+                  onChange={(e) => handleChange('catatan_khusus', e.target.value)}
+                  placeholder="Detail pesanan, rincian itinerary, dll..."
+                  rows={3}
+                  disabled={!canWriteLeads}
+                  className="w-full p-2.5 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary resize-none disabled:opacity-75 disabled:cursor-not-allowed leading-relaxed"
+                />
+              </div>
+
+              {/* Card 5: AI Insights & System Alerts */}
+              {localLead.ai_summary && (
+                <div className="p-3 rounded-xl border border-violet-500/30 bg-violet-500/5 dark:bg-violet-500/[0.03] shadow-2xs flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400">
+                    <Sparkles size={14} className="animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-wider font-heading">AI Conversation Insights</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+                    {localLead.ai_summary}
+                  </p>
+                </div>
+              )}
+
+              {localLead.catatan_sistem && (
+                <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/5 shadow-2xs flex items-start gap-2 text-rose-500">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider">System Alert</span>
+                    <span className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
+                      {localLead.catatan_sistem}
+                    </span>
+                  </div>
+                </div>
+              )}
+
             </div>
 
-            {/* Save Button */}
+            {/* Sticky Save Button Bar */}
             {canWriteLeads && (
-              <div className="pt-6 mt-6 border-t border-border">
-                {/* Follow Up Button (prominent) */}
-                <button
-                  type="button"
-                  onClick={() => { setFollowUpTemplate(0); setFollowUpModal(true); }}
-                  className="w-full py-3 mb-3 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
-                >
-                  <Phone size={16} /> Follow Up via WhatsApp
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleOpenDeepAnalysis}
-                  className="w-full py-3 mb-3 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white cursor-pointer"
-                >
-                  <Brain size={16} /> {deepAnalysisData ? 'Lihat Deep AI Analysis' : 'Mulai Deep AI Analysis'}
-                </button>
-
+              <div className="pt-2 mt-3 pb-1 md:pt-4 md:mt-6 border-t border-border/80 sticky bottom-0 bg-background/95 backdrop-blur-md z-10">
                 <button
                   onClick={handleSave}
                   disabled={isLoading}
-                  className={`w-full py-3 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all ${
+                  className={`w-full py-2.5 md:py-3 rounded-xl font-bold text-xs md:text-sm shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer h-10 md:h-11 ${
                     saveSuccess 
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       : 'bg-primary text-primary-foreground hover:opacity-90'
@@ -596,21 +649,13 @@ export const LeadDetailDrawer: React.FC = () => {
                 >
                   {saveSuccess ? (
                     <>
-                      <Check size={16} /> Saved Successfully
+                      <Check size={15} /> Detail Berhasil Disimpan!
                     </>
                   ) : (
                     <>
-                      <Save size={16} /> Save Profiles Details
+                      <Save size={15} /> Simpan Perubahan Profile
                     </>
                   )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleIgnoreContact}
-                  disabled={isLoading}
-                  className="w-full mt-3 py-2.5 rounded-xl font-bold text-xs bg-muted text-muted-foreground border border-border/80 hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <AlertCircle size={14} /> Abaikan Kontak (Spam / Bukan Customer)
                 </button>
               </div>
             )}

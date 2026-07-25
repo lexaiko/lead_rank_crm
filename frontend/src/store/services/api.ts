@@ -1,4 +1,4 @@
-import { DashboardData, DashboardParams, Admin, ChatMessage, AIJob, CustomerStats, Lead, LeadListItem, LeadsMeta, LeadsParams, GreetingRule } from '../types';
+import { DashboardData, DashboardParams, Admin, ChatMessage, AIJob, CustomerStats, Lead, LeadListItem, LeadsMeta, LeadsParams, GreetingRule } from '../../types';
 
 const API_BASE = '/api';
 

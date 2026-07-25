@@ -923,7 +923,7 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 20));
     const skip = (pageNum - 1) * limitNum;
 
     // Whitelist sort fields to prevent injection
@@ -936,7 +936,13 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
       customer: { is_ignored: false }
     };
 
-    if (status && status !== 'ALL') where.status_lead = status;
+    if (status && status !== 'ALL') {
+      if (status === 'ACTIVE') {
+        where.status_lead = { notIn: ['CLOSED WON', 'CLOSED LOST'] };
+      } else {
+        where.status_lead = status;
+      }
+    }
     if (referral && referral !== 'ALL') where.referral_source = referral;
 
     if (isOwnScope(req.admin)) {

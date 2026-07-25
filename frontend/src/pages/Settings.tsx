@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { ToggleLeft, ToggleRight, Wifi, WifiOff, X, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
-import { api } from '../services/api';
+import { api } from '../store/services/api';
 import { GreetingRule } from '../types';
 
 const REFERRAL_SOURCES = ['instagram', 'tiktok', 'website', 'rekomendasi', 'facebook', 'lainnya'];
