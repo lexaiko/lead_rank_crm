@@ -77,6 +77,13 @@ export const api = {
     return res.json();
   },
 
+  async clearAdminSession(id: number): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/admins/${id}/clear-session`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
   async getLeads(params: Partial<LeadsParams> = {}): Promise<{ success: boolean; data: LeadListItem[]; meta: LeadsMeta }> {
     const query = new URLSearchParams();
     if (params.page)      query.set('page',       String(params.page));
@@ -266,7 +273,7 @@ export const api = {
     return res.json();
   },
 
-  async addManualMessage(leadId: number, data: { pengirim: 'admin' | 'customer'; pesan: string; waktu_pesan: string }): Promise<{ success: boolean; data?: any; error?: string }> {
+  async addManualMessage(leadId: number, data: { pengirim: 'admin' | 'customer'; pesan: string; waktu_pesan?: string; reply_to_wa_id?: string; reply_to_snippet?: string; reply_to_sender?: string }): Promise<{ success: boolean; data?: any; error?: string }> {
     const res = await fetch(`${API_BASE}/leads/${leadId}/messages`, {
       method: 'POST',
       headers: {

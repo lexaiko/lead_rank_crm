@@ -8,6 +8,7 @@ import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { enqueueAIJob } from './ai-queue.js';
 import { detectReferralSourceFromGreeting } from './greeting-rules.js';
+import { broadcastChatMessage } from './sse.js';
 
 function logDebug(...args) {
   if (process.env.BAILEYS_LOG_LEVEL && process.env.BAILEYS_LOG_LEVEL !== 'silent') {
@@ -961,7 +962,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
 
   try {
     // 1. Create chat message
-    await prisma.chatMessage.create({
+    const createdMsg = await prisma.chatMessage.create({
       data: {
         wa_message_id: messageId,
         lead_id: lead.id,
@@ -972,6 +973,9 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
         ...(replyContext ? replyContext : {})
       }
     });
+
+    // Broadcast SSE event in real-time to all open web clients
+    broadcastChatMessage(lead.id, createdMsg);
 
     // 2. Update Lead's timestamps (use updateMany to avoid P2025 errors if the record is not matched)
     await prisma.lead.updateMany({
@@ -1214,6 +1218,39 @@ export async function logoutAdminSession(adminId) {
     console.log(`[Logout] Successfully deleted database session records for Admin ID: ${adminId}`);
   } catch (err) {
     console.error(`[Logout] Failed to delete database session records:`, err.message);
+  }
+}
+
+/**
+ * Clear stale WhatsApp session records from database for an Admin.
+ * 
+ * @param {number} adminId 
+ */
+export async function clearAdminSession(adminId) {
+  const sock = activeSockets.get(adminId);
+  if (sock) {
+    try {
+      sock.isManualShutdown = true;
+      sock.end();
+    } catch (_) {}
+    activeSockets.delete(adminId);
+  }
+  activeQrs.delete(adminId);
+
+  try {
+    if (prisma.whatsAppSession) {
+      await prisma.whatsAppSession.deleteMany({
+        where: { admin_id: adminId }
+      });
+    } else {
+      await prisma.$executeRawUnsafe(
+        'DELETE FROM WhatsAppSession WHERE admin_id = ?',
+        adminId
+      );
+    }
+    console.log(`[ClearSession] Successfully cleared database session records for Admin ID: ${adminId}`);
+  } catch (err) {
+    console.error(`[ClearSession] Failed to clear database session records:`, err.message);
   }
 }
 

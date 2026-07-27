@@ -8,7 +8,7 @@ import {
 import { DateRangePicker } from '../components/DateRangePicker';
 import { LeadListItem } from '../types';
 
-type KanbanStatus = 'NEW' | 'QUALIFIED' | 'PROSPECT' | 'HOT';
+type KanbanStatus = 'NEW' | 'QUALIFIED' | 'PROSPECT' | 'HOT' | 'FOLLOW_UP';
 
 interface KanbanColumnConfig {
   key: KanbanStatus;
@@ -56,6 +56,15 @@ const KANBAN_COLUMNS: KanbanColumnConfig[] = [
     headerBg: 'bg-orange-500/5',
     headerBorder: 'border-orange-500/30',
     icon: <Flame size={16} className="text-orange-500" />,
+  },
+  {
+    key: 'FOLLOW_UP',
+    title: 'FOLLOW UP',
+    subtitle: 'Qualified, Prospect & Hot (H- / H+)',
+    badgeStyle: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-bold',
+    headerBg: 'bg-rose-500/5',
+    headerBorder: 'border-rose-500/30',
+    icon: <Clock size={16} className="text-rose-500" />,
   },
 ];
 
@@ -134,7 +143,9 @@ export const Leads: React.FC = () => {
 
   // Helper to determine follow up urgency badges
   const getFollowUpNeed = (lead: LeadListItem) => {
-    // Rule 1: PROSPECT with trip date within 15 days
+    if (!lead) return null;
+
+    // Rule 1: PROSPECT with trip date within 15 days (H-15)
     if (lead.status_lead === 'PROSPECT' && lead.estimasi_waktu) {
       const tripDate = new Date(lead.estimasi_waktu);
       const diffDays = Math.ceil((tripDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -149,17 +160,47 @@ export const Leads: React.FC = () => {
       }
     }
 
-    // Rule 2: QUALIFIED with last chat >= 3 days ago
+    // Rule 2: PROSPECT with last chat >= 5 days ago (H+5)
+    if (lead.status_lead === 'PROSPECT' && lead.last_activity_at) {
+      const lastChat = new Date(lead.last_activity_at);
+      const diffDays = Math.floor((Date.now() - lastChat.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 5) {
+        return {
+          type: 'PROSPECT_INACTIVE',
+          label: `⏰ Prospect Inaktif ${diffDays} Hari`,
+          templateIndex: 5,
+          style: 'bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 animate-pulse font-extrabold',
+          icon: <Clock size={11} className="shrink-0" />
+        };
+      }
+    }
+
+    // Rule 3: QUALIFIED with last chat >= 3 days ago (H+3)
     if (lead.status_lead === 'QUALIFIED' && lead.last_activity_at) {
       const lastChat = new Date(lead.last_activity_at);
       const diffDays = Math.floor((Date.now() - lastChat.getTime()) / (1000 * 60 * 60 * 24));
       if (diffDays >= 3) {
         return {
           type: 'QUALIFIED_INACTIVE',
-          label: `⏰ Inaktif ${diffDays} Hari (Follow Up)`,
+          label: `⏰ Qualified Inaktif ${diffDays} Hari`,
           templateIndex: 5,
-          style: 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse font-extrabold',
+          style: 'bg-cyan-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 animate-pulse font-extrabold',
           icon: <Clock size={11} className="shrink-0" />
+        };
+      }
+    }
+
+    // Rule 4: HOT with last chat >= 7 days ago (H+7)
+    if (lead.status_lead === 'HOT' && lead.last_activity_at) {
+      const lastChat = new Date(lead.last_activity_at);
+      const diffDays = Math.floor((Date.now() - lastChat.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 7) {
+        return {
+          type: 'HOT_INACTIVE',
+          label: `🔥 Hot Lead Inaktif ${diffDays} Hari (Follow Up)`,
+          templateIndex: 6,
+          style: 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse font-extrabold',
+          icon: <Flame size={11} className="shrink-0" />
         };
       }
     }
@@ -191,6 +232,10 @@ export const Leads: React.FC = () => {
     {
       label: '⏰ Follow Up 3 Hari Inaktif',
       message: `Halo Kak ${name || 'Kak'}! 😊\n\nMenindaklanjuti percakapan kita 3 hari lalu terkait trip ${destination || 'Banyuwangi'}.\n\nApakah Kakak masih membutuhkan informasi rincian itinerary atau penyesuaian budget? Kami siap menyesuaikan paket terbaik untuk Kakak! ✨`
+    },
+    {
+      label: '🔥 Follow Up Hot Lead (H+7 Inaktif)',
+      message: `Halo Kak ${name || 'Kak'}! 🔥\n\nSemoga hari Kakak menyenangkan! Menindaklanjuti diskusi kita minggu lalu terkait rencana trip ${destination || 'Banyuwangi'}.\n\nApakah ada pertanyaan atau penyesuaian khusus yang bisa kami bantu agar pesanan Kakak dapat segera dikonfirmasi? Slot dan promo terbatas menanti Kakak! 🌟`
     },
   ];
 
@@ -298,11 +343,11 @@ export const Leads: React.FC = () => {
     const leadId = leadIdStr ? parseInt(leadIdStr) : draggedLeadId;
     setDraggedLeadId(null);
 
-    if (!leadId) return;
+    if (!leadId || targetStatus === 'FOLLOW_UP') return;
 
     const lead = leads.find(l => l.id === leadId);
     if (lead && lead.status_lead !== targetStatus) {
-      await updateLead(leadId, { status_lead: targetStatus });
+      await updateLead(leadId, { status_lead: targetStatus as any });
     }
   };
 
@@ -338,11 +383,15 @@ export const Leads: React.FC = () => {
     QUALIFIED: [],
     PROSPECT: [],
     HOT: [],
+    FOLLOW_UP: [],
   };
 
   leads.forEach(lead => {
     if (groupedLeads[lead.status_lead as KanbanStatus]) {
       groupedLeads[lead.status_lead as KanbanStatus].push(lead);
+    }
+    if (['QUALIFIED', 'PROSPECT', 'HOT'].includes(lead.status_lead) && getFollowUpNeed(lead) !== null) {
+      groupedLeads.FOLLOW_UP.push(lead);
     }
   });
 
@@ -657,7 +706,7 @@ export const Leads: React.FC = () => {
           {/* Kanban Columns Snap Carousel Container */}
           <div
             ref={kanbanScrollRef}
-            className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-start overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 px-1 scrollbar-none"
+            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4 items-start overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 px-1 scrollbar-none"
           >
             {KANBAN_COLUMNS.map((col) => {
               const colLeads = groupedLeads[col.key];

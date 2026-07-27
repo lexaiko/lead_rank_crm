@@ -1,24 +1,30 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { ChatMessage } from '../types';
-import { X, ExternalLink, ZoomIn } from 'lucide-react';
+import { X, ExternalLink, ZoomIn, Reply } from 'lucide-react';
 
 interface VirtualChatListProps {
   messages: ChatMessage[];
+  onReplyMessage?: (message: ChatMessage) => void;
 }
 
-export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) => {
+export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages, onReplyMessage }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedWaId, setHighlightedWaId] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Sort messages strictly chronologically by database ID (sequential insertion order)
+  const sortedMessages = useMemo(() => {
+    return messages.slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+  }, [messages]);
+
+  // Auto-scroll to bottom when new messages arrive or update
   useEffect(() => {
     if (parentRef.current) {
       parentRef.current.scrollTop = parentRef.current.scrollHeight;
     }
-  }, [messages.length]);
+  }, [sortedMessages.length, sortedMessages]);
 
   useEffect(() => () => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
@@ -27,11 +33,11 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
   // Index messages by their WhatsApp ID so reply quotes can locate the original message
   const byWaId = useMemo(() => {
     const map = new Map<string, ChatMessage>();
-    for (const m of messages) {
+    for (const m of sortedMessages) {
       if (m.wa_message_id) map.set(m.wa_message_id, m);
     }
     return map;
-  }, [messages]);
+  }, [sortedMessages]);
 
   const scrollToQuoted = useCallback((waId?: string | null) => {
     if (!waId) return;
@@ -56,8 +62,8 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
   // Helper to check if date has changed between items to show date header
   const shouldShowDateHeader = (index: number) => {
     if (index === 0) return true;
-    const current = new Date(messages[index].waktu_pesan).toDateString();
-    const prev = new Date(messages[index - 1].waktu_pesan).toDateString();
+    const current = new Date(sortedMessages[index].waktu_pesan).toDateString();
+    const prev = new Date(sortedMessages[index - 1].waktu_pesan).toDateString();
     return current !== prev;
   };
 
@@ -66,13 +72,13 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
       ref={parentRef}
       className="flex-1 overflow-y-auto px-3 sm:px-4 py-6 bg-chat-bg border border-border/50 rounded-2xl relative flex flex-col gap-1"
     >
-      {messages.length === 0 ? (
+      {sortedMessages.length === 0 ? (
         <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
           Belum ada riwayat chat untuk lead ini.
         </div>
       ) : (
         <div className="flex flex-col w-full gap-1">
-          {messages.map((message, index) => {
+          {sortedMessages.map((message, index) => {
             const isAdmin = message.pengirim === 'admin';
             const showDateHeader = shouldShowDateHeader(index);
             const hasImage = message.media_type === 'image' && !!message.media_path;
@@ -106,76 +112,91 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages }) =>
                 )}
 
                 {/* Message Bubble Container */}
-                <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'} my-1`}>
-                  <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] gap-0.5 ${isAdmin ? 'items-end' : 'items-start'}`}>
-                    <div
-                      className={`${hasImage || hasReply ? 'p-1.5' : 'px-4 py-3'} rounded-2xl text-sm leading-relaxed shadow-xs font-normal break-words whitespace-pre-wrap transition-shadow duration-300 ${
-                        isAdmin
-                          ? 'bg-teal-600 dark:bg-teal-700 text-white rounded-tr-none'
-                          : 'bg-card text-foreground border border-border/80 rounded-tl-none'
-                      } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
-                    >
-                      {/* WhatsApp-style quoted reply block */}
-                      {hasReply && (
-                        <button
-                          type="button"
-                          onClick={() => scrollToQuoted(message.reply_to_wa_id)}
-                          className={`w-full text-left flex items-stretch gap-2 mb-1 rounded-xl overflow-hidden border-l-4 ${
-                            isAdmin
-                              ? 'bg-black/20 border-amber-300'
-                              : 'bg-secondary/80 border-teal-500'
-                          } ${quotedOriginal ? 'cursor-pointer active:opacity-80' : 'cursor-default'}`}
-                        >
-                          <div className="flex-1 min-w-0 px-2.5 py-1.5">
-                            <span className={`block text-[10px] font-bold ${
-                              isAdmin ? 'text-amber-200' : 'text-teal-600 dark:text-teal-400'
-                            }`}>
-                              {quotedLabel}
-                            </span>
-                            <span className={`block text-xs leading-snug break-words line-clamp-2 ${
-                              isAdmin ? 'text-white/85' : 'text-muted-foreground'
-                            }`}>
-                              {message.reply_to_snippet}
-                            </span>
-                          </div>
-                          {quotedThumb && (
-                            <img
-                              src={quotedThumb}
-                              alt="Kutipan gambar"
-                              loading="lazy"
-                              className="w-12 h-full min-h-12 object-cover shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewImage(quotedThumb);
-                              }}
-                            />
-                          )}
-                        </button>
-                      )}
+                <div className={`flex w-full ${isAdmin ? 'justify-end' : 'justify-start'} my-1 group/bubble`}>
+                  <div className={`flex items-center gap-1.5 max-w-[85%] sm:max-w-[75%] ${isAdmin ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`flex flex-col gap-0.5 ${isAdmin ? 'items-end' : 'items-start'} min-w-0`}>
+                      <div
+                        onDoubleClick={() => onReplyMessage?.(message)}
+                        className={`relative ${hasImage || hasReply ? 'p-1.5' : 'px-4 py-3'} rounded-2xl text-sm leading-relaxed shadow-xs font-normal break-words whitespace-pre-wrap transition-shadow duration-300 ${
+                          isAdmin
+                            ? 'bg-teal-600 dark:bg-teal-700 text-white rounded-tr-none'
+                            : 'bg-card text-foreground border border-border/80 rounded-tl-none'
+                        } ${isHighlighted ? 'ring-2 ring-amber-400' : ''}`}
+                      >
+                        {/* WhatsApp-style quoted reply block */}
+                        {hasReply && (
+                          <button
+                            type="button"
+                            onClick={() => scrollToQuoted(message.reply_to_wa_id)}
+                            className={`w-full text-left flex items-stretch gap-2 mb-1 rounded-xl overflow-hidden border-l-4 ${
+                              isAdmin
+                                ? 'bg-black/20 border-amber-300'
+                                : 'bg-secondary/80 border-teal-500'
+                            } ${quotedOriginal ? 'cursor-pointer active:opacity-80' : 'cursor-default'}`}
+                          >
+                            <div className="flex-1 min-w-0 px-2.5 py-1.5">
+                              <span className={`block text-[10px] font-bold ${
+                                isAdmin ? 'text-amber-200' : 'text-teal-600 dark:text-teal-400'
+                              }`}>
+                                {quotedLabel}
+                              </span>
+                              <span className={`block text-xs leading-snug break-words line-clamp-2 ${
+                                isAdmin ? 'text-white/85' : 'text-muted-foreground'
+                              }`}>
+                                {message.reply_to_snippet}
+                              </span>
+                            </div>
+                            {quotedThumb && (
+                              <img
+                                src={quotedThumb}
+                                alt="Kutipan gambar"
+                                loading="lazy"
+                                className="w-12 h-full min-h-12 object-cover shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewImage(quotedThumb);
+                                }}
+                              />
+                            )}
+                          </button>
+                        )}
 
-                      {hasImage && (
-                        <div
-                          onClick={() => setPreviewImage(`/${message.media_path}`)}
-                          className="relative group cursor-pointer overflow-hidden rounded-xl"
-                        >
-                          <img
-                            src={`/${message.media_path}`}
-                            alt="Lampiran gambar"
-                            loading="lazy"
-                            className="rounded-xl max-h-64 max-w-full object-contain group-hover:opacity-90 transition-opacity"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                            <ZoomIn size={22} />
+                        {hasImage && (
+                          <div
+                            onClick={() => setPreviewImage(`/${message.media_path}`)}
+                            className="relative group cursor-pointer overflow-hidden rounded-xl"
+                          >
+                            <img
+                              src={`/${message.media_path}`}
+                              alt="Lampiran gambar"
+                              loading="lazy"
+                              className="rounded-xl max-h-64 max-w-full object-contain group-hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <ZoomIn size={22} />
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {!hideText && (
-                        <div className={hasImage || hasReply ? 'px-2.5 py-1.5' : ''}>{message.pesan}</div>
-                      )}
+                        )}
+                        {!hideText && (
+                          <div className={hasImage || hasReply ? 'px-2.5 py-1.5' : ''}>{message.pesan}</div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground px-1 font-semibold">
+                        {formatTime(message.waktu_pesan)}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground px-1 font-semibold">
-                      {formatTime(message.waktu_pesan)}
-                    </span>
+
+                    {/* Hover Reply Action Button */}
+                    {onReplyMessage && (
+                      <button
+                        type="button"
+                        onClick={() => onReplyMessage(message)}
+                        className="opacity-0 group-hover/bubble:opacity-100 transition-opacity p-1.5 rounded-full bg-card hover:bg-muted border border-border/80 text-muted-foreground hover:text-foreground shadow-2xs cursor-pointer shrink-0"
+                        title="Balas pesan ini (Reply)"
+                      >
+                        <Reply size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

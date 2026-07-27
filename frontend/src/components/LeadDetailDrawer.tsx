@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert } from 'lucide-react';
+import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert, Reply, Send } from 'lucide-react';
 import { VirtualChatList } from './VirtualChatList';
-import { Lead } from '../types';
+import { Lead, ChatMessage } from '../types';
 import { api } from '../store/services/api';
 
 export const LeadDetailDrawer: React.FC = () => {
@@ -13,6 +13,7 @@ export const LeadDetailDrawer: React.FC = () => {
     leads,
     activeChatMessages, 
     fetchMessages, 
+    appendChatMessage,
     updateLead,
     updateCustomer,
     isLoading,
@@ -54,6 +55,59 @@ export const LeadDetailDrawer: React.FC = () => {
   const [manualSender, setManualSender] = useState<'admin' | 'customer'>('customer');
   const [manualText, setManualText] = useState('');
   const [manualTime, setManualTime] = useState('');
+
+  // Interactive Chat Reply & Quick Input State
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
+  const [quickText, setQuickText] = useState('');
+  const [isSendingQuickText, setIsSendingQuickText] = useState(false);
+
+  const handleReplyToBubble = (message: ChatMessage) => {
+    setReplyingToMessage(message);
+    setActiveSubTab('chat');
+  };
+
+  const handleSendQuickMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedLeadId || !quickText.trim() || isSendingQuickText) return;
+
+    setIsSendingQuickText(true);
+    try {
+      const payload: any = {
+        pengirim: 'admin',
+        pesan: quickText.trim(),
+        waktu_pesan: new Date().toISOString()
+      };
+
+      if (replyingToMessage) {
+        payload.reply_to_wa_id = replyingToMessage.wa_message_id || null;
+        payload.reply_to_snippet = replyingToMessage.pesan;
+        payload.reply_to_sender = replyingToMessage.pengirim;
+      }
+
+      const res = await api.addManualMessage(selectedLeadId, payload);
+      if (res.success) {
+        setQuickText('');
+        setReplyingToMessage(null);
+        if (res.data) {
+          appendChatMessage(res.data);
+        }
+        await fetchMessages(selectedLeadId, true);
+        fetchLeads();
+        if ((res as any).sentViaBaileys) {
+          showToast('Pesan berhasil terkirim!', 'success');
+        } else {
+          showToast('Pesan tersimpan di CRM (WA Admin belum tersambung)', 'success');
+        }
+      } else {
+        showToast(res.error || 'Gagal mengirim pesan.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('Terjadi kesalahan koneksi.', 'error');
+    } finally {
+      setIsSendingQuickText(false);
+    }
+  };
 
   const fetchDeepAnalysis = async (leadId: number) => {
     try {
@@ -109,8 +163,10 @@ export const LeadDetailDrawer: React.FC = () => {
         setIsManualChatOpen(false);
         setManualText('');
         setManualTime('');
-        // Refresh messages list and leads list
-        await fetchMessages(selectedLeadId);
+        if (res.data) {
+          appendChatMessage(res.data);
+        }
+        await fetchMessages(selectedLeadId, true);
         fetchLeads();
       } else {
         showToast(res.error || 'Gagal menyimpan pesan.', 'error');
@@ -187,12 +243,30 @@ export const LeadDetailDrawer: React.FC = () => {
   // Find selected lead from paginated leads list
   const leadData = leads.find(l => l.id === selectedLeadId);
 
-  // Fetch messages and deep analysis when drawer opens or lead changes
+  // Fetch messages and deep analysis when drawer opens, and listen to real-time SSE event stream (zero polling)
   useEffect(() => {
-    if (selectedLeadId) {
-      fetchMessages(selectedLeadId);
-      fetchDeepAnalysis(selectedLeadId);
-    }
+    if (!selectedLeadId) return;
+
+    fetchMessages(selectedLeadId);
+    fetchDeepAnalysis(selectedLeadId);
+
+    const es = new EventSource('/api/events');
+
+    es.addEventListener('chatMessage', (e: any) => {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload && payload.leadId === selectedLeadId && payload.messageData) {
+          appendChatMessage(payload.messageData);
+        }
+        fetchLeads();
+      } catch (err) {
+        console.error('SSE chatMessage processing error', err);
+      }
+    });
+
+    return () => {
+      es.close();
+    };
   }, [selectedLeadId]);
 
   // Open Deep Analysis modal directly if triggered from list
@@ -702,7 +776,58 @@ export const LeadDetailDrawer: React.FC = () => {
                 <span className="text-xs text-muted-foreground font-semibold">Loading conversation thread...</span>
               </div>
             ) : (
-              <VirtualChatList messages={activeChatMessages} />
+              <div className="flex-1 flex flex-col overflow-hidden gap-2">
+                <VirtualChatList messages={activeChatMessages} onReplyMessage={handleReplyToBubble} />
+
+                {/* Quick Interactive WhatsApp Chat & Quoted Reply Bar */}
+                {canWriteLeads && (
+                  <form onSubmit={handleSendQuickMessage} className="shrink-0 flex flex-col gap-1.5 pt-2 border-t border-border/60 bg-background/50 rounded-2xl p-2 md:p-3">
+                    {/* Quoted Reply Preview Bar */}
+                    {replyingToMessage && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-secondary/90 border-l-4 border-teal-500 rounded-xl text-xs shadow-2xs animate-scale-up">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-[10px] text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                            <Reply size={11} /> Membalas {replyingToMessage.pengirim === 'admin' ? 'Admin' : 'Customer'}
+                          </span>
+                          <span className="text-muted-foreground line-clamp-1 text-xs italic">
+                            "{replyingToMessage.pesan}"
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setReplyingToMessage(null)}
+                          className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
+                          title="Batal Balas"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Sender Label & Text Input */}
+                    <div className="flex items-center gap-2 w-full">
+                      {/* Text Input Field */}
+                      <input
+                        type="text"
+                        value={quickText}
+                        onChange={(e) => setQuickText(e.target.value)}
+                        placeholder={replyingToMessage ? 'Ketik balasan WA...' : 'Ketik pesan balasan WA...'}
+                        className="flex-1 min-w-0 px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-card text-foreground focus:outline-none focus:border-primary shadow-2xs"
+                      />
+
+                      {/* WhatsApp Send Button */}
+                      <button
+                        type="submit"
+                        disabled={!quickText.trim() || isSendingQuickText}
+                        className="px-3 sm:px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5 shrink-0 h-9"
+                      >
+                        <Send size={13} />
+                        <span className="whitespace-nowrap">Kirim WA</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             )}
           </div>
 

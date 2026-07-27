@@ -4,16 +4,54 @@ import jwt from 'jsonwebtoken';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
-import { startAdminSession, activeSockets, activeQrs, logoutAdminSession } from '../services/whatsapp.js';
+import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearAdminSession } from '../services/whatsapp.js';
 import { runGhostingSweeper } from '../cron/jobs.js';
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
 import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetingRule, isDuplicateKeywordError } from '../services/greeting-rules.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { sseEmitter, broadcastChatMessage, broadcastLeadUpdate } from '../services/sse.js';
 
 const router = Router();
 
 // Auth Endpoints
+// SSE Real-Time Event Stream Endpoint (Zero Polling, Native Server-Sent Events)
+router.get('/events', authMiddleware, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const onChatMessage = ({ leadId, messageData }) => {
+    try {
+      res.write(`event: chatMessage\ndata: ${JSON.stringify({ leadId, messageData })}\n\n`);
+    } catch (e) {}
+  };
+
+  const onLeadUpdate = (leadData) => {
+    try {
+      res.write(`event: leadUpdate\ndata: ${JSON.stringify(leadData)}\n\n`);
+    } catch (e) {}
+  };
+
+  sseEmitter.on('chatMessage', onChatMessage);
+  sseEmitter.on('leadUpdate', onLeadUpdate);
+
+  res.write(`event: ping\ndata: {}\n\n`);
+
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(`event: ping\ndata: {}\n\n`);
+    } catch (e) {}
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    sseEmitter.off('chatMessage', onChatMessage);
+    sseEmitter.off('leadUpdate', onLeadUpdate);
+  });
+});
+
 router.post('/auth/login', async (req, res, next) => {
   try {
     const { username, password } = req.body;
@@ -450,6 +488,24 @@ router.post('/admins/:id/logout', authMiddleware, permissionMiddleware('settings
   }
 });
 
+// Clear stale WhatsApp session records for Admin (Without socket logout handshake)
+router.post('/admins/:id/clear-session', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const adminId = parseInt(req.params.id);
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+    
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    await clearAdminSession(adminId);
+    
+    res.json({ success: true, message: 'Data sesi WhatsApp berhasil dibersihkan!' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // QR Code page
 router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
   try {
@@ -700,7 +756,7 @@ router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 
 
     const messages = await prisma.chatMessage.findMany({
       where: { lead_id: leadId },
-      orderBy: { waktu_pesan: 'asc' }
+      orderBy: { id: 'asc' }
     });
     res.json({ success: true, data: messages });
   } catch (err) {
@@ -857,38 +913,100 @@ Harap diingat, kembalikan objek JSON murni secara lengkap tanpa menyertakan bloc
 });
 
 
-// Manually insert a chat message for a lead (advanced recovery feature)
+// Send / insert a chat message for a lead (Direct Baileys JS WhatsApp send & CRM log)
 router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 'write'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
-    const { pengirim, pesan, waktu_pesan } = req.body;
+    const { pengirim = 'admin', pesan, waktu_pesan, reply_to_wa_id, reply_to_snippet, reply_to_sender } = req.body;
 
-    if (!pengirim || !pesan) {
-      return res.status(400).json({ success: false, error: 'Pengirim dan pesan wajib diisi.' });
+    if (!pesan || !pesan.trim()) {
+      return res.status(400).json({ success: false, error: 'Isi pesan tidak boleh kosong.' });
     }
 
-    if (isOwnScope(req.admin)) {
-      const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { admin_id: true } });
-      if (!lead || lead.admin_id !== req.admin.id) {
-        return res.status(403).json({ success: false, error: 'Forbidden: You can only edit your own leads.' });
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      include: { customer: true, admin: true }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead tidak ditemukan.' });
+    }
+
+    if (isOwnScope(req.admin) && lead.admin_id !== req.admin.id) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Anda hanya bisa mengelola lead milik Anda sendiri.' });
+    }
+
+    // Ensure parsedDate timestamp is strictly newer than the latest existing message in this lead thread
+    const latestMsg = await prisma.chatMessage.findFirst({
+      where: { lead_id: leadId },
+      orderBy: { id: 'desc' }
+    });
+
+    let parsedDate = waktu_pesan ? new Date(waktu_pesan) : new Date();
+    if (latestMsg && latestMsg.waktu_pesan) {
+      const latestTime = new Date(latestMsg.waktu_pesan).getTime();
+      if (parsedDate.getTime() <= latestTime) {
+        parsedDate = new Date(latestTime + 1000); // 1 second after latest message
       }
     }
 
-    const parsedDate = waktu_pesan ? new Date(waktu_pesan) : new Date();
+    // Send directly via active Baileys JS socket if available
+    let generatedWaId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    let sentViaBaileys = false;
+
+    const sock = activeSockets.get(lead.admin_id) || activeSockets.get(req.admin.id);
+    if (sock && sock.user) {
+      const cleanPhone = normalizePhoneNumber(lead.customer.nomor_hp);
+      if (cleanPhone) {
+        const targetJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+        
+        // Build Baileys quoted reply context if replying to a specific message
+        const options = {};
+        if (reply_to_wa_id) {
+          const isQuotedFromAdmin = reply_to_sender === 'admin';
+          options.quoted = {
+            key: {
+              remoteJid: targetJid,
+              fromMe: isQuotedFromAdmin,
+              id: reply_to_wa_id,
+              ...(isQuotedFromAdmin ? {} : { participant: targetJid })
+            },
+            message: {
+              conversation: reply_to_snippet || ''
+            }
+          };
+        }
+
+        try {
+          const sentMsg = await sock.sendMessage(targetJid, { text: pesan.trim() }, options);
+          if (sentMsg?.key?.id) {
+            generatedWaId = sentMsg.key.id;
+            sentViaBaileys = true;
+          }
+        } catch (baileysErr) {
+          console.error('[Baileys Direct Send Error]', baileysErr);
+        }
+      }
+    }
 
     const created = await prisma.chatMessage.create({
       data: {
         lead_id: leadId,
-        pengirim, // "admin" atau "customer"
-        pesan,
+        pengirim: pengirim || 'admin',
+        pesan: pesan.trim(),
         waktu_pesan: parsedDate,
-        wa_message_id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        wa_message_id: generatedWaId,
+        reply_to_wa_id: reply_to_wa_id || null,
+        reply_to_snippet: reply_to_snippet || null,
+        reply_to_sender: reply_to_sender || null,
       }
     });
 
+    // Broadcast real-time SSE event to all connected clients
+    broadcastChatMessage(leadId, created);
+
     // Update lead last_activity_at if this message is newer
-    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-    if (lead && (!lead.last_activity_at || lead.last_activity_at < parsedDate)) {
+    if (!lead.last_activity_at || lead.last_activity_at < parsedDate) {
       await prisma.lead.update({
         where: { id: leadId },
         data: { 
@@ -898,7 +1016,7 @@ router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('leads',
       });
     }
 
-    res.json({ success: true, data: created });
+    res.json({ success: true, data: created, sentViaBaileys });
   } catch (err) {
     next(err);
   }

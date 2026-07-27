@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { ToggleLeft, ToggleRight, Wifi, WifiOff, X, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Wifi, WifiOff, X, Loader2, MessageCircle, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { api } from '../store/services/api';
 import { GreetingRule } from '../types';
 
@@ -12,6 +12,7 @@ export const Settings: React.FC = () => {
     fetchAdmins,
     toggleAdmin,
     logoutAdmin,
+    clearAdminSession,
     isLoading,
     user
   } = useStore();
@@ -83,6 +84,7 @@ export const Settings: React.FC = () => {
   const [showIframe, setShowIframe] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [logoutConfirmAdmin, setLogoutConfirmAdmin] = useState<{ id: number; name: string } | null>(null);
+  const [clearConfirmAdmin, setClearConfirmAdmin] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     fetchAdmins();
@@ -203,17 +205,24 @@ export const Settings: React.FC = () => {
                   </td>
                   <td className="px-4 py-3.5">
                     {adm.nomor_wa ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center flex-wrap gap-2">
                         <button
                           onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
-                          className="px-3.5 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                          className="px-3 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
                         >
                           Link / Scan QR
+                        </button>
+                        <button
+                          onClick={() => setClearConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
+                          className="px-3 py-1.5 border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap flex items-center gap-1"
+                          title="Bersihkan sisa file/db sesi WA yang hangus agar bisa scan QR baru"
+                        >
+                          <RefreshCw size={12} /> Bersihkan Sesi
                         </button>
                         {adm.connected && (
                           <button
                             onClick={() => setLogoutConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
-                            className="px-3.5 py-1.5 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                            className="px-3 py-1.5 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
                           >
                             Logout WA
                           </button>
@@ -258,19 +267,26 @@ export const Settings: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-1 gap-4">
+              <div className="border-t border-border/50 pt-3 mt-1">
                 {adm.nomor_wa ? (
-                  <div className="flex items-center gap-2 w-full justify-end">
+                  <div className="grid grid-cols-2 gap-2 w-full">
                     <button
                       onClick={() => handleOpenQr(adm.id, adm.nama_admin)}
-                      className="px-3 py-1.5 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                      className="px-2.5 py-2 border border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs rounded-xl transition-all cursor-pointer select-none text-center truncate"
                     >
                       Link / Scan QR
+                    </button>
+                    <button
+                      onClick={() => setClearConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
+                      className="px-2.5 py-2 border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer select-none flex items-center justify-center gap-1 truncate"
+                      title="Bersihkan sisa file/db sesi WA yang hangus agar bisa scan QR baru"
+                    >
+                      <RefreshCw size={12} /> Bersihkan Sesi
                     </button>
                     {adm.connected && (
                       <button
                         onClick={() => setLogoutConfirmAdmin({ id: adm.id, name: adm.nama_admin })}
-                        className="px-3 py-1.5 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap"
+                        className="col-span-2 px-3 py-2 border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer select-none text-center"
                       >
                         Logout WA
                       </button>
@@ -508,6 +524,65 @@ export const Settings: React.FC = () => {
                 className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
               >
                 Ya, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Session Confirmation Modal */}
+      {clearConfirmAdmin && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setClearConfirmAdmin(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-scale-up text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border py-4.5 px-5 bg-amber-500/10 dark:bg-amber-500/5">
+              <div className="flex flex-col">
+                <span className="font-bold text-sm text-amber-500 flex items-center gap-2">
+                  🧹 Bersihkan Sesi WhatsApp
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Admin: {clearConfirmAdmin.name}</span>
+              </div>
+              <button 
+                onClick={() => setClearConfirmAdmin(null)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 flex flex-col gap-4">
+              <span className="text-sm font-bold leading-relaxed text-foreground">
+                Hapus sisa data sesi WA yang hangus dari database?
+              </span>
+              <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
+                Aksi ini akan membersihkan record sesi lama agar QR code baru dapat dibuat dan di-scan dengan lancar tanpa perlu membuat ulang akun CS.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-border px-5 py-4 bg-muted/20 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setClearConfirmAdmin(null)}
+                className="px-3.5 py-1.5 border border-border bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  const adminId = clearConfirmAdmin.id;
+                  setClearConfirmAdmin(null);
+                  await clearAdminSession(adminId);
+                }}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Ya, Bersihkan Sesi
               </button>
             </div>
           </div>

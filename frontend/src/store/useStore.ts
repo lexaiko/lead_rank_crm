@@ -62,13 +62,15 @@ interface StoreState {
   deleteCustomer: (id: number) => Promise<boolean>;
   fetchAIQueue: () => Promise<void>;
   deleteAIJob: (id: number) => Promise<boolean>;
-  fetchMessages: (leadId: number) => Promise<void>;
+  fetchMessages: (leadId: number, silent?: boolean) => Promise<void>;
+  appendChatMessage: (message: ChatMessage) => void;
   updateLead: (leadId: number, data: Partial<Lead>) => Promise<void>;
   createAdmin: (payload: { nama_admin: string; nomor_wa?: string; username: string; password: string; role_id: number }) => Promise<boolean>;
   updateAdmin: (id: number, payload: Partial<{ nama_admin: string; nomor_wa: string | null; username: string; password?: string; role_id: number; is_active: boolean }>) => Promise<{ success: boolean; error?: string }>;
   deleteAdmin: (id: number) => Promise<{ success: boolean; message?: string }>;
   toggleAdmin: (id: number) => Promise<void>;
   logoutAdmin: (id: number) => Promise<boolean>;
+  clearAdminSession: (id: number) => Promise<boolean>;
   triggerSweeper: () => Promise<string>;
   triggerAIWorker: () => Promise<string>;
   setTab: (tab: StoreState['activeTab']) => void;
@@ -370,18 +372,31 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  fetchMessages: async (leadId: number) => {
-    set({ isLoadingMessages: true });
+  fetchMessages: async (leadId: number, silent = false) => {
+    if (!silent) set({ isLoadingMessages: true });
     try {
       const res = await api.getLeadMessages(leadId);
       if (res.success) {
-        set({ activeChatMessages: res.data });
+        const sorted = (res.data || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+        set({ activeChatMessages: sorted });
       }
     } catch (e) {
       console.error('Error fetching messages', e);
     } finally {
-      set({ isLoadingMessages: false });
+      if (!silent) set({ isLoadingMessages: false });
     }
+  },
+
+  appendChatMessage: (message: ChatMessage) => {
+    set((state) => {
+      const exists = state.activeChatMessages.some(
+        (m) => (m.id && message.id && m.id === message.id) || (m.wa_message_id && message.wa_message_id && m.wa_message_id === message.wa_message_id)
+      );
+      if (exists) return state;
+      const updated = [...state.activeChatMessages, message];
+      updated.sort((a, b) => (a.id || 0) - (b.id || 0));
+      return { activeChatMessages: updated };
+    });
   },
 
   updateLead: async (leadId: number, data: Partial<Lead>) => {
@@ -489,6 +504,23 @@ export const useStore = create<StoreState>((set, get) => ({
       return false;
     } catch (e) {
       console.error('Error logging out WhatsApp session', e);
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  clearAdminSession: async (id: number) => {
+    set({ isLoading: true });
+    try {
+      const res = await api.clearAdminSession(id);
+      if (res.success) {
+        await get().fetchAdmins();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error clearing admin session', e);
       return false;
     } finally {
       set({ isLoading: false });
