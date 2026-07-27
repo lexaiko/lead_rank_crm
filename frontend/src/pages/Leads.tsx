@@ -901,19 +901,19 @@ export const Leads: React.FC = () => {
 
                             {/* Customer Name & Phone */}
                             <div className="flex flex-col">
-                              <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-bold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                {lead.customerNama || 'Pelanggan WA'}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs font-mono">
                                 {col.key === 'FOLLOW_UP' && (
-                                  <span className="font-mono text-xs font-bold text-primary tracking-tight shrink-0">
+                                  <span className="font-bold text-primary tracking-tight shrink-0">
                                     {lead.kode_lead}
                                   </span>
                                 )}
-                                <span className="font-bold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
-                                  {lead.customerNama || 'Pelanggan WA'}
+                                <span className="text-muted-foreground">
+                                  {lead.customerHp}
                                 </span>
                               </div>
-                              <span className="text-xs text-muted-foreground font-mono">
-                                {lead.customerHp}
-                              </span>
                             </div>
 
                             {/* Destination & Trip Info */}
