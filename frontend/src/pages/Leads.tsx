@@ -152,7 +152,7 @@ export const Leads: React.FC = () => {
       if (diffDays <= 15 && diffDays >= 0) {
         return {
           type: 'PROSPECT_H15',
-          label: `⚠️ H-${diffDays} Trip Follow Up`,
+          label: `⚠️ Trip H-${diffDays} (Follow Up)`,
           templateIndex: 4,
           style: 'bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400 animate-pulse font-extrabold',
           icon: <AlertTriangle size={11} className="shrink-0" />
@@ -167,7 +167,7 @@ export const Leads: React.FC = () => {
       if (diffDays >= 5) {
         return {
           type: 'PROSPECT_INACTIVE',
-          label: `⏰ Prospect Inaktif ${diffDays} Hari`,
+          label: `⏰ Belum Di-chat ${diffDays} Hari`,
           templateIndex: 5,
           style: 'bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 animate-pulse font-extrabold',
           icon: <Clock size={11} className="shrink-0" />
@@ -182,7 +182,7 @@ export const Leads: React.FC = () => {
       if (diffDays >= 3) {
         return {
           type: 'QUALIFIED_INACTIVE',
-          label: `⏰ Qualified Inaktif ${diffDays} Hari`,
+          label: `⏰ Belum Di-chat ${diffDays} Hari`,
           templateIndex: 5,
           style: 'bg-cyan-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 animate-pulse font-extrabold',
           icon: <Clock size={11} className="shrink-0" />
@@ -197,7 +197,7 @@ export const Leads: React.FC = () => {
       if (diffDays >= 7) {
         return {
           type: 'HOT_INACTIVE',
-          label: `🔥 Hot Lead Inaktif ${diffDays} Hari (Follow Up)`,
+          label: `🔥 Belum Di-chat ${diffDays} Hari`,
           templateIndex: 6,
           style: 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse font-extrabold',
           icon: <Flame size={11} className="shrink-0" />
@@ -393,6 +393,33 @@ export const Leads: React.FC = () => {
     if (['QUALIFIED', 'PROSPECT', 'HOT'].includes(lead.status_lead) && getFollowUpNeed(lead) !== null) {
       groupedLeads.FOLLOW_UP.push(lead);
     }
+  });
+
+  // Sort FOLLOW_UP column strictly by TIME & URGENCY DURATION (longest silent / closest trip date first)
+  groupedLeads.FOLLOW_UP.sort((a, b) => {
+    const now = Date.now();
+    const getUrgencyTime = (item: LeadListItem) => {
+      // 1. If PROSPECT with trip date near (<= 15 days), calculate urgency score
+      if (item.status_lead === 'PROSPECT' && item.estimasi_waktu) {
+        const tripTime = new Date(item.estimasi_waktu).getTime();
+        const diffDays = Math.ceil((tripTime - now) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 15 && diffDays >= 0) {
+          // The closer the trip date, the smaller the timestamp score -> ranks higher at top
+          return now - (30 - diffDays) * 24 * 60 * 60 * 1000;
+        }
+      }
+
+      const lastActivity = item.last_activity_at ? new Date(item.last_activity_at).getTime() : 0;
+      // HOT leads get elevated priority weight (boosted by 3 days)
+      if (item.status_lead === 'HOT') {
+        return lastActivity - (3 * 24 * 60 * 60 * 1000);
+      }
+      return lastActivity;
+    };
+
+    const timeA = getUrgencyTime(a);
+    const timeB = getUrgencyTime(b);
+    return timeA - timeB; // Oldest / Most urgent time comes first at the top!
   });
 
   // Calculate totals per column
@@ -798,11 +825,29 @@ export const Leads: React.FC = () => {
                               </button>
                             )}
 
-                            {/* Card Header: Lead Code & Quick Status Move Selector */}
+                            {/* Card Header: Lead Code & Original Status Badge & Quick Move Selector */}
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-xs font-bold text-primary tracking-tight">
-                                {lead.kode_lead}
-                              </span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-mono text-xs font-bold text-primary tracking-tight">
+                                  {lead.kode_lead}
+                                </span>
+
+                                {/* Original Status Badge for Follow Up column */}
+                                {col.key === 'FOLLOW_UP' && (
+                                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${
+                                    lead.status_lead === 'HOT'
+                                      ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                                      : lead.status_lead === 'PROSPECT'
+                                      ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                                      : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
+                                  }`}>
+                                    {lead.status_lead === 'HOT' && <Flame size={11} className="text-rose-500 shrink-0" />}
+                                    {lead.status_lead === 'PROSPECT' && <Briefcase size={11} className="text-blue-500 shrink-0" />}
+                                    {lead.status_lead === 'QUALIFIED' && <Target size={11} className="text-cyan-500 shrink-0" />}
+                                    <span>{lead.status_lead}</span>
+                                  </span>
+                                )}
+                              </div>
 
                               {/* Quick Status Dropdown Menu */}
                               <div className="relative" onClick={(e) => e.stopPropagation()}>
