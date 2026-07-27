@@ -8,12 +8,13 @@ import { prisma } from '../config/prisma.js';
  */
 export async function authMiddleware(req, res, next) {
   try {
-    // Support both cookie-based (web) and Bearer token (mobile)
+    // Support cookie-based (web), Bearer token (mobile), and query parameter (SSE EventSource)
     const cookieToken = req.cookies?.token;
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const queryToken = req.query?.token;
 
-    const token = cookieToken || bearerToken;
+    const token = cookieToken || bearerToken || queryToken;
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Unauthorized: No token provided.' });

@@ -264,6 +264,10 @@ export const LeadDetailDrawer: React.FC = () => {
       }
     });
 
+    es.addEventListener('leadUpdate', () => {
+      fetchLeads();
+    });
+
     return () => {
       es.close();
     };

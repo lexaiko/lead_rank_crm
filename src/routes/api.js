@@ -18,8 +18,9 @@ const router = Router();
 // SSE Real-Time Event Stream Endpoint (Zero Polling, Native Server-Sent Events)
 router.get('/events', authMiddleware, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   const onChatMessage = ({ leadId, messageData }) => {
