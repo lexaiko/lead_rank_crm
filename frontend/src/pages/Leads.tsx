@@ -825,15 +825,11 @@ export const Leads: React.FC = () => {
                               </button>
                             )}
 
-                            {/* Card Header: Lead Code & Original Status Badge & Quick Move Selector */}
+                            {/* Card Header: Lead Code / Original Status Badge & Quick Move Selector */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="font-mono text-xs font-bold text-primary tracking-tight">
-                                  {lead.kode_lead}
-                                </span>
-
-                                {/* Original Status Badge for Follow Up column */}
-                                {col.key === 'FOLLOW_UP' && (
+                                {col.key === 'FOLLOW_UP' ? (
+                                  /* Original Status Badge for Follow Up column */
                                   <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${
                                     lead.status_lead === 'HOT'
                                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
@@ -845,6 +841,10 @@ export const Leads: React.FC = () => {
                                     {lead.status_lead === 'PROSPECT' && <Briefcase size={11} className="text-blue-500 shrink-0" />}
                                     {lead.status_lead === 'QUALIFIED' && <Target size={11} className="text-cyan-500 shrink-0" />}
                                     <span>{lead.status_lead}</span>
+                                  </span>
+                                ) : (
+                                  <span className="font-mono text-xs font-bold text-primary tracking-tight">
+                                    {lead.kode_lead}
                                   </span>
                                 )}
                               </div>
@@ -901,9 +901,16 @@ export const Leads: React.FC = () => {
 
                             {/* Customer Name & Phone */}
                             <div className="flex flex-col">
-                              <span className="font-bold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
-                                {lead.customerNama || 'Pelanggan WA'}
-                              </span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                {col.key === 'FOLLOW_UP' && (
+                                  <span className="font-mono text-xs font-bold text-primary tracking-tight shrink-0">
+                                    {lead.kode_lead}
+                                  </span>
+                                )}
+                                <span className="font-bold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                  {lead.customerNama || 'Pelanggan WA'}
+                                </span>
+                              </div>
                               <span className="text-xs text-muted-foreground font-mono">
                                 {lead.customerHp}
                               </span>
