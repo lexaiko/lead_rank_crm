@@ -757,7 +757,10 @@ router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 
 
     const messages = await prisma.chatMessage.findMany({
       where: { lead_id: leadId },
-      orderBy: { id: 'asc' }
+      orderBy: [
+        { waktu_pesan: 'asc' },
+        { id: 'asc' }
+      ]
     });
     res.json({ success: true, data: messages });
   } catch (err) {
@@ -940,7 +943,7 @@ router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('leads',
     // Ensure parsedDate timestamp is strictly newer than the latest existing message in this lead thread
     const latestMsg = await prisma.chatMessage.findFirst({
       where: { lead_id: leadId },
-      orderBy: { id: 'desc' }
+      orderBy: { waktu_pesan: 'desc' }
     });
 
     let parsedDate = waktu_pesan ? new Date(waktu_pesan) : new Date();

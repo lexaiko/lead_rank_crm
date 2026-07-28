@@ -377,7 +377,12 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await api.getLeadMessages(leadId);
       if (res.success) {
-        const sorted = (res.data || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+        const sorted = (res.data || []).slice().sort((a, b) => {
+          const timeA = new Date(a.waktu_pesan || a.createdAt).getTime();
+          const timeB = new Date(b.waktu_pesan || b.createdAt).getTime();
+          if (timeA !== timeB) return timeA - timeB;
+          return (a.id || 0) - (b.id || 0);
+        });
         set({ activeChatMessages: sorted });
       }
     } catch (e) {
@@ -394,7 +399,12 @@ export const useStore = create<StoreState>((set, get) => ({
       );
       if (exists) return state;
       const updated = [...state.activeChatMessages, message];
-      updated.sort((a, b) => (a.id || 0) - (b.id || 0));
+      updated.sort((a, b) => {
+        const timeA = new Date(a.waktu_pesan || a.createdAt).getTime();
+        const timeB = new Date(b.waktu_pesan || b.createdAt).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return (a.id || 0) - (b.id || 0);
+      });
       return { activeChatMessages: updated };
     });
   },

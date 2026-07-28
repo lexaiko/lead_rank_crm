@@ -14,9 +14,14 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages, onRe
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // Sort messages strictly chronologically by database ID (sequential insertion order)
+  // Sort messages strictly chronologically by message timestamp (waktu_pesan), fallback to database ID if timestamps match
   const sortedMessages = useMemo(() => {
-    return messages.slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+    return messages.slice().sort((a, b) => {
+      const timeA = new Date(a.waktu_pesan || a.createdAt).getTime();
+      const timeB = new Date(b.waktu_pesan || b.createdAt).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || 0) - (b.id || 0);
+    });
   }, [messages]);
 
   // Auto-scroll to bottom when new messages arrive or update
