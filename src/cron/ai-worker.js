@@ -433,14 +433,17 @@ Tugasmu:
    - 'referral_source' (dari mana mengetahui TripBwi, wajib pilih salah satu dari: "instagram", "tiktok", "website", "rekomendasi", "facebook", "lainnya", atau "tidak diketahui").
      Aturan khusus kata sapaan: HANYA berlaku jika pesan PALING AWAL dari seluruh percakapan dikirim oleh pelanggan (pelanggan yang memulai chat) DAN kalimatnya DIAWALI kata sapaan tersebut: ${greetingRuleText}. Sapaan di tengah percakapan atau di tengah kalimat TIDAK berlaku. Jika tidak ada sapaan yang cocok dan pelanggan tidak pernah menyebutkan sumbernya, isi "tidak diketahui". Jika 'referral_source' pada current_lead sudah terisi (bukan "tidak diketahui"), PERTAHANKAN nilai tersebut kecuali pelanggan secara eksplisit menyebutkan sumber lain.
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka integer rupiah, jika tidak ada, isi dengan null).
-4. Tentukan 'status_lead' dengan salah satu dari pilihan berikut:
-   - NEW: Status awal lead masuk. Jika 'admin_has_replied' bernilai false (admin/CS belum pernah membalas chat sama sekali untuk lead ini), status WAJIB tetap 'NEW'. Pengecualian hanya jika pelanggan menunjukkan kondisi mendesak/urgent untuk segera melakukan transaksi/booking saat itu juga (contoh: "saya mau booking tur ijen malam ini juga", "minta rekening mau transfer sekarang"). Jika tidak ada kondisi mendesak/urgent dari pelanggan dan admin belum membalas, status tidak boleh beranjak dari 'NEW'.
-   - QUALIFIED: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
+4. Tentukan 'status_lead' dengan aturan ketat berikut:
+   - ATURAN PRIORITAS TERTINGGI (CLOSED LOST OVERRIDE): Jika dalam percakapan (baik pesan baru maupun konteks sebelumnya) pelanggan secara eksplisit menyatakan PEMBATALAN atau TIDAK JADI booking (contoh frasa: "ngga jadi kak", "gajadi kak kemahalan", "maaf ngga jadi pake", "batal ya kak", "cancel dulu", "belum bisa jalan", "pakai travel lain", "ndak jadi", "fix tidak jadi"), MAKA status_lead WAJIB BERUBAH MENJADI 'CLOSED LOST', tanpa memedulikan status sebelumnya.
+   - CATATAN KHUSUS "KEMAHALAN" VS "GAJADI KEMAHALAN":
+     a. Kata "kemahalan" TANPA kata tidak jadi/batal (contoh: "kemahalan kak", "mahal banget ya", "bisa kurang gak", "ada promo gak") -> STATUS TETAP QUALIFIED/PROSPECT (karena pelanggan masih dalam tahap negosiasi/kualifikasi agar CS bisa menawarkan alternatif/diskon).
+     b. Kata "kemahalan" YANG DISERTAI FRASA TIDAK JADI/PEMBATALAN (contoh: "gajadi kak kemahalan", "ngga jadi ambil kemahalan", "batal kak kemahalan") -> WAJIB BERUBAH MENJADI 'CLOSED LOST' (karena pelanggan sudah secara tegas mengonfirmasi pembatalan).
+   - NEW: Status awal lead masuk. Jika 'admin_has_replied' bernilai false (admin/CS belum pernah membalas chat sama sekali untuk lead ini), status WAJIB tetap 'NEW'. Pengecualian hanya jika pelanggan menunjukkan kondisi mendesak/urgent untuk segera melakukan transaksi/booking saat itu juga.
+   - QUALIFIED: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, nego harga, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
    - PROSPECT: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
-   Urutan tahapan funnel: NEW -> QUALIFIED -> PROSPECT -> HOT -> CLOSED. Status hanya boleh naik mengikuti urutan tersebut, kecuali ada pembatalan (CLOSED LOST).
    - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (rekening, invoice, atau berjanji transfer).
    - CLOSED WON: Pelanggan mengirimkan bukti transfer atau konfirmasi pembayaran berhasil.
-   - CLOSED LOST: Pelanggan secara eksplisit membatalkan rencana, menolak tawaran, atau komplain keras.
+   - CLOSED LOST: Pelanggan secara eksplisit membatalkan rencana, menyatakan tidak jadi ("ngga jadi", "gajadi kak kemahalan", "batal", "cancel"), menolak tawaran secara final, atau komplain keras.
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
 

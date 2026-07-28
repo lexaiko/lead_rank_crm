@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert, Reply, Send } from 'lucide-react';
+import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert, Reply, Send, Loader2, ExternalLink } from 'lucide-react';
 import { VirtualChatList } from './VirtualChatList';
 import { Lead, ChatMessage } from '../types';
 import { api } from '../store/services/api';
@@ -43,6 +43,7 @@ export const LeadDetailDrawer: React.FC = () => {
   // Follow Up modal state
   const [followUpModal, setFollowUpModal] = useState(false);
   const [followUpTemplate, setFollowUpTemplate] = useState(0);
+  const [isSendingWA, setIsSendingWA] = useState(false);
 
   // Deep Analysis state
   const [deepAnalysisModal, setDeepAnalysisModal] = useState(false);
@@ -212,26 +213,61 @@ export const LeadDetailDrawer: React.FC = () => {
   // WhatsApp follow up templates
   const getFollowUpTemplates = (name: string, destination: string) => [
     {
-      label: '👋 Sapa & Tanya Kabar',
-      icon: '👋',
-      message: `Halo Kak ${name || 'Kak'}! 😊\n\nSaya dari TripBanyuwangi ingin menanyakan bagaimana kabarnya? Apakah Kakak sudah memiliki rencana untuk trip ${destination || 'wisata'} dalam waktu dekat? Kami siap membantu mempersiapkan perjalanan yang tak terlupakan! 🌿`
+      label: 'Sapa & Tanya Kabar',
+      message: `Halo Kak ${name || 'Kak'},\n\nSaya dari TripBanyuwangi ingin menanyakan kabar Kakak. Apakah Kakak ada rencana untuk trip ${destination || 'wisata'} dalam waktu dekat? Kami siap membantu mempersiapkan perjalanan Anda.`
     },
     {
-      label: '📅 Follow Up Jadwal',
-      icon: '📅',
-      message: `Halo Kak ${name || 'Kak'}! 🙏\n\nIni dari TripBanyuwangi. Kami ingin menindaklanjuti pertanyaan Kakak sebelumnya mengenai trip ${destination || 'ke Banyuwangi'}.\n\nApakah Kakak sudah menentukan tanggal yang cocok? Kami bisa bantu menyiapkan itinerary sesuai kebutuhan Kakak. 🗓️`
+      label: 'Follow Up Jadwal',
+      message: `Halo Kak ${name || 'Kak'},\n\nIni dari tim TripBanyuwangi. Menindaklanjuti pertanyaan Kakak sebelumnya mengenai trip ${destination || 'ke Banyuwangi'}.\n\nApakah Kakak sudah menentukan tanggal keberangkatan? Kami dapat membantu menyiapkan itinerary terbaik sesuai kebutuhan.`
     },
     {
-      label: '💡 Tawarkan Promo',
-      icon: '💡',
-      message: `Halo Kak ${name || 'Kak'}! 🎉\n\nAda kabar baik dari TripBanyuwangi! Kami sedang ada promo spesial untuk trip ${destination || 'wisata Banyuwangi'}.\n\nJangan sampai kelewatan ya Kak! Mau tahu detailnya? 🌟`
+      label: 'Tawarkan Promo Spesial',
+      message: `Halo Kak ${name || 'Kak'},\n\nAda kabar baik dari TripBanyuwangi. Saat ini kami sedang ada penawaran promo spesial untuk trip ${destination || 'wisata Banyuwangi'}.\n\nApakah Kakak berminat melihat rincian paket promonya?`
     },
     {
-      label: '✅ Konfirmasi Booking',
-      icon: '✅',
-      message: `Halo Kak ${name || 'Kak'}! 😊\n\nTerima kasih sudah tertarik dengan paket trip ${destination || 'kami'}. Boleh kami tanyakan, apakah Kakak sudah siap untuk mengkonfirmasi pemesanan?\n\nKami siap memandu langkah selanjutnya untuk memastikan perjalanan Kakak berjalan lancar! 🤩`
+      label: 'Konfirmasi Booking',
+      message: `Halo Kak ${name || 'Kak'},\n\nTerima kasih atas ketertarikan Kakak pada paket trip ${destination || 'kami'}. Boleh kami tanyakan apakah pesanan sudah bisa dikonfirmasi untuk pengamanan slot?`
+    },
+    {
+      label: 'Pengingat H-15 Trip',
+      message: `Halo Kak ${name || 'Kak'},\n\nKami menginformasikan bahwa rencana trip ${destination || 'wisata'} Kakak tersisa 15 hari lagi. Apakah ada kustomisasi fasilitas atau konfirmasi jumlah peserta yang ingin disesuaikan?`
+    },
+    {
+      label: 'Follow Up 3 Hari Inaktif',
+      message: `Halo Kak ${name || 'Kak'},\n\nMenindaklanjuti percakapan kita 3 hari lalu terkait trip ${destination || 'Banyuwangi'}.\n\nApakah Kakak masih memerlukan informasi rincian itinerary atau penyesuaian anggaran? Kami siap membantu.`
+    },
+    {
+      label: 'Follow Up Hot Lead (>7 Hari)',
+      message: `Halo Kak ${name || 'Kak'},\n\nMenindaklanjuti diskusi kita terkait rencana trip ${destination || 'Banyuwangi'}.\n\nApakah ada pertanyaan atau penyesuaian khusus yang bisa kami bantu agar pesanan Kakak dapat segera dikonfirmasi?`
     },
   ];
+
+  const handleSendFollowUp = async () => {
+    if (!selectedLeadId || !leadData) return;
+    const templates = getFollowUpTemplates(leadData.customerNama || '', leadData.minat_destinasi || '');
+    const msg = templates[followUpTemplate]?.message || '';
+    setIsSendingWA(true);
+    try {
+      const res = await api.addManualMessage(selectedLeadId, {
+        pengirim: 'admin',
+        pesan: msg,
+      });
+
+      if (res.success) {
+        showToast(`Pesan WhatsApp follow up berhasil terkirim!`, 'success');
+        setFollowUpModal(false);
+        await fetchMessages(selectedLeadId, true);
+        fetchLeads();
+      } else {
+        showToast(`Gagal mengirim WA: ${res.error || 'Pastikan WhatsApp admin terhubung.'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Error sending WA:', err);
+      showToast('Gagal menghubungi server untuk mengirim pesan WA.', 'error');
+    } finally {
+      setIsSendingWA(false);
+    }
+  };
 
   const handleOpenWhatsApp = (phone: string, message: string) => {
     const cleaned = phone.replace(/\D/g, '');
@@ -902,26 +938,52 @@ export const LeadDetailDrawer: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="px-5 pb-5 flex items-center gap-2">
-              <button
-                onClick={() => setFollowUpModal(false)}
-                className="flex-1 py-2.5 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => {
-                  const templates = getFollowUpTemplates(
-                    leadData.customerNama || '',
-                    leadData.minat_destinasi || ''
-                  );
-                  handleOpenWhatsApp(leadData.customerHp, templates[followUpTemplate].message);
-                  setFollowUpModal(false);
-                }}
-                className="flex-[2] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Phone size={13} /> Buka WhatsApp
-              </button>
+            <div className="px-5 pb-5 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSendingWA}
+                  onClick={() => setFollowUpModal(false)}
+                  className="flex-1 py-2.5 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isSendingWA}
+                  onClick={handleSendFollowUp}
+                  className="flex-[2] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSendingWA ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Mengirim Pesan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={14} />
+                      <span>Kirim Pesan WhatsApp</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const templates = getFollowUpTemplates(
+                      leadData.customerNama || '',
+                      leadData.minat_destinasi || ''
+                    );
+                    handleOpenWhatsApp(leadData.customerHp, templates[followUpTemplate]?.message || '');
+                    setFollowUpModal(false);
+                  }}
+                  className="text-[11px] text-muted-foreground hover:text-emerald-600 font-semibold underline flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <ExternalLink size={12} /> Buka Web WA / App Manual
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
+import { api } from '../store/services/api';
 import {
   Search, Filter, RefreshCw, X, MessageSquare, ArrowUpDown, ChevronLeft, ChevronRight,
   Loader2, Phone, Brain, LayoutGrid, Table, Sparkles, Target, Briefcase, Flame,
-  MapPin, Users, Calendar, ChevronDown, Check, User, Save, Clock, AlertTriangle
+  MapPin, Users, Calendar, ChevronDown, Check, User, Save, Clock, AlertTriangle, Send, ExternalLink
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { LeadListItem } from '../types';
 
-type KanbanStatus = 'NEW' | 'QUALIFIED' | 'PROSPECT' | 'HOT' | 'FOLLOW_UP';
+type KanbanStatus = 'NEW' | 'QUALIFIED' | 'PROSPECT' | 'HOT';
+type ViewMode = 'kanban' | 'table';
 
 interface KanbanColumnConfig {
   key: KanbanStatus;
@@ -57,15 +59,6 @@ const KANBAN_COLUMNS: KanbanColumnConfig[] = [
     headerBorder: 'border-orange-500/30',
     icon: <Flame size={16} className="text-orange-500" />,
   },
-  {
-    key: 'FOLLOW_UP',
-    title: 'FOLLOW UP',
-    subtitle: 'Qualified, Prospect & Hot (H- / H+)',
-    badgeStyle: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-bold',
-    headerBg: 'bg-rose-500/5',
-    headerBorder: 'border-rose-500/30',
-    icon: <Clock size={16} className="text-rose-500" />,
-  },
 ];
 
 export const Leads: React.FC = () => {
@@ -83,6 +76,7 @@ export const Leads: React.FC = () => {
     fetchAdmins,
     user,
     updateLead,
+    setTab,
   } = useStore();
 
   // View Mode: 'kanban' or 'table'
@@ -106,10 +100,6 @@ export const Leads: React.FC = () => {
   // Editable Note modal state: { leadId: number, text: string }
   const [activeNoteModal, setActiveNoteModal] = useState<{ leadId: number; text: string } | null>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
-
-  // Follow Up modal state
-  const [followUpLead, setFollowUpLead] = useState<{ name: string; phone: string; destination: string } | null>(null);
-  const [followUpTemplate, setFollowUpTemplate] = useState(0);
 
   // Deep Analysis Confirmation modal state
   const [confirmAnalysisLead, setConfirmAnalysisLead] = useState<LeadListItem | null>(null);
@@ -140,8 +130,13 @@ export const Leads: React.FC = () => {
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
   };
+  // Follow Up WA modal state
+  const [followUpLead, setFollowUpLead] = useState<{ id: number; name: string; phone: string; destination: string } | null>(null);
+  const [followUpTemplate, setFollowUpTemplate] = useState(0);
+  const [isSendingWA, setIsSendingWA] = useState(false);
+  const [waSuccessToast, setWaSuccessToast] = useState<string | null>(null);
 
-  // Helper to determine follow up urgency badges
+  // Helper to determine follow up urgency badges for Kanban cards
   const getFollowUpNeed = (lead: LeadListItem) => {
     if (!lead) return null;
 
@@ -152,9 +147,9 @@ export const Leads: React.FC = () => {
       if (diffDays <= 15 && diffDays >= 0) {
         return {
           type: 'PROSPECT_H15',
-          label: `⚠️ Trip H-${diffDays} (Follow Up)`,
+          label: `Trip H-${diffDays} (Follow Up)`,
           templateIndex: 4,
-          style: 'bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400 animate-pulse font-extrabold',
+          style: 'bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400 font-extrabold',
           icon: <AlertTriangle size={11} className="shrink-0" />
         };
       }
@@ -167,9 +162,9 @@ export const Leads: React.FC = () => {
       if (diffDays >= 5) {
         return {
           type: 'PROSPECT_INACTIVE',
-          label: `⏰ Belum Di-chat ${diffDays} Hari`,
+          label: `Belum Di-chat ${diffDays} Hari`,
           templateIndex: 5,
-          style: 'bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 animate-pulse font-extrabold',
+          style: 'bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 font-extrabold',
           icon: <Clock size={11} className="shrink-0" />
         };
       }
@@ -182,9 +177,9 @@ export const Leads: React.FC = () => {
       if (diffDays >= 3) {
         return {
           type: 'QUALIFIED_INACTIVE',
-          label: `⏰ Belum Di-chat ${diffDays} Hari`,
+          label: `Belum Di-chat ${diffDays} Hari`,
           templateIndex: 5,
-          style: 'bg-cyan-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 animate-pulse font-extrabold',
+          style: 'bg-cyan-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 font-extrabold',
           icon: <Clock size={11} className="shrink-0" />
         };
       }
@@ -197,9 +192,9 @@ export const Leads: React.FC = () => {
       if (diffDays >= 7) {
         return {
           type: 'HOT_INACTIVE',
-          label: `🔥 Belum Di-chat ${diffDays} Hari`,
+          label: `Belum Di-chat ${diffDays} Hari`,
           templateIndex: 6,
-          style: 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse font-extrabold',
+          style: 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 font-extrabold',
           icon: <Flame size={11} className="shrink-0" />
         };
       }
@@ -210,34 +205,64 @@ export const Leads: React.FC = () => {
 
   const getFollowUpTemplates = (name: string, destination: string) => [
     {
-      label: '👋 Sapa & Tanya Kabar',
-      message: `Halo Kak ${name || 'Kak'}! 😊\n\nSaya dari TripBanyuwangi ingin menanyakan bagaimana kabarnya? Apakah Kakak sudah memiliki rencana untuk trip ${destination || 'wisata'} dalam waktu dekat? Kami siap membantu mempersiapkan perjalanan yang tak terlupakan! 🌿`
+      label: 'Sapa & Tanya Kabar',
+      message: `Halo Kak ${name || 'Kak'},\n\nSaya dari TripBanyuwangi ingin menanyakan kabar Kakak. Apakah Kakak ada rencana untuk trip ${destination || 'wisata'} dalam waktu dekat? Kami siap membantu mempersiapkan perjalanan Anda.`
     },
     {
-      label: '📅 Follow Up Jadwal',
-      message: `Halo Kak ${name || 'Kak'}! 🙏\n\nIni dari TripBanyuwangi. Kami ingin menindaklanjuti pertanyaan Kakak sebelumnya mengenai trip ${destination || 'ke Banyuwangi'}.\n\nApakah Kakak sudah menentukan tanggal yang cocok? Kami bisa bantu menyiapkan itinerary sesuai kebutuhan Kakak. 🗓️`
+      label: 'Follow Up Jadwal',
+      message: `Halo Kak ${name || 'Kak'},\n\nIni dari tim TripBanyuwangi. Menindaklanjuti pertanyaan Kakak sebelumnya mengenai trip ${destination || 'ke Banyuwangi'}.\n\nApakah Kakak sudah menentukan tanggal keberangkatan? Kami dapat membantu menyiapkan itinerary terbaik sesuai kebutuhan.`
     },
     {
-      label: '💡 Tawarkan Promo',
-      message: `Halo Kak ${name || 'Kak'}! 🎉\n\nAda kabar baik dari TripBanyuwangi! Kami sedang ada promo spesial untuk trip ${destination || 'wisata Banyuwangi'}.\n\nJangan sampai kelewatan ya Kak! Mau tahu detailnya? 🌟`
+      label: 'Tawarkan Promo Spesial',
+      message: `Halo Kak ${name || 'Kak'},\n\nAda kabar baik dari TripBanyuwangi. Saat ini kami sedang ada penawaran promo spesial untuk trip ${destination || 'wisata Banyuwangi'}.\n\nApakah Kakak berminat melihat rincian paket promonya?`
     },
     {
-      label: '✅ Konfirmasi Booking',
-      message: `Halo Kak ${name || 'Kak'}! 😊\n\nTerima kasih sudah tertarik dengan paket trip ${destination || 'kami'}. Boleh kami tanyakan, apakah Kakak sudah siap untuk mengkonfirmasi pemesanan? Kami siap memandu langkah selanjutnya! 🤩`
+      label: 'Konfirmasi Booking',
+      message: `Halo Kak ${name || 'Kak'},\n\nTerima kasih atas ketertarikan Kakak pada paket trip ${destination || 'kami'}. Boleh kami tanyakan apakah pesanan sudah bisa dikonfirmasi untuk pengamanan slot?`
     },
     {
-      label: '⚠️ Pengingat H-15 Trip',
-      message: `Halo Kak ${name || 'Kak'}! 🚀\n\nSemoga sehat selalu! Kami ingin menginformasikan bahwa rencana trip ${destination || 'wisata'} Kakak tinggal 15 hari lagi lho.\n\nApakah ada kustomisasi fasilitas, konfirmasi jumlah peserta, atau persiapan yang perlu kami bantu selesaikan? Kami siap melayani Kakak! 🌴`
+      label: 'Pengingat H-15 Trip',
+      message: `Halo Kak ${name || 'Kak'},\n\nKami menginformasikan bahwa rencana trip ${destination || 'wisata'} Kakak tersisa 15 hari lagi. Apakah ada kustomisasi fasilitas atau konfirmasi jumlah peserta yang ingin disesuaikan?`
     },
     {
-      label: '⏰ Follow Up 3 Hari Inaktif',
-      message: `Halo Kak ${name || 'Kak'}! 😊\n\nMenindaklanjuti percakapan kita 3 hari lalu terkait trip ${destination || 'Banyuwangi'}.\n\nApakah Kakak masih membutuhkan informasi rincian itinerary atau penyesuaian budget? Kami siap menyesuaikan paket terbaik untuk Kakak! ✨`
+      label: 'Follow Up 3 Hari Inaktif',
+      message: `Halo Kak ${name || 'Kak'},\n\nMenindaklanjuti percakapan kita 3 hari lalu terkait trip ${destination || 'Banyuwangi'}.\n\nApakah Kakak masih memerlukan informasi rincian itinerary atau penyesuaian anggaran? Kami siap membantu.`
     },
     {
-      label: '🔥 Follow Up Hot Lead (H+7 Inaktif)',
-      message: `Halo Kak ${name || 'Kak'}! 🔥\n\nSemoga hari Kakak menyenangkan! Menindaklanjuti diskusi kita minggu lalu terkait rencana trip ${destination || 'Banyuwangi'}.\n\nApakah ada pertanyaan atau penyesuaian khusus yang bisa kami bantu agar pesanan Kakak dapat segera dikonfirmasi? Slot dan promo terbatas menanti Kakak! 🌟`
+      label: 'Follow Up Hot Lead (>7 Hari)',
+      message: `Halo Kak ${name || 'Kak'},\n\nMenindaklanjuti diskusi kita terkait rencana trip ${destination || 'Banyuwangi'}.\n\nApakah ada pertanyaan atau penyesuaian khusus yang bisa kami bantu agar pesanan Kakak dapat segera dikonfirmasi?`
     },
   ];
+
+  const handleSendFollowUp = async () => {
+    if (!followUpLead) return;
+    const msg = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+    setIsSendingWA(true);
+    try {
+      const res = await api.addManualMessage(followUpLead.id, {
+        pengirim: 'admin',
+        pesan: msg,
+      });
+
+      if (res.success) {
+        setWaSuccessToast(`Pesan WhatsApp berhasil terkirim ke ${followUpLead.name || followUpLead.phone}!`);
+        setTimeout(() => setWaSuccessToast(null), 4500);
+        setFollowUpLead(null);
+        if (viewMode === 'kanban') {
+          fetchLeads({ status: 'ACTIVE', limit: 100, page: 1 });
+        } else {
+          fetchLeads({ page: leadsParams.page });
+        }
+      } else {
+        alert(`Gagal mengirim WA: ${res.error || 'Pastikan WhatsApp admin terhubung.'}`);
+      }
+    } catch (err) {
+      console.error('Error sending WA:', err);
+      alert('Gagal menghubungi server untuk mengirim pesan WA.');
+    } finally {
+      setIsSendingWA(false);
+    }
+  };
 
   const handleOpenWhatsApp = (phone: string, message: string) => {
     const cleaned = phone.replace(/\D/g, '');
@@ -343,7 +368,7 @@ export const Leads: React.FC = () => {
     const leadId = leadIdStr ? parseInt(leadIdStr) : draggedLeadId;
     setDraggedLeadId(null);
 
-    if (!leadId || targetStatus === 'FOLLOW_UP') return;
+    if (!leadId) return;
 
     const lead = leads.find(l => l.id === leadId);
     if (lead && lead.status_lead !== targetStatus) {
@@ -377,50 +402,21 @@ export const Leads: React.FC = () => {
   const { total = 0, page = 1, limit = 20, totalPages = 1 } = leadsMeta || {};
   const startIndex = (page - 1) * limit;
 
-  // Group leads by status for Kanban Board
+  // Group leads by status for Kanban Board (4 Status Columns)
   const groupedLeads: Record<KanbanStatus, LeadListItem[]> = {
     NEW: [],
     QUALIFIED: [],
     PROSPECT: [],
     HOT: [],
-    FOLLOW_UP: [],
   };
 
   leads.forEach(lead => {
     if (groupedLeads[lead.status_lead as KanbanStatus]) {
       groupedLeads[lead.status_lead as KanbanStatus].push(lead);
     }
-    if (['QUALIFIED', 'PROSPECT', 'HOT'].includes(lead.status_lead) && getFollowUpNeed(lead) !== null) {
-      groupedLeads.FOLLOW_UP.push(lead);
-    }
   });
 
-  // Sort FOLLOW_UP column strictly by TIME & URGENCY DURATION (longest silent / closest trip date first)
-  groupedLeads.FOLLOW_UP.sort((a, b) => {
-    const now = Date.now();
-    const getUrgencyTime = (item: LeadListItem) => {
-      // 1. If PROSPECT with trip date near (<= 15 days), calculate urgency score
-      if (item.status_lead === 'PROSPECT' && item.estimasi_waktu) {
-        const tripTime = new Date(item.estimasi_waktu).getTime();
-        const diffDays = Math.ceil((tripTime - now) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 15 && diffDays >= 0) {
-          // The closer the trip date, the smaller the timestamp score -> ranks higher at top
-          return now - (30 - diffDays) * 24 * 60 * 60 * 1000;
-        }
-      }
 
-      const lastActivity = item.last_activity_at ? new Date(item.last_activity_at).getTime() : 0;
-      // HOT leads get elevated priority weight (boosted by 3 days)
-      if (item.status_lead === 'HOT') {
-        return lastActivity - (3 * 24 * 60 * 60 * 1000);
-      }
-      return lastActivity;
-    };
-
-    const timeA = getUrgencyTime(a);
-    const timeB = getUrgencyTime(b);
-    return timeA - timeB; // Oldest / Most urgent time comes first at the top!
-  });
 
   // Calculate totals per column
   const getColumnTotals = (colStatus: KanbanStatus) => {
@@ -473,6 +469,19 @@ export const Leads: React.FC = () => {
   return (
     <div className="flex flex-col gap-6">
 
+      {/* WA Success Toast Notification */}
+      {waSuccessToast && (
+        <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-sm flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Check size={18} className="shrink-0" />
+            <span>{waSuccessToast}</span>
+          </div>
+          <button onClick={() => setWaSuccessToast(null)} className="p-1 hover:bg-emerald-500/20 rounded-lg cursor-pointer">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Header Bar with View Switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
@@ -499,7 +508,7 @@ export const Leads: React.FC = () => {
 
         <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
           {/* View Mode Switcher */}
-          <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-xs">
+          <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-xs gap-0.5">
             <button
               onClick={() => toggleViewMode('kanban')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
@@ -509,8 +518,9 @@ export const Leads: React.FC = () => {
               }`}
             >
               <LayoutGrid size={14} />
-              <span>Kanban Board</span>
+              <span>Kanban</span>
             </button>
+
             <button
               onClick={() => toggleViewMode('table')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
@@ -520,7 +530,7 @@ export const Leads: React.FC = () => {
               }`}
             >
               <Table size={14} />
-              <span>Tabel View</span>
+              <span>Tabel Directory</span>
             </button>
           </div>
 
@@ -733,7 +743,7 @@ export const Leads: React.FC = () => {
           {/* Kanban Columns Snap Carousel Container */}
           <div
             ref={kanbanScrollRef}
-            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4 items-start overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 px-1 scrollbar-none"
+            className="flex md:grid md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-3 md:gap-4 items-start overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 px-1 scrollbar-none"
           >
             {KANBAN_COLUMNS.map((col) => {
               const colLeads = groupedLeads[col.key];
@@ -808,14 +818,16 @@ export const Leads: React.FC = () => {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setFollowUpTemplate(fuNeed.templateIndex);
+                                  setFollowUpTemplate(fuNeed.templateIndex ?? 0);
                                   setFollowUpLead({
+                                    id: lead.id,
                                     name: lead.customerNama || '',
                                     phone: lead.customerHp,
                                     destination: lead.minat_destinasi || ''
                                   });
                                 }}
                                 className={`w-full px-2.5 py-1 rounded-lg border text-[11px] flex items-center justify-between transition-all shadow-xs cursor-pointer ${fuNeed.style}`}
+                                title="Kirim Follow Up WhatsApp"
                               >
                                 <span className="flex items-center gap-1.5">
                                   {fuNeed.icon}
@@ -824,29 +836,12 @@ export const Leads: React.FC = () => {
                                 <span className="underline text-[10px]">Follow Up WA &rarr;</span>
                               </button>
                             )}
-
-                            {/* Card Header: Lead Code / Original Status Badge & Quick Move Selector */}
+                            {/* Card Header: Lead Code & Quick Move Selector */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                {col.key === 'FOLLOW_UP' ? (
-                                  /* Original Status Badge for Follow Up column */
-                                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider flex items-center gap-1 ${
-                                    lead.status_lead === 'HOT'
-                                      ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                                      : lead.status_lead === 'PROSPECT'
-                                      ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                                      : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
-                                  }`}>
-                                    {lead.status_lead === 'HOT' && <Flame size={11} className="text-rose-500 shrink-0" />}
-                                    {lead.status_lead === 'PROSPECT' && <Briefcase size={11} className="text-blue-500 shrink-0" />}
-                                    {lead.status_lead === 'QUALIFIED' && <Target size={11} className="text-cyan-500 shrink-0" />}
-                                    <span>{lead.status_lead}</span>
-                                  </span>
-                                ) : (
-                                  <span className="font-mono text-xs font-bold text-primary tracking-tight">
-                                    {lead.kode_lead}
-                                  </span>
-                                )}
+                                <span className="font-mono text-xs font-bold text-primary tracking-tight">
+                                  {lead.kode_lead}
+                                </span>
                               </div>
 
                               {/* Quick Status Dropdown Menu */}
@@ -905,11 +900,6 @@ export const Leads: React.FC = () => {
                                 {lead.customerNama || 'Pelanggan WA'}
                               </span>
                               <div className="flex items-center gap-1.5 text-xs font-mono">
-                                {col.key === 'FOLLOW_UP' && (
-                                  <span className="font-bold text-primary tracking-tight shrink-0">
-                                    {lead.kode_lead}
-                                  </span>
-                                )}
                                 <span className="text-muted-foreground">
                                   {lead.customerHp}
                                 </span>
@@ -1001,9 +991,9 @@ export const Leads: React.FC = () => {
 
                               <button
                                 onClick={() => {
-                                  const fu = fuNeed ? fuNeed.templateIndex : 0;
-                                  setFollowUpTemplate(fu);
-                                  setFollowUpLead({ name: lead.customerNama || '', phone: lead.customerHp, destination: lead.minat_destinasi || '' });
+                                  const cleaned = lead.customerHp.replace(/\D/g, '');
+                                  const normalized = cleaned.startsWith('0') ? '62' + cleaned.slice(1) : cleaned;
+                                  window.open(`https://wa.me/${normalized}`, '_blank');
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg font-bold text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white flex items-center gap-1 transition-all cursor-pointer shadow-xs select-none"
                               >
@@ -1076,7 +1066,6 @@ export const Leads: React.FC = () => {
                     </tr>
                   ) : (
                     leads.map((lead) => {
-                      const fuNeed = getFollowUpNeed(lead);
                       return (
                         <tr
                           key={lead.id}
@@ -1088,11 +1077,6 @@ export const Leads: React.FC = () => {
                             <div className="flex flex-col">
                               <span className="font-bold text-sm text-foreground">{lead.customerNama || 'Pelanggan WA'}</span>
                               <span className="text-xs text-muted-foreground font-mono">{lead.customerHp}</span>
-                              {fuNeed && (
-                                <span className={`mt-1 text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-flex items-center gap-1 w-fit ${fuNeed.style}`}>
-                                  {fuNeed.label}
-                                </span>
-                              )}
                             </div>
                           </td>
                           <td className="px-5 py-4">
@@ -1161,11 +1145,11 @@ export const Leads: React.FC = () => {
                           <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={() => {
-                                const fu = fuNeed ? fuNeed.templateIndex : 0;
-                                setFollowUpTemplate(fu);
-                                setFollowUpLead({ name: lead.customerNama || '', phone: lead.customerHp, destination: lead.minat_destinasi || '' });
+                                const cleaned = lead.customerHp.replace(/\D/g, '');
+                                const normalized = cleaned.startsWith('0') ? '62' + cleaned.slice(1) : cleaned;
+                                window.open(`https://wa.me/${normalized}`, '_blank');
                               }}
-                              title="Follow Up via WhatsApp"
+                              title="Chat via WhatsApp"
                               className="h-8 w-8 inline-flex items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer"
                             >
                               <Phone size={13} />
@@ -1262,36 +1246,12 @@ export const Leads: React.FC = () => {
               </div>
             ) : (
               leads.map(lead => {
-                const fuNeed = getFollowUpNeed(lead);
                 return (
                   <div
                     key={lead.id}
                     onClick={() => setSelectedLeadId(lead.id)}
                     className="p-4 bg-card border border-border/80 shadow-xs rounded-2xl flex flex-col gap-2.5 hover:bg-muted/40 cursor-pointer text-foreground transition-all"
                   >
-                    {/* Follow Up Alert Badge */}
-                    {fuNeed && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFollowUpTemplate(fuNeed.templateIndex);
-                          setFollowUpLead({
-                            name: lead.customerNama || '',
-                            phone: lead.customerHp,
-                            destination: lead.minat_destinasi || ''
-                          });
-                        }}
-                        className={`w-full px-2.5 py-1 rounded-lg border text-[11px] flex items-center justify-between transition-all shadow-xs cursor-pointer ${fuNeed.style}`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          {fuNeed.icon}
-                          <span>{fuNeed.label}</span>
-                        </span>
-                        <span className="underline text-[10px]">Follow Up WA &rarr;</span>
-                      </button>
-                    )}
-
                     <div className="flex justify-between items-center">
                       <span className="font-mono text-sm font-bold text-primary">{lead.kode_lead}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap inline-flex items-center ${getStatusBadge(lead.status_lead)}`}>
@@ -1380,17 +1340,17 @@ export const Leads: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Follow Up Button */}
+                      {/* WhatsApp Button */}
                       <div className="border-t border-border/40 pt-2 mt-0.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => {
-                            const fu = fuNeed ? fuNeed.templateIndex : 0;
-                            setFollowUpTemplate(fu);
-                            setFollowUpLead({ name: lead.customerNama || '', phone: lead.customerHp, destination: lead.minat_destinasi || '' });
+                            const cleaned = lead.customerHp.replace(/\D/g, '');
+                            const normalized = cleaned.startsWith('0') ? '62' + cleaned.slice(1) : cleaned;
+                            window.open(`https://wa.me/${normalized}`, '_blank');
                           }}
                           className="w-full py-2 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center gap-1.5 transition-all shadow-xs select-none cursor-pointer"
                         >
-                          <Phone size={12} /> Follow Up via WhatsApp
+                          <Phone size={12} /> Chat via WhatsApp
                         </button>
                       </div>
                     </div>
@@ -1493,81 +1453,7 @@ export const Leads: React.FC = () => {
         </div>
       )}
 
-      {/* Follow Up Modal */}
-      {followUpLead && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl flex flex-col text-foreground">
-            <div className="flex items-center justify-between border-b border-border p-5">
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <Phone size={16} />
-                <span className="font-heading font-black text-sm uppercase tracking-wider">Follow Up via WhatsApp</span>
-              </div>
-              <button onClick={() => setFollowUpLead(null)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
-                <X size={16} />
-              </button>
-            </div>
 
-            <div className="px-5 pt-4 pb-3">
-              <div className="bg-muted/60 border border-border/80 rounded-xl px-4 py-2.5 flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
-                  {(followUpLead.name || 'WA').slice(0, 2)}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-sm text-foreground truncate">{followUpLead.name || 'Pelanggan WA'}</span>
-                  <span className="text-xs text-muted-foreground font-mono">{followUpLead.phone}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-5 pb-3">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Pilih Template Pesan</span>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {getFollowUpTemplates(followUpLead.name, followUpLead.destination).map((tpl, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setFollowUpTemplate(idx)}
-                    className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left leading-snug cursor-pointer select-none ${
-                      followUpTemplate === idx
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                        : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {tpl.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="px-5 pb-4">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Preview Pesan</span>
-              <div className="mt-2 p-3.5 rounded-xl bg-muted/50 border border-border/80 text-xs font-semibold text-foreground leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
-                {getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message}
-              </div>
-            </div>
-
-            <div className="px-5 pb-5 flex items-center gap-2">
-              <button
-                onClick={() => setFollowUpLead(null)}
-                className="flex-1 py-2.5 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => {
-                  handleOpenWhatsApp(
-                    followUpLead.phone,
-                    getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate].message
-                  );
-                  setFollowUpLead(null);
-                }}
-                className="flex-[2] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Phone size={13} /> Buka WhatsApp
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Deep Analysis Confirmation Modal */}
       {confirmAnalysisLead && (
@@ -1600,6 +1486,112 @@ export const Leads: React.FC = () => {
               >
                 Mulai Analisis
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Template Follow Up Modal */}
+      {followUpLead && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setFollowUpLead(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-scale-up flex flex-col text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border py-3.5 px-5 bg-emerald-500/10">
+              <div className="flex items-center gap-2">
+                <Phone size={16} className="text-emerald-500" />
+                <span className="font-bold text-sm text-foreground">
+                  Kirim WhatsApp Follow Up &mdash; {followUpLead.name || 'Pelanggan'}
+                </span>
+              </div>
+              <button
+                onClick={() => setFollowUpLead(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Pilih Draf Template Pesan:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {getFollowUpTemplates(followUpLead.name, followUpLead.destination).map((tmpl, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setFollowUpTemplate(idx)}
+                      className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
+                        followUpTemplate === idx
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                          : 'border-border/80 bg-background text-muted-foreground hover:border-emerald-500/50'
+                      }`}
+                    >
+                      {tmpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Pratinjau Pesan:
+                </label>
+                <div className="p-3.5 rounded-xl border border-border/80 bg-muted/30 text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                  {getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={isSendingWA}
+                    onClick={() => setFollowUpLead(null)}
+                    className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSendingWA}
+                    onClick={handleSendFollowUp}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSendingWA ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Mengirim Pesan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} />
+                        <span>Kirim Pesan WhatsApp</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const msg = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+                      handleOpenWhatsApp(followUpLead.phone, msg);
+                      setFollowUpLead(null);
+                    }}
+                    className="text-[11px] text-muted-foreground hover:text-emerald-600 font-semibold underline flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <ExternalLink size={12} /> Buka Web WA / App Manual
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

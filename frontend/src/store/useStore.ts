@@ -25,7 +25,7 @@ interface StoreState {
   activeChatMessages: ChatMessage[];
   selectedLeadId: number | null;
   openDeepAnalysisModal: boolean;
-  activeTab: 'dashboard' | 'leads' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles';
+  activeTab: 'dashboard' | 'leads' | 'followup' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles';
   theme: 'light' | 'dark';
   isLoading: boolean;
   isLoadingMessages: boolean;

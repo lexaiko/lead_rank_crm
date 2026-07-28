@@ -8,8 +8,8 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
     desc: 'Membuka tab Dashboard untuk melihat statistik performa bisnis dan grafik interaktif.' 
   },
   leads: { 
-    title: 'Leads Directory (Data Prospek)', 
-    desc: 'Mengakses direktori prospek (Leads), detail trip, serta riwayat obrolan Whatsapp.' 
+    title: 'Leads Directory & Follow Up', 
+    desc: 'Mengakses direktori prospek (Leads), fitur bar Follow Up tabel, detail trip, serta riwayat obrolan WhatsApp.' 
   },
   customers: { 
     title: 'Customers Directory (Database Pelanggan)', 

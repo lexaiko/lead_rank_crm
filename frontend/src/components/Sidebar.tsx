@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { 
   LayoutDashboard, 
   Database, 
+  Clock,
   Users, 
   Bot, 
   BarChart3, 
@@ -35,6 +36,7 @@ export const Sidebar: React.FC = () => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
+    { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'users', label: 'User Accounts', shortLabel: 'Users', icon: UserCog },
@@ -73,7 +75,7 @@ export const Sidebar: React.FC = () => {
             .filter((item) => {
               if (!user) return false;
               const permissions = user.permissions || {};
-              const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id;
+              const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
               return permissions[permissionKey] !== 'none';
             })
             .map((item) => {
@@ -190,7 +192,7 @@ export const Sidebar: React.FC = () => {
         const allowedItems = menuItems.filter((item) => {
           if (!user) return false;
           const permissions = user.permissions || {};
-          const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id;
+          const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
           return permissions[permissionKey] !== 'none';
         });
 

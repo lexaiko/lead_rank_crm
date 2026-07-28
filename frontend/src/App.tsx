@@ -3,6 +3,7 @@ import { useStore } from './store/useStore';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Leads } from './pages/Leads';
+import { FollowUp } from './pages/FollowUp';
 import { Customers } from './pages/Customers';
 import { AIQueue } from './pages/AIQueue';
 import { Reports } from './pages/Reports';
@@ -47,6 +48,8 @@ export const App: React.FC = () => {
         return <Dashboard />;
       case 'leads':
         return <Leads />;
+      case 'followup':
+        return <FollowUp />;
       case 'customers':
         return <Customers />;
       case 'ai-queue':
