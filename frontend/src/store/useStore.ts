@@ -71,7 +71,6 @@ interface StoreState {
   toggleAdmin: (id: number) => Promise<void>;
   logoutAdmin: (id: number) => Promise<boolean>;
   clearAdminSession: (id: number) => Promise<boolean>;
-  triggerSweeper: () => Promise<string>;
   triggerAIWorker: () => Promise<string>;
   setTab: (tab: StoreState['activeTab']) => void;
   setTheme: (theme: 'light' | 'dark') => void;
@@ -537,18 +536,6 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
-  triggerSweeper: async () => {
-    set({ isLoading: true });
-    try {
-      const res = await api.runSweeper();
-      await get().fetchDashboard();
-      return res.message;
-    } catch (e: any) {
-      return e.message || 'Error occurred';
-    } finally {
-      set({ isLoading: false });
-    }
-  },
 
   triggerAIWorker: async () => {
     set({ isLoading: true });

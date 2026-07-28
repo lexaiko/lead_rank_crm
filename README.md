@@ -7,7 +7,6 @@ Sistem Manajemen Hubungan Pelanggan (CRM) berbasis WhatsApp & Kecerdasan Buatan 
 * **Auto-Correction & Phonebook Mapping**: Otomatis memetakan LID WhatsApp ke Nomor HP asli dan menyinkronkan nama kontak dari buku telepon ponsel.
 * **AI Extraction (Gemini AI)**: Mengekstrak tujuan wisata, jumlah peserta, tanggal keberangkatan, nilai pesanan, referensi, serta catatan khusus dari chat secara otomatis.
 * **Leads Classification (KPI & Pipeline)**: Mengelompokkan status lead secara cerdas (`PROSPEK`, `QUALIFIED`, `HOT`, `CLOSED WON`, `CLOSED LOST`).
-* **Ghosting Sweeper**: Secara otomatis menutup (auto-close) leads yang tidak merespon/tanpa aktivitas selama lebih dari 3 hari.
 * **Response Time Analytics**: Menghitung rata-rata waktu respon setiap admin CS secara real-time untuk KPI performa kerja.
 
 ---

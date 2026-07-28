@@ -194,12 +194,6 @@ export const api = {
     return res.json();
   },
 
-  async runSweeper(): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/jobs/ghosting-sweep`, {
-      method: 'POST',
-    });
-    return res.json();
-  },
 
   async runAIWorker(): Promise<{ success: boolean; message: string }> {
     const res = await fetch(`${API_BASE}/jobs/ai-extract`, {

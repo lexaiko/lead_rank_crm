@@ -620,7 +620,7 @@ export const Leads: React.FC = () => {
                   onChange={(e) => handleFilterChange({ status: e.target.value })}
                   className="w-full px-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-primary"
                 >
-                  <option value="">Semua Status (Lengkap)</option>
+                  <option value="">Semua Status</option>
                   <option value="ACTIVE">Hanya Pipeline Aktif</option>
                   <option value="NEW">NEW</option>
                   <option value="QUALIFIED">QUALIFIED</option>

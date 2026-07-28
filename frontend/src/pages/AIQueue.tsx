@@ -49,14 +49,12 @@ export const AIQueue: React.FC = () => {
     aiQueue, 
     fetchAIQueue, 
     triggerAIWorker, 
-    triggerSweeper, 
     isLoading,
     user,
     deleteAIJob
   } = useStore();
 
   const [runningAI, setRunningAI] = useState(false);
-  const [runningSweeper, setRunningSweeper] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   const canWrite = user?.permissions?.queue === 'write';
@@ -130,20 +128,6 @@ export const AIQueue: React.FC = () => {
     });
   };
 
-  const handleSweeper = async () => {
-    setRunningSweeper(true);
-    setAiMessage('Running Ghost Sweeper...');
-    try {
-      const msg = await triggerSweeper();
-      setAiMessage(`Ghost Sweeper Finished: ${msg}`);
-      setTimeout(() => setAiMessage(null), 4000);
-    } catch (e) {
-      setAiMessage('Ghost Sweeper failed');
-      setTimeout(() => setAiMessage(null), 4000);
-    } finally {
-      setRunningSweeper(false);
-    }
-  };
 
   const handleAI = async () => {
     setRunningAI(true);
@@ -204,16 +188,8 @@ export const AIQueue: React.FC = () => {
             onClick={() => fetchAIQueue()}
             className="flex items-center gap-2 px-3 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all cursor-pointer select-none"
           >
-            <RefreshCw size={13} className={isLoading && !runningAI && !runningSweeper ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={isLoading && !runningAI ? 'animate-spin' : ''} />
             Refresh Queue
-          </button>
-          <button
-            onClick={handleSweeper}
-            disabled={runningSweeper || isLoading}
-            className="flex items-center gap-2 px-3 py-2 border border-border bg-card text-foreground font-semibold text-xs rounded-xl shadow-sm hover:bg-muted/50 transition-all cursor-pointer select-none disabled:opacity-50"
-          >
-            <RefreshCw size={13} className={runningSweeper ? 'animate-spin' : ''} />
-            Run Ghost Sweeper
           </button>
           <button
             onClick={handleAI}

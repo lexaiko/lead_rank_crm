@@ -5,7 +5,6 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearAdminSession } from '../services/whatsapp.js';
-import { runGhostingSweeper } from '../cron/jobs.js';
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
 import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetingRule, isDuplicateKeywordError } from '../services/greeting-rules.js';
@@ -378,6 +377,17 @@ router.delete('/admins/:id', authMiddleware, permissionMiddleware('users', 'writ
       return res.status(400).json({ error: 'Cannot delete default superadmin account.' });
     }
 
+    // Clear active WhatsApp session and DB session records for this admin
+    await clearAdminSession(adminId).catch(err => {
+      console.error(`Failed to clear WhatsApp session for Admin ${adminId} during delete:`, err);
+    });
+
+    // Reassign all leads assigned to this admin to the performing admin (req.admin.id)
+    await prisma.lead.updateMany({
+      where: { admin_id: adminId },
+      data: { admin_id: req.admin.id }
+    });
+
     await prisma.admin.delete({
       where: { id: adminId }
     });
@@ -722,15 +732,6 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
   }
 });
 
-// Trigger Manual Ghosting Sweeper (Modul B)
-router.post('/jobs/ghosting-sweep', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
-  try {
-    const count = await runGhostingSweeper();
-    res.json({ success: true, message: `Swept and closed ${count} inactive leads.` });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // Trigger Manual Gemini Extractor (Modul C)
 router.post('/jobs/ai-extract', authMiddleware, permissionMiddleware('queue', 'write'), async (req, res, next) => {
