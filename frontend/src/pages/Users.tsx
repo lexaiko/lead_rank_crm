@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
-import { UserPlus, Edit, Trash2, ToggleLeft, ToggleRight, Loader2, Phone, ShieldAlert, Key, UserCheck, X } from 'lucide-react';
+import { UserPlus, Edit, Trash2, ToggleLeft, ToggleRight, Loader2, Phone, ShieldAlert, Key, UserCheck, X, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 
 export const Users: React.FC = () => {
   const { 
@@ -37,6 +37,30 @@ export const Users: React.FC = () => {
   const [editPassword, setEditPassword] = useState('');
   const [editRoleId, setEditRoleId] = useState(2);
   const [editMsg, setEditMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Custom Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    confirmColor: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  // Floating Toast State
+  const [toast, setToast] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ isOpen: true, message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   if (roles.length === 0) {
     return (
@@ -108,23 +132,28 @@ export const Users: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
+  const handleDelete = (id: number, name: string) => {
     if (id === user?.id) {
-      alert('Cannot delete your own logged-in session account.');
+      showToast('Anda tidak dapat menghapus akun yang sedang Anda gunakan!', 'error');
       return;
     }
 
-    if (!confirm(`Are you sure you want to permanently delete user "${name}"?`)) {
-      return;
-    }
-
-    const res = await deleteAdmin(id);
-    if (res.success) {
-      alert('User account deleted successfully.');
-      fetchAdmins();
-    } else {
-      alert(res.message || 'Failed to delete user.');
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Akun Pengguna',
+      message: `Apakah Anda yakin ingin menghapus akun pengguna "${name}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Hapus Pengguna',
+      confirmColor: 'bg-rose-600 hover:bg-rose-700',
+      onConfirm: async () => {
+        const res = await deleteAdmin(id);
+        if (res.success) {
+          showToast(`Akun pengguna "${name}" berhasil dihapus.`, 'success');
+          fetchAdmins();
+        } else {
+          showToast(res.message || 'Gagal menghapus pengguna.', 'error');
+        }
+      }
+    });
   };
 
   return (
@@ -512,6 +541,58 @@ export const Users: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal?.isOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl overflow-hidden flex flex-col gap-4 animate-scale-up">
+            <div className="flex items-center gap-3 text-rose-500">
+              <AlertTriangle size={24} className="shrink-0" />
+              <span className="font-heading font-black text-base text-foreground">
+                {confirmModal.title}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed font-semibold">
+              {confirmModal.message}
+            </p>
+            <div className="flex items-center gap-3 mt-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 border border-border hover:bg-muted text-foreground font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className={`px-5 py-2 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer ${confirmModal.confirmColor}`}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toast?.isOpen && (
+        <div className={`fixed bottom-20 left-4 right-4 md:bottom-6 md:left-auto md:right-6 z-[200] flex items-center justify-center md:justify-start gap-2.5 px-4.5 py-3 rounded-2xl border shadow-xl backdrop-blur-md animate-slide-up md:animate-slide-in-right ${
+          toast.type === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle2 size={16} className="shrink-0" />
+          ) : (
+            <XCircle size={16} className="shrink-0" />
+          )}
+          <span className="text-xs font-bold font-heading">{toast.message}</span>
         </div>
       )}
 
