@@ -180,7 +180,7 @@ export const Sidebar: React.FC = () => {
         {/* Mobile Header Quick Actions */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground transition-all shrink-0"
+          className="p-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -291,6 +291,31 @@ export const Sidebar: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  {/* User profile & Logout at bottom of mobile sheet */}
+                  {user && (
+                    <div className="border-t border-border/50 pt-3 mt-1 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20">
+                          {user.nama_admin.slice(0, 2)}
+                        </div>
+                        <div className="flex flex-col text-left min-w-0">
+                          <span className="text-xs font-bold text-foreground truncate">{user.nama_admin}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{user.role}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          logout();
+                        }}
+                        className="px-3.5 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <LogOut size={14} />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}

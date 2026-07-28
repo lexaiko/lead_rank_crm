@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore';
 import { api } from '../store/services/api';
 import {
   Search, RefreshCw, X, MessageSquare, Loader2, Phone, Brain,
-  Sparkles, Target, Briefcase, Flame, MapPin, Users, Calendar, Check, User, Clock, AlertTriangle, Send, ExternalLink
+  Sparkles, Target, Briefcase, Flame, MapPin, Users, Calendar, Check, User, Clock, AlertTriangle, Send, ExternalLink, Layers
 } from 'lucide-react';
 import { LeadListItem } from '../types';
 import { LeadDetailDrawer } from '../components/LeadDetailDrawer';
@@ -335,47 +335,72 @@ export const FollowUp: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Urgency Filter Bar */}
-      <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Urgency Sub-filter Pills Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          {[
-            { id: 'ALL', label: 'Semua Follow Up', count: allFollowUpLeads.length },
-            { id: 'H15', label: 'Trip H-15', count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'PROSPECT_H15').length },
-            { id: 'INACTIVE_3', label: 'Qualified >3 Hari', count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'QUALIFIED_INACTIVE').length },
-            { id: 'INACTIVE_5', label: 'Prospect >5 Hari', count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'PROSPECT_INACTIVE').length },
-            { id: 'INACTIVE_7', label: 'Hot Lead >7 Hari', count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'HOT_INACTIVE').length },
-          ].map(pill => (
-            <button
-              key={pill.id}
-              onClick={() => setFollowUpFilter(pill.id as any)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer select-none shrink-0 ${
-                followUpFilter === pill.id
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                  : 'bg-card text-muted-foreground border-border/80 hover:bg-muted'
-              }`}
-            >
-              <span>{pill.label}</span>
-              <span className={`px-1.5 py-0.2 text-[10px] font-mono rounded-full font-bold ${
-                followUpFilter === pill.id ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
-              }`}>
-                {pill.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Search input */}
-        <div className="relative w-full md:w-64">
-          <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
+      {/* Search Input Bar (Non-sticky) */}
+      <div className="p-3.5 md:p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3.5 top-3 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Cari nama, HP, atau kode..."
+            placeholder="Cari nama, HP, atau destinasi follow up..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-rose-500"
+            className="w-full pl-10 pr-4 py-2 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-rose-500"
           />
         </div>
+      </div>
+
+      {/* Sticky Urgency Filter Header */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md p-3.5 md:p-4 rounded-2xl border border-border/80 shadow-md flex items-center gap-2 overflow-x-auto scrollbar-none">
+        {[
+          { 
+            id: 'ALL', 
+            label: 'Semua Follow Up', 
+            count: allFollowUpLeads.length,
+            icon: <Layers size={14} className="shrink-0" />
+          },
+          { 
+            id: 'H15', 
+            label: 'Trip H-15', 
+            count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'PROSPECT_H15').length,
+            icon: <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+          },
+          { 
+            id: 'INACTIVE_3', 
+            label: 'Qualified >3 Hari', 
+            count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'QUALIFIED_INACTIVE').length,
+            icon: <Sparkles size={14} className="text-cyan-500 shrink-0" />
+          },
+          { 
+            id: 'INACTIVE_5', 
+            label: 'Prospect >5 Hari', 
+            count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'PROSPECT_INACTIVE').length,
+            icon: <Clock size={14} className="text-blue-500 shrink-0" />
+          },
+          { 
+            id: 'INACTIVE_7', 
+            label: 'Hot Lead >7 Hari', 
+            count: allFollowUpLeads.filter(l => getFollowUpNeed(l)?.type === 'HOT_INACTIVE').length,
+            icon: <Flame size={14} className="text-rose-500 shrink-0 animate-pulse" />
+          },
+        ].map(pill => (
+          <button
+            key={pill.id}
+            onClick={() => setFollowUpFilter(pill.id as any)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer select-none shrink-0 ${
+              followUpFilter === pill.id
+                ? 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-500/20'
+                : 'bg-card text-muted-foreground border-border/80 hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {pill.icon}
+            <span>{pill.label}</span>
+            <span className={`px-2 py-0.5 text-[10px] font-mono rounded-full font-bold ${
+              followUpFilter === pill.id ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
+            }`}>
+              {pill.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Desktop Table View for Follow Up */}
