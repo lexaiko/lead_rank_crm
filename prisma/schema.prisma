@@ -134,3 +134,33 @@ model WhatsAppSession {
   @@index([admin_id])
 }
 
+model AISetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(50) // e.g., "gemini_api_key"
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AIModelConfig {
+  id          Int      @id @default(autoincrement())
+  model_name  String   @unique @db.VarChar(100) // e.g., "gemini-2.5-flash-lite"
+  priority    Int      @default(1)              // 1 = primary, 2 = fallback 1, etc.
+  is_active   Boolean  @default(true)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GeminiApiKey {
+  id                 Int       @id @default(autoincrement())
+  label              String    @db.VarChar(50)  // e.g. "Key 1 (Utama)", "Key 2 (Cadangan)"
+  api_key            String    @db.Text
+  is_active          Boolean   @default(true)
+  total_calls        Int       @default(0)
+  rate_limit_hits    Int       @default(0)
+  rate_limited_until DateTime?
+  last_used_at       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}

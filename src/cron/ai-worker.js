@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import { prisma } from '../config/prisma.js';
 import { getGreetingRules } from '../services/greeting-rules.js';
+import { getRotatedApiKeys, markApiKeyUsed, markApiKeyRateLimited, getActiveFallbackModels } from '../services/ai-config.js';
 
 // Limits for image attachments sent to Gemini (images are already compressed at ingest time)
 const MAX_IMAGES_PER_LEAD = 3;
@@ -404,7 +405,6 @@ async function rescheduleFailedJob(job) {
  * @returns {Promise<Array>}
  */
 async function callGeminiBulk(leadsContext, imageAttachments = []) {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const nowStr = new Date().toISOString().split('T')[0];
 
   // Greeting -> referral source mapping is managed in the database (cached in memory)
@@ -447,52 +447,60 @@ Tugasmu:
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
 
-  const modelsToTry = [
-    'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash'
-  ];
+  const modelsToTry = await getActiveFallbackModels();
+  const availableApiKeys = await getRotatedApiKeys();
+
+  if (availableApiKeys.length === 0) {
+    throw new Error('Tidak ada Gemini API Key yang aktif atau tersedia.');
+  }
 
   let lastError = null;
 
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const modelName = modelsToTry[i];
-    console.log(`[AI Worker] Attempting lead analysis using model: ${modelName}`);
-    try {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: SYSTEM_PROMPT
-      });
+  // Multi-Model Matrix
+  for (let m = 0; m < modelsToTry.length; m++) {
+    const modelName = modelsToTry[m];
 
-      // Build multimodal parts: the JSON payload first, then each image preceded by a
-      // label part binding it to its owning lead_id + image_ref (prevents cross-lead mixups)
-      const parts = [{ text: JSON.stringify(leadsContext) }];
-      for (const img of imageAttachments) {
-        parts.push({ text: `Gambar berikut adalah lampiran dengan image_ref "${img.ref}" dan HANYA milik lead_id ${img.lead_id}:` });
-        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
-      }
+    // Multi-Key Loop for current model
+    for (let k = 0; k < availableApiKeys.length; k++) {
+      const keyObj = availableApiKeys[k];
+      console.log(`[AI Worker] Attempting lead analysis using model: ${modelName} | Key: ${keyObj.label}`);
 
-      const response = await model.generateContent({
-        contents: [
-          {
-            role: 'user',
-            parts
-          }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json'
+      try {
+        const genAI = new GoogleGenerativeAI(keyObj.api_key);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: SYSTEM_PROMPT
+        });
+
+        const parts = [{ text: JSON.stringify(leadsContext) }];
+        for (const img of imageAttachments) {
+          parts.push({ text: `Gambar berikut adalah lampiran dengan image_ref "${img.ref}" dan HANYA milik lead_id ${img.lead_id}:` });
+          parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
         }
-      });
 
-      const responseText = response.response.text();
-      console.log(`[AI Worker] Successfully analyzed using model: ${modelName}`);
-      return JSON.parse(responseText.trim());
-    } catch (err) {
-      lastError = err;
-      const nextModel = modelsToTry[i + 1];
-      console.warn(`[AI Worker Warning] Model ${modelName} failed: ${err.message}. ${nextModel ? `Rolling over to fallback model: ${nextModel}...` : 'No more models in fallback list.'}`);
+        const response = await model.generateContent({
+          contents: [{ role: 'user', parts }],
+          generationConfig: { responseMimeType: 'application/json' }
+        });
+
+        const responseText = response.response.text();
+        console.log(`[AI Worker] Successfully analyzed using model: ${modelName} | Key: ${keyObj.label}`);
+        
+        // Record key usage
+        markApiKeyUsed(keyObj.id);
+
+        return JSON.parse(responseText.trim());
+      } catch (err) {
+        lastError = err;
+        if (err.message && (err.message.includes('429') || err.message.includes('Quota exceeded') || err.message.includes('QuotaFailure'))) {
+          console.warn(`[AI Worker Warning] Key ${keyObj.label} hit rate limit 429 on model ${modelName}. Putting key in 10m cooldown...`);
+          markApiKeyRateLimited(keyObj.id, 10);
+        } else {
+          console.warn(`[AI Worker Warning] Model ${modelName} with Key ${keyObj.label} failed: ${err.message}`);
+        }
+      }
     }
   }
 
-  throw new Error(`All Gemini models failed in the fallback chain. Last error: ${lastError ? lastError.message : 'Unknown'}`);
+  throw new Error(`All Gemini models and API Keys failed in the resiliency matrix. Last error: ${lastError ? lastError.message : 'Unknown'}`);
 }

@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -8,6 +11,7 @@ import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearA
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
 import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetingRule, isDuplicateKeywordError } from '../services/greeting-rules.js';
+import { getGeminiApiKey, setGeminiApiKey, getAllAIModels, getActiveFallbackModels, createAIModel, updateAIModel, deleteAIModel, reorderAIModels, getAllApiKeys, createApiKey, updateApiKey, deleteApiKey, getRotatedApiKeys } from '../services/ai-config.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sseEmitter, broadcastChatMessage, broadcastLeadUpdate } from '../services/sse.js';
 
@@ -842,48 +846,58 @@ Analisis percakapan ini dan berikan output HANYA dalam format JSON objek murni t
 
 Harap diingat, kembalikan objek JSON murni secara lengkap tanpa menyertakan block format markdown \`\`\`json ... \`\`\`.`;
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const modelsToTry = [
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-flash-lite-preview',
-      'gemini-3.1-flash-lite',
-      'gemini-1.5-flash'
-    ];
+    const modelsToTry = await getActiveFallbackModels();
+    const availableApiKeys = await getRotatedApiKeys();
+
+    if (availableApiKeys.length === 0) {
+      return res.status(400).json({ success: false, error: 'Tidak ada Gemini API Key yang aktif.' });
+    }
 
     let lastError = null;
     let responseText = '';
 
+    // Multi-Model Matrix
     for (const modelName of modelsToTry) {
-      try {
-        console.log(`[Deep Analysis] Attempting analysis on Lead ${leadId} using model: ${modelName}`);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: DEEP_ANALYSIS_SYSTEM_PROMPT
-        });
+      for (const keyObj of availableApiKeys) {
+        try {
+          console.log(`[Deep Analysis] Attempting Lead ${leadId} using model: ${modelName} | Key: ${keyObj.label}`);
+          const genAI = new GoogleGenerativeAI(keyObj.api_key);
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction: DEEP_ANALYSIS_SYSTEM_PROMPT
+          });
 
-        const response = await model.generateContent({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: `Analisa percakapan ini:\n\n${conversationText}` }]
+          const response = await model.generateContent({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: `Analisa percakapan ini:\n\n${conversationText}` }]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json'
             }
-          ],
-          generationConfig: {
-            responseMimeType: 'application/json'
-          }
-        });
+          });
 
-        responseText = response.response.text();
-        console.log(`[Deep Analysis] Successfully analyzed Lead ${leadId} using model: ${modelName}`);
-        break;
-      } catch (err) {
-        lastError = err;
-        console.warn(`[Deep Analysis Warning] Model ${modelName} failed for Lead ${leadId}: ${err.message}`);
+          responseText = response.response.text();
+          console.log(`[Deep Analysis] Successfully analyzed Lead ${leadId} using model: ${modelName} | Key: ${keyObj.label}`);
+          markApiKeyUsed(keyObj.id);
+          break;
+        } catch (err) {
+          lastError = err;
+          if (err.message && (err.message.includes('429') || err.message.includes('Quota exceeded') || err.message.includes('QuotaFailure'))) {
+            console.warn(`[Deep Analysis Warning] Key ${keyObj.label} hit rate limit 429. Cooldown 10m...`);
+            markApiKeyRateLimited(keyObj.id, 10);
+          } else {
+            console.warn(`[Deep Analysis Warning] Model ${modelName} with Key ${keyObj.label} failed: ${err.message}`);
+          }
+        }
       }
+      if (responseText) break;
     }
 
     if (!responseText) {
-      throw new Error(`All Gemini models failed in the fallback chain. Last error: ${lastError ? lastError.message : 'Unknown'}`);
+      throw new Error(`All Gemini models and API Keys failed in the resiliency matrix. Last error: ${lastError ? lastError.message : 'Unknown'}`);
     }
 
     const analysisResult = JSON.parse(responseText.trim());
@@ -1860,6 +1874,269 @@ router.delete('/greeting-rules/:id', authMiddleware, permissionMiddleware('setti
     const id = parseInt(req.params.id);
     await deleteGreetingRule(id);
     res.json({ success: true, message: 'Aturan sapaan berhasil dihapus.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Helper to sanitize internal server file paths from log outputs (CWE-200 prevention)
+function sanitizeServerLogLine(line) {
+  if (!line) return '';
+  let clean = String(line);
+  clean = clean.replace(/\/home\/[^\/\s"':]+/g, '[server_home]');
+  clean = clean.replace(/\/root\/[^\/\s"':]+/g, '[server_root]');
+  clean = clean.replace(/\[server_home\]\/lead_rank_crm/g, '[app]');
+  clean = clean.replace(/\[server_home\]\/\.pm2\/logs\/[^\s"':]+/g, '[pm2_log]');
+  return clean;
+}
+
+// --- System Error Logs Endpoint ---
+router.get('/system/error-logs', authMiddleware, permissionMiddleware('error-logs', 'read'), async (req, res, next) => {
+  try {
+    const linesCount = parseInt(req.query.lines) || 300;
+    const pm2LogPath = path.join(os.homedir(), '.pm2', 'logs', 'tripbwi-crm-error-0.log');
+    let logContent = '';
+
+    if (fs.existsSync(pm2LogPath)) {
+      logContent = fs.readFileSync(pm2LogPath, 'utf-8');
+    } else {
+      const pm2LogsDir = path.join(os.homedir(), '.pm2', 'logs');
+      if (fs.existsSync(pm2LogsDir)) {
+        const files = fs.readdirSync(pm2LogsDir).filter(f => f.includes('error'));
+        if (files.length > 0) {
+          logContent = fs.readFileSync(path.join(pm2LogsDir, files[0]), 'utf-8');
+        }
+      }
+    }
+
+    const lines = logContent.split('\n').filter(l => l.trim().length > 0);
+    const recentLines = lines.slice(-linesCount);
+
+    const parsedLogs = recentLines.map((line, idx) => {
+      let level = 'ERROR';
+      if (line.includes('429 Too Many Requests') || line.includes('Quota exceeded') || line.includes('QuotaFailure')) {
+        level = 'QUOTA_EXCEEDED';
+      } else if (line.includes('Warning') || line.includes('WARN')) {
+        level = 'WARNING';
+      } else if (line.includes('Info') || line.includes('INFO')) {
+        level = 'INFO';
+      }
+
+      let timestamp = new Date().toISOString();
+      const tsMatch = line.match(/\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/);
+      if (tsMatch) {
+        timestamp = tsMatch[0];
+      }
+
+      const sanitizedMessage = sanitizeServerLogLine(line);
+
+      return {
+        id: idx + 1,
+        level,
+        message: sanitizedMessage,
+        timestamp,
+        raw: sanitizedMessage
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        logs: parsedLogs.reverse(),
+        totalLines: lines.length,
+        logFilePath: '[PM2 Console Error Stream: tripbwi-crm]'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/system/error-logs/clear', authMiddleware, permissionMiddleware('error-logs', 'write'), async (req, res, next) => {
+  try {
+    const pm2LogPath = path.join(os.homedir(), '.pm2', 'logs', 'tripbwi-crm-error-0.log');
+    if (fs.existsSync(pm2LogPath)) {
+      fs.writeFileSync(pm2LogPath, '');
+    }
+    const pm2LogsDir = path.join(os.homedir(), '.pm2', 'logs');
+    if (fs.existsSync(pm2LogsDir)) {
+      const files = fs.readdirSync(pm2LogsDir).filter(f => f.includes('error'));
+      for (const f of files) {
+        try { fs.writeFileSync(path.join(pm2LogsDir, f), ''); } catch (_) {}
+      }
+    }
+    res.json({ success: true, message: 'Log error PM2 berhasil dibersihkan.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Dynamic AI Models & Gemini API Key Config Endpoints ---
+
+// Get current Gemini API Keys list and AI models
+router.get('/ai-config', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+  try {
+    const keys = await getAllApiKeys();
+    const models = await getAllAIModels();
+    res.json({
+      success: true,
+      data: {
+        keys,
+        hasApiKey: keys.some(k => k.is_active),
+        models
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Multi-API Keys CRUD Endpoints ---
+
+// Get all API Keys
+router.get('/ai-config/keys', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+  try {
+    const keys = await getAllApiKeys();
+    res.json({ success: true, data: keys });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Add new API Key
+router.post('/ai-config/keys', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const keyObj = await createApiKey(req.body);
+    res.json({ success: true, data: keyObj, message: `API Key "${keyObj.label}" berhasil ditambahkan.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update API Key or Reset Cooldown
+router.patch('/ai-config/keys/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const updated = await updateApiKey(id, req.body);
+    res.json({ success: true, data: updated, message: `API Key "${updated.label}" berhasil diperbarui.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete API Key
+router.delete('/ai-config/keys/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    await deleteApiKey(id);
+    res.json({ success: true, message: 'API Key berhasil dihapus.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Save / Update Gemini API Key
+router.post('/ai-config/key', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey || typeof apiKey !== 'string') {
+      return res.status(400).json({ success: false, error: 'API Key wajib diisi.' });
+    }
+    await setGeminiApiKey(apiKey.trim());
+    res.json({ success: true, message: 'Gemini API Key berhasil diperbarui!' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Test Gemini API Key Connection
+router.post('/ai-config/test', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const availableKeys = await getRotatedApiKeys();
+    if (availableKeys.length === 0) {
+      return res.status(400).json({ success: false, error: 'Tidak ada Gemini API Key yang aktif.' });
+    }
+    
+    // Test key (by default the specific keyId passed in body or first rotated key)
+    let keyObj = availableKeys[0];
+    if (req.body.keyId) {
+      const allKeys = await getAllApiKeys();
+      const match = allKeys.find(k => k.id === parseInt(req.body.keyId));
+      if (match) keyObj = match;
+    }
+
+    const genAI = new GoogleGenerativeAI(keyObj.api_key || keyObj.api_key_masked);
+    const models = await getActiveFallbackModels();
+    const testModelName = models[0] || 'gemini-2.5-flash-lite';
+    
+    const model = genAI.getGenerativeModel({ model: testModelName });
+    const response = await model.generateContent('Katakan "OK" jika koneksi API Key berhasil.');
+    const text = response.response.text();
+
+    res.json({
+      success: true,
+      message: `Koneksi API Key "${keyObj.label}" berhasil divalidasi dengan model ${testModelName}!`,
+      responseSnippet: text.trim()
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: `Uji coba koneksi gagal: ${err.message}`
+    });
+  }
+});
+
+// Get AI Models list
+router.get('/ai-config/models', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+  try {
+    const models = await getAllAIModels();
+    res.json({ success: true, data: models });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Create new AI Model
+router.post('/ai-config/models', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const model = await createAIModel(req.body);
+    res.json({ success: true, data: model, message: `Model ${model.model_name} berhasil ditambahkan.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update existing AI Model
+router.patch('/ai-config/models/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const model = await updateAIModel(id, req.body);
+    res.json({ success: true, data: model, message: `Model ${model.model_name} berhasil diperbarui.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete AI Model
+router.delete('/ai-config/models/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    await deleteAIModel(id);
+    res.json({ success: true, message: 'Model AI berhasil dihapus.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Reorder AI Models priorities
+router.post('/ai-config/models/reorder', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: 'orderedIds harus berupa array ID.' });
+    }
+    const updatedModels = await reorderAIModels(orderedIds);
+    res.json({ success: true, data: updatedModels, message: 'Urutan prioritas model berhasil diperbarui.' });
   } catch (err) {
     next(err);
   }

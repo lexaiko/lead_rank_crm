@@ -10,6 +10,8 @@ import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Users } from './pages/Users';
 import { Roles } from './pages/Roles';
+import { ErrorLogs } from './pages/ErrorLogs';
+import { AIConfig } from './pages/AIConfig';
 import { Login } from './pages/Login';
 import { Compass, Loader2 } from 'lucide-react';
 
@@ -54,6 +56,8 @@ export const App: React.FC = () => {
         return <Customers />;
       case 'ai-queue':
         return <AIQueue />;
+      case 'ai-config':
+        return <AIConfig />;
       case 'reports':
         return <Reports />;
       case 'settings':
@@ -62,6 +66,8 @@ export const App: React.FC = () => {
         return <Users />;
       case 'roles':
         return <Roles />;
+      case 'error-logs':
+        return <ErrorLogs />;
       default:
         return <Dashboard />;
     }

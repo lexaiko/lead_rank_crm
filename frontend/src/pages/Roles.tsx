@@ -34,6 +34,14 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
   roles: { 
     title: 'Role Permissions (Manajemen Role)', 
     desc: 'Mengakses menu kebijakan wewenang hak akses per modul dan menambahkan tipe role kustom.' 
+  },
+  'error-logs': {
+    title: 'System Error Logs (Log Error Server)',
+    desc: 'Memantau log diagnostik PM2, error rate-limit Gemini API, serta mereset riwayat log error server.'
+  },
+  'ai-config': {
+    title: 'AI Settings & Models (Konfigurasi Gemini AI)',
+    desc: 'Mengontrol Gemini API Key, mengedit daftar model fallback AI (CRUD), dan menguji koneksi API.'
   }
 };
 

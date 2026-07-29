@@ -277,4 +277,98 @@ export const api = {
     });
     return res.json();
   },
+
+  async getErrorLogs(lines: number = 300): Promise<{ success: boolean; data: { logs: Array<{ id: number; level: 'ERROR' | 'QUOTA_EXCEEDED' | 'WARNING' | 'INFO'; message: string; timestamp: string; raw: string }>; totalLines: number; logFilePath: string } }> {
+    const res = await fetch(`${API_BASE}/system/error-logs?lines=${lines}`);
+    return res.json();
+  },
+
+  async clearErrorLogs(): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/system/error-logs/clear`, {
+      method: 'POST',
+    });
+    return res.json();
+  },
+
+  async getAIConfig(): Promise<{ success: boolean; data: { keys: Array<{ id: number; label: string; api_key_masked: string; is_active: boolean; total_calls: number; rate_limit_hits: number; rate_limited_until?: string; is_cooling_down: boolean; last_used_at?: string }>; hasApiKey: boolean; models: Array<{ id: number; model_name: string; priority: number; is_active: boolean; description?: string }> } }> {
+    const res = await fetch(`${API_BASE}/ai-config`);
+    return res.json();
+  },
+
+  async createGeminiApiKey(data: { label: string; api_key: string; is_active?: boolean }): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async updateGeminiApiKey(id: number, data: Partial<{ label: string; api_key: string; is_active: boolean; reset_cooldown: boolean }>): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/keys/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteGeminiApiKey(id: number): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/keys/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  async saveGeminiApiKey(apiKey: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    });
+    return res.json();
+  },
+
+  async testGeminiApiKey(keyId?: number): Promise<{ success: boolean; message?: string; error?: string; responseSnippet?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyId }),
+    });
+    return res.json();
+  },
+
+  async createAIModelConfig(data: { model_name: string; priority?: number; is_active?: boolean; description?: string }): Promise<{ success: boolean; data?: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/models`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async updateAIModelConfig(id: number, data: Partial<{ model_name: string; priority: number; is_active: boolean; description: string }>): Promise<{ success: boolean; data?: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/models/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+
+  async deleteAIModelConfig(id: number): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/models/${id}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
+
+  async reorderAIModels(orderedIds: number[]): Promise<{ success: boolean; data?: any; error?: string }> {
+    const res = await fetch(`${API_BASE}/ai-config/models/reorder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds }),
+    });
+    return res.json();
+  },
 };

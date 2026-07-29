@@ -17,7 +17,9 @@ import {
   LogOut,
   UserCog,
   Shield,
-  MoreHorizontal
+  MoreHorizontal,
+  Terminal,
+  Sparkles
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -39,9 +41,11 @@ export const Sidebar: React.FC = () => {
     { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
+    { id: 'ai-config', label: 'AI Settings & Models', shortLabel: 'AI Models', icon: Sparkles },
+    { id: 'error-logs', label: 'System Error Logs', shortLabel: 'Logs', icon: Terminal },
     { id: 'users', label: 'User Accounts', shortLabel: 'Users', icon: UserCog },
     { id: 'roles', label: 'Role Permissions', shortLabel: 'Roles', icon: Shield },
-    { id: 'settings', label: 'Settings', shortLabel: 'Setting', icon: Settings },
+    { id: 'settings', label: 'Setting WA', shortLabel: 'Setting WA', icon: Settings },
     { id: 'reports', label: 'Analytics Reports', shortLabel: 'Reports', icon: BarChart3 },
   ] as const;
 
