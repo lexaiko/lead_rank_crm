@@ -29,6 +29,7 @@ export const FollowUp: React.FC = () => {
   // Follow Up WA modal state
   const [followUpLead, setFollowUpLead] = useState<{ id: number; name: string; phone: string; destination: string } | null>(null);
   const [followUpTemplate, setFollowUpTemplate] = useState(0);
+  const [editedMessage, setEditedMessage] = useState('');
   const [isSendingWA, setIsSendingWA] = useState(false);
   const [waSuccessToast, setWaSuccessToast] = useState<string | null>(null);
 
@@ -38,6 +39,14 @@ export const FollowUp: React.FC = () => {
   useEffect(() => {
     fetchLeads({ status: 'ACTIVE', limit: 100, page: 1 });
   }, []);
+
+  // Sync editedMessage when template selection or lead changes
+  useEffect(() => {
+    if (followUpLead) {
+      const msg = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+      setEditedMessage(msg);
+    }
+  }, [followUpTemplate, followUpLead?.id]);
 
   // Helper to determine follow up urgency badges
   const getFollowUpNeed = (lead: LeadListItem) => {
@@ -139,7 +148,7 @@ export const FollowUp: React.FC = () => {
 
   const handleSendFollowUp = async () => {
     if (!followUpLead) return;
-    const msg = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+    const msg = editedMessage || getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
     setIsSendingWA(true);
     try {
       const res = await api.addManualMessage(followUpLead.id, {
@@ -843,12 +852,28 @@ export const FollowUp: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Pratinjau Pesan:
-                </label>
-                <div className="p-3.5 rounded-xl border border-border/80 bg-muted/30 text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                  {getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message}
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Pratinjau &amp; Edit Pesan:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const orig = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+                      setEditedMessage(orig);
+                    }}
+                    className="text-[10px] text-muted-foreground hover:text-primary font-semibold underline cursor-pointer"
+                  >
+                    Reset ke template
+                  </button>
                 </div>
+                <textarea
+                  value={editedMessage}
+                  onChange={(e) => setEditedMessage(e.target.value)}
+                  rows={7}
+                  className="w-full p-3.5 rounded-xl border border-border/80 bg-muted/30 text-xs font-mono text-foreground leading-relaxed resize-y focus:outline-none focus:border-emerald-500 transition-colors"
+                  placeholder="Ketik atau edit pesan di sini..."
+                />
               </div>
 
               <div className="flex flex-col gap-2 border-t border-border pt-4">
@@ -885,7 +910,7 @@ export const FollowUp: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const msg = getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
+                      const msg = editedMessage || getFollowUpTemplates(followUpLead.name, followUpLead.destination)[followUpTemplate]?.message || '';
                       handleOpenWhatsApp(followUpLead.phone, msg);
                       setFollowUpLead(null);
                     }}
