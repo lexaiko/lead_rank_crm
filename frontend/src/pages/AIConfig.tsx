@@ -150,23 +150,6 @@ export const AIConfig: React.FC = () => {
     }
   };
 
-  // Reset Key Rate Limit Cooldown
-  const handleResetCooldown = async (keyItem: GeminiKeyItem) => {
-    setNotice(null);
-    try {
-      const res = await api.updateGeminiApiKey(keyItem.id, { reset_cooldown: true });
-      if (res && res.success) {
-        setNotice({ type: 'success', message: `Cooldown API Key "${keyItem.label}" berhasil direset.` });
-        fetchConfig();
-      } else {
-        setNotice({ type: 'error', message: res?.error || 'Gagal mereset cooldown API Key.' });
-      }
-    } catch (err: any) {
-      console.error(err);
-      setNotice({ type: 'error', message: err.message || 'Gagal mereset cooldown API Key.' });
-    }
-  };
-
   // Delete Key
   const handleDeleteKey = async (id: number, label: string) => {
     setNotice(null);
@@ -414,7 +397,7 @@ export const AIConfig: React.FC = () => {
               <tr>
                 <th className="py-3 px-4">Label Key</th>
                 <th className="py-3 px-4">API Key String</th>
-                <th className="py-3 px-4">Status &amp; Cooldown</th>
+                <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-center">Total Dipanggil</th>
                 <th className="py-3 px-4 text-center">Hit Limit 429</th>
                 <th className="py-3 px-4 text-right">Aksi</th>
@@ -450,30 +433,16 @@ export const AIConfig: React.FC = () => {
 
                     {/* Status Badge */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleToggleKeyActive(k)}
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border transition-all cursor-pointer ${
-                            k.is_cooling_down
-                              ? 'bg-amber-500/15 text-amber-600 border-amber-500/30'
-                              : k.is_active
-                                ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
-                                : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {k.is_cooling_down ? 'Cooldown (Limit 429)' : k.is_active ? 'AKTIF' : 'NON-AKTIF'}
-                        </button>
-
-                        {k.is_cooling_down && (
-                          <button
-                            onClick={() => handleResetCooldown(k)}
-                            className="p-1 rounded bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                            title="Reset Waktu Cooldown Rate Limit"
-                          >
-                            <RotateCcw size={10} /> Reset
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => handleToggleKeyActive(k)}
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                          k.is_active
+                            ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}
+                      >
+                        {k.is_active ? 'AKTIF' : 'NON-AKTIF'}
+                      </button>
                     </td>
 
                     {/* Total Calls */}

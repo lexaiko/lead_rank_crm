@@ -88,16 +88,11 @@ export async function getAllApiKeys() {
  */
 export async function getRotatedApiKeys() {
   await seedDefaultApiKeys();
-  const now = new Date();
 
-  // Active keys not currently under rate limit cooldown
-  const availableKeys = await prisma.geminiApiKey.findMany({
+  // Return all active keys ordered by Round-Robin rotation (least recently used first)
+  const activeKeys = await prisma.geminiApiKey.findMany({
     where: {
-      is_active: true,
-      OR: [
-        { rate_limited_until: null },
-        { rate_limited_until: { lte: now } }
-      ]
+      is_active: true
     },
     orderBy: [
       { last_used_at: 'asc' }, // Round Robin: least recently used key first
@@ -105,18 +100,11 @@ export async function getRotatedApiKeys() {
     ]
   });
 
-  if (availableKeys.length > 0) {
-    return availableKeys;
+  if (activeKeys.length > 0) {
+    return activeKeys;
   }
 
-  // Fallback 1: If all active keys are in cooldown, try all active keys anyway
-  const allActive = await prisma.geminiApiKey.findMany({
-    where: { is_active: true },
-    orderBy: { id: 'asc' }
-  });
-  if (allActive.length > 0) return allActive;
-
-  // Fallback 2: Environment variable key
+  // Fallback: Environment variable key
   if (process.env.GEMINI_API_KEY) {
     return [{ id: 0, label: 'ENV Fallback Key', api_key: process.env.GEMINI_API_KEY }];
   }
@@ -140,20 +128,18 @@ export async function markApiKeyUsed(keyId) {
 }
 
 /**
- * Mark API Key as rate limited (429) for cooldownMinutes
+ * Mark API Key as rate limited (429) - increment hits count only without locking key in cooldown
  */
-export async function markApiKeyRateLimited(keyId, cooldownMinutes = 10) {
+export async function markApiKeyRateLimited(keyId) {
   if (!keyId || keyId === 0) return;
   try {
-    const cooldownUntil = new Date(Date.now() + cooldownMinutes * 60 * 1000);
     await prisma.geminiApiKey.update({
       where: { id: keyId },
       data: {
-        rate_limit_hits: { increment: 1 },
-        rate_limited_until: cooldownUntil
+        rate_limit_hits: { increment: 1 }
       }
     });
-    console.warn(`[AI Multi-Key Engine] Key ID #${keyId} entered cooldown until ${cooldownUntil.toLocaleTimeString()}`);
+    console.log(`[AI Multi-Key Engine] Key ID #${keyId} hit 429 rate limit (Hits counter incremented).`);
   } catch (_) {}
 }
 
