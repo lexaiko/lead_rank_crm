@@ -3,7 +3,7 @@ import { api } from '../store/services/api';
 import {
   Sparkles, Key, CheckCircle2, AlertCircle, Loader2, Save, Eye, EyeOff,
   Plus, Trash2, ArrowUp, ArrowDown, Power, Edit3, ShieldAlert, Cpu, RefreshCw, Zap,
-  RotateCcw, Activity, Layers, Clock
+  RotateCcw, Activity, Layers, Clock, X
 } from 'lucide-react';
 
 interface GeminiKeyItem {
@@ -32,6 +32,7 @@ export const AIConfig: React.FC = () => {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [testingKeyId, setTestingKeyId] = useState<number | null>(null);
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; message: string; snippet?: string } | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Key Modal Form State
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
@@ -96,30 +97,37 @@ export const AIConfig: React.FC = () => {
     e.preventDefault();
     setSavingKey(true);
     setTestResult(null);
+    setNotice(null);
     try {
+      let res;
       if (editingKey) {
-        await api.updateGeminiApiKey(editingKey.id, {
+        res = await api.updateGeminiApiKey(editingKey.id, {
           label: formKeyLabel.trim(),
           ...(formKeyValue.trim() ? { api_key: formKeyValue.trim() } : {}),
           is_active: formKeyActive
         });
       } else {
         if (!formKeyValue.trim()) {
-          alert('String API Key wajib diisi.');
+          setNotice({ type: 'error', message: 'String API Key wajib diisi.' });
           setSavingKey(false);
           return;
         }
-        await api.createGeminiApiKey({
+        res = await api.createGeminiApiKey({
           label: formKeyLabel.trim(),
           api_key: formKeyValue.trim(),
           is_active: formKeyActive
         });
       }
-      setIsKeyModalOpen(false);
-      fetchConfig();
-    } catch (err) {
+      if (res && res.success) {
+        setIsKeyModalOpen(false);
+        setNotice({ type: 'success', message: res.message || 'API Key berhasil disimpan!' });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || res?.message || 'Gagal menyimpan API Key.' });
+      }
+    } catch (err: any) {
       console.error(err);
-      alert('Gagal menyimpan API Key.');
+      setNotice({ type: 'error', message: err.message || 'Gagal menyimpan API Key.' });
     } finally {
       setSavingKey(false);
     }
@@ -127,32 +135,53 @@ export const AIConfig: React.FC = () => {
 
   // Toggle Key Active Status
   const handleToggleKeyActive = async (keyItem: GeminiKeyItem) => {
+    setNotice(null);
     try {
-      await api.updateGeminiApiKey(keyItem.id, { is_active: !keyItem.is_active });
-      fetchConfig();
-    } catch (err) {
+      const res = await api.updateGeminiApiKey(keyItem.id, { is_active: !keyItem.is_active });
+      if (res && res.success) {
+        setNotice({ type: 'success', message: `Status API Key "${keyItem.label}" berhasil diperbarui.` });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || 'Gagal mengubah status API Key.' });
+      }
+    } catch (err: any) {
       console.error(err);
+      setNotice({ type: 'error', message: err.message || 'Gagal mengubah status API Key.' });
     }
   };
 
   // Reset Key Rate Limit Cooldown
   const handleResetCooldown = async (keyItem: GeminiKeyItem) => {
+    setNotice(null);
     try {
-      await api.updateGeminiApiKey(keyItem.id, { reset_cooldown: true });
-      fetchConfig();
-    } catch (err) {
+      const res = await api.updateGeminiApiKey(keyItem.id, { reset_cooldown: true });
+      if (res && res.success) {
+        setNotice({ type: 'success', message: `Cooldown API Key "${keyItem.label}" berhasil direset.` });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || 'Gagal mereset cooldown API Key.' });
+      }
+    } catch (err: any) {
       console.error(err);
+      setNotice({ type: 'error', message: err.message || 'Gagal mereset cooldown API Key.' });
     }
   };
 
   // Delete Key
   const handleDeleteKey = async (id: number, label: string) => {
+    setNotice(null);
     if (!window.confirm(`Apakah Anda yakin ingin menghapus API Key "${label}"?`)) return;
     try {
-      await api.deleteGeminiApiKey(id);
-      fetchConfig();
-    } catch (err) {
+      const res = await api.deleteGeminiApiKey(id);
+      if (res && res.success) {
+        setNotice({ type: 'success', message: res.message || `API Key "${label}" berhasil dihapus.` });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || 'Gagal menghapus API Key.' });
+      }
+    } catch (err: any) {
       console.error(err);
+      setNotice({ type: 'error', message: err.message || 'Gagal menghapus API Key.' });
     }
   };
 
@@ -205,25 +234,32 @@ export const AIConfig: React.FC = () => {
     e.preventDefault();
     if (!formModelName.trim()) return;
     setSavingModel(true);
+    setNotice(null);
     try {
+      let res;
       if (editingModel) {
-        await api.updateAIModelConfig(editingModel.id, {
+        res = await api.updateAIModelConfig(editingModel.id, {
           model_name: formModelName.trim(),
           description: formDescription.trim(),
           is_active: formIsActive
         });
       } else {
-        await api.createAIModelConfig({
+        res = await api.createAIModelConfig({
           model_name: formModelName.trim(),
           description: formDescription.trim(),
           is_active: formIsActive
         });
       }
-      setIsModelModalOpen(false);
-      fetchConfig();
-    } catch (err) {
+      if (res && res.success) {
+        setIsModelModalOpen(false);
+        setNotice({ type: 'success', message: (res as any)?.message || 'Model AI berhasil disimpan!' });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || (res as any)?.message || 'Gagal menyimpan konfigurasi model AI.' });
+      }
+    } catch (err: any) {
       console.error(err);
-      alert('Gagal menyimpan konfigurasi model AI.');
+      setNotice({ type: 'error', message: err.message || 'Gagal menyimpan konfigurasi model AI.' });
     } finally {
       setSavingModel(false);
     }
@@ -231,22 +267,36 @@ export const AIConfig: React.FC = () => {
 
   // Toggle Model Active/Inactive
   const handleToggleModelActive = async (model: AIModelItem) => {
+    setNotice(null);
     try {
-      await api.updateAIModelConfig(model.id, { is_active: !model.is_active });
-      fetchConfig();
-    } catch (err) {
+      const res = await api.updateAIModelConfig(model.id, { is_active: !model.is_active });
+      if (res && res.success) {
+        setNotice({ type: 'success', message: `Status Model ${model.model_name} berhasil diperbarui.` });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: (res as any)?.error || 'Gagal mengubah status Model AI.' });
+      }
+    } catch (err: any) {
       console.error(err);
+      setNotice({ type: 'error', message: err.message || 'Gagal mengubah status Model AI.' });
     }
   };
 
   // Delete Model
   const handleDeleteModel = async (id: number, name: string) => {
+    setNotice(null);
     if (!window.confirm(`Apakah Anda yakin ingin menghapus model "${name}"?`)) return;
     try {
-      await api.deleteAIModelConfig(id);
-      fetchConfig();
-    } catch (err) {
+      const res = await api.deleteAIModelConfig(id);
+      if (res && res.success) {
+        setNotice({ type: 'success', message: res.message || `Model "${name}" berhasil dihapus.` });
+        fetchConfig();
+      } else {
+        setNotice({ type: 'error', message: res?.error || 'Gagal menghapus Model AI.' });
+      }
+    } catch (err: any) {
       console.error(err);
+      setNotice({ type: 'error', message: err.message || 'Gagal menghapus Model AI.' });
     }
   };
 
@@ -298,6 +348,23 @@ export const AIConfig: React.FC = () => {
         </button>
       </div>
 
+      {/* Custom Notification Alert Banner */}
+      {notice && (
+        <div className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between animate-fade-in ${
+          notice.type === 'success'
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            : 'border-rose-500/30 bg-rose-500/10 text-rose-500'
+        }`}>
+          <div className="flex items-center gap-2">
+            {notice.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            <span>{notice.message}</span>
+          </div>
+          <button onClick={() => setNotice(null)} className="p-1 hover:opacity-80 cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* SECTION 1: Multi Gemini API Keys Pool */}
       <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-3">
@@ -333,7 +400,7 @@ export const AIConfig: React.FC = () => {
               <span>{testResult.message}</span>
             </div>
             {testResult.snippet && (
-              <div className="p-2 bg-black/20 rounded-lg font-mono text-[11px] text-emerald-300 mt-1">
+              <div className="p-2.5 bg-emerald-500/10 dark:bg-black/30 border border-emerald-500/20 dark:border-transparent rounded-lg font-mono text-[11px] text-emerald-800 dark:text-emerald-300 mt-1">
                 Respon Test Gemini: "{testResult.snippet}"
               </div>
             )}

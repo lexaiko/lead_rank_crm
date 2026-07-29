@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import { prisma } from '../config/prisma.js';
 import { getGreetingRules } from '../services/greeting-rules.js';
-import { getRotatedApiKeys, markApiKeyUsed, markApiKeyRateLimited, getActiveFallbackModels } from '../services/ai-config.js';
+import { getRotatedApiKeys, markApiKeyUsed, markApiKeyRateLimited, getActiveFallbackModels, callGeminiApi } from '../services/ai-config.js';
 
 // Limits for image attachments sent to Gemini (images are already compressed at ingest time)
 const MAX_IMAGES_PER_LEAD = 3;
@@ -466,24 +466,21 @@ Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \
       console.log(`[AI Worker] Attempting lead analysis using model: ${modelName} | Key: ${keyObj.label}`);
 
       try {
-        const genAI = new GoogleGenerativeAI(keyObj.api_key);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: SYSTEM_PROMPT
-        });
-
         const parts = [{ text: JSON.stringify(leadsContext) }];
         for (const img of imageAttachments) {
           parts.push({ text: `Gambar berikut adalah lampiran dengan image_ref "${img.ref}" dan HANYA milik lead_id ${img.lead_id}:` });
           parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
         }
 
-        const response = await model.generateContent({
+        const resObj = await callGeminiApi({
+          apiKey: keyObj.api_key,
+          modelName,
           contents: [{ role: 'user', parts }],
+          systemInstruction: SYSTEM_PROMPT,
           generationConfig: { responseMimeType: 'application/json' }
         });
 
-        const responseText = response.response.text();
+        const responseText = resObj.text;
         console.log(`[AI Worker] Successfully analyzed using model: ${modelName} | Key: ${keyObj.label}`);
         
         // Record key usage

@@ -4,8 +4,8 @@ import { prisma } from '../config/prisma.js';
 const DEFAULT_MODELS = [
   { model_name: 'gemini-2.5-flash-lite', priority: 1, is_active: true, description: 'Model Utama — Cepat, Hemat Token & Akurat' },
   { model_name: 'gemini-3.1-flash-lite', priority: 2, is_active: true, description: 'Cadangan Pertama — High Throughput' },
-  { model_name: 'gemini-3.5-flash', priority: 3, is_active: true, description: 'Cadangan Kedua — Advanced Multimodal' },
-  { model_name: 'gemini-1.5-flash', priority: 4, is_active: false, description: 'Cadangan Ketiga — Legacy Reliable' }
+  { model_name: 'gemini-3.5-flash-lite', priority: 3, is_active: true, description: 'Cadangan Ketiga — Legacy Reliable' },
+  { model_name: 'gemini-3.5-flash', priority: 4, is_active: true, description: 'Default Model' }
 ];
 
 /**
@@ -298,4 +298,44 @@ export async function reorderAIModels(orderedIds) {
     });
   }
   return getAllAIModels();
+}
+
+/**
+ * Call Gemini API directly via HTTP fetch with support for all key formats and auto-rolling
+ */
+export async function callGeminiApi({ apiKey, modelName, contents, systemInstruction, generationConfig }) {
+  const cleanedModelName = String(modelName || '').trim().toLowerCase().replace(/\s+/g, '-');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanedModelName)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  
+  const payload = {
+    contents: typeof contents === 'string' ? [{ role: 'user', parts: [{ text: contents }] }] : contents
+  };
+
+  if (systemInstruction) {
+    payload.systemInstruction = {
+      parts: [{ text: typeof systemInstruction === 'string' ? systemInstruction : JSON.stringify(systemInstruction) }]
+    };
+  }
+
+  if (generationConfig) {
+    payload.generationConfig = generationConfig;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || data.error) {
+    const err = new Error(data.error ? data.error.message : `HTTP ${res.status}`);
+    err.status = res.status;
+    err.code = data.error?.code;
+    throw err;
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return { text, raw: data };
 }

@@ -60,6 +60,7 @@ export const Roles: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [roleFormMsg, setRoleFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [pageNotice, setPageNotice] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
 
   useEffect(() => {
     fetchRoles();
@@ -89,7 +90,7 @@ export const Roles: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
           <h1 className="font-heading font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500 dark:from-orange-400 dark:to-amber-400">
-            Hak Akses & Role
+            Hak Akses &amp; Role
           </h1>
           <p className="text-xs text-muted-foreground font-semibold">
             Atur kebijakan izin modul (none, read, write) untuk tiap tingkatan akun pengguna.
@@ -110,6 +111,25 @@ export const Roles: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Page Custom Notification Alert Banner */}
+      {pageNotice && (
+        <div className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between animate-fade-in ${
+          pageNotice.type === 'warning'
+            ? 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+            : pageNotice.type === 'error'
+            ? 'border-rose-500/30 bg-rose-500/10 text-rose-500'
+            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+        }`}>
+          <div className="flex items-center gap-2">
+            <LockKeyhole size={16} />
+            <span>{pageNotice.text}</span>
+          </div>
+          <button onClick={() => setPageNotice(null)} className="p-1 hover:opacity-80 cursor-pointer">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Role list panels */}
       <div className="flex flex-col gap-8">
@@ -163,8 +183,8 @@ export const Roles: React.FC = () => {
 
             {/* Modules matrix grid inside Role (One row list) */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {Object.keys(role.permissions || {}).map((module) => {
-                const currentLevel = (role.permissions as any)[module] || 'none';
+              {Array.from(new Set([...Object.keys(moduleLabels), ...Object.keys(role.permissions || {})])).map((module) => {
+                const currentLevel = (role.permissions as any)?.[module] || 'none';
                 const info = moduleLabels[module] || { 
                   title: module, 
                   desc: `Mengatur hak akses dan wewenang untuk modul ${module}.` 
@@ -191,7 +211,7 @@ export const Roles: React.FC = () => {
                             type="button"
                             onClick={() => {
                               if (role.name === 'ADMIN' && module === 'settings' && level !== 'write') {
-                                alert('Cannot demote ADMIN settings permissions to prevent lockout!');
+                                setPageNotice({ type: 'warning', text: 'Tidak dapat menurunkan hak akses Settings pada ADMIN demi mencegah terunci (lockout)!' });
                                 return;
                               }
                               const updatedPerms = {

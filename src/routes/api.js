@@ -11,7 +11,7 @@ import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearA
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
 import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetingRule, isDuplicateKeywordError } from '../services/greeting-rules.js';
-import { getGeminiApiKey, setGeminiApiKey, getAllAIModels, getActiveFallbackModels, createAIModel, updateAIModel, deleteAIModel, reorderAIModels, getAllApiKeys, createApiKey, updateApiKey, deleteApiKey, getRotatedApiKeys } from '../services/ai-config.js';
+import { getGeminiApiKey, setGeminiApiKey, getAllAIModels, getActiveFallbackModels, createAIModel, updateAIModel, deleteAIModel, reorderAIModels, getAllApiKeys, createApiKey, updateApiKey, deleteApiKey, getRotatedApiKeys, markApiKeyUsed, markApiKeyRateLimited, callGeminiApi } from '../services/ai-config.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sseEmitter, broadcastChatMessage, broadcastLeadUpdate } from '../services/sse.js';
 
@@ -172,7 +172,9 @@ router.post('/roles', authMiddleware, permissionMiddleware('roles', 'write'), as
       reports: 'none',
       settings: 'none',
       users: 'none',
-      roles: 'none'
+      roles: 'none',
+      'error-logs': 'none',
+      'ai-config': 'none'
     };
 
     const newRole = await prisma.role.create({
@@ -856,40 +858,30 @@ Harap diingat, kembalikan objek JSON murni secara lengkap tanpa menyertakan bloc
     let lastError = null;
     let responseText = '';
 
-    // Multi-Model Matrix
+    // Multi-Model Resiliency Matrix Loop (Automatic Fallback to Next Model & Key on Limit)
     for (const modelName of modelsToTry) {
       for (const keyObj of availableApiKeys) {
         try {
           console.log(`[Deep Analysis] Attempting Lead ${leadId} using model: ${modelName} | Key: ${keyObj.label}`);
-          const genAI = new GoogleGenerativeAI(keyObj.api_key);
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: DEEP_ANALYSIS_SYSTEM_PROMPT
+          const resObj = await callGeminiApi({
+            apiKey: keyObj.api_key,
+            modelName,
+            contents: `Analisa percakapan ini:\n\n${conversationText}`,
+            systemInstruction: DEEP_ANALYSIS_SYSTEM_PROMPT,
+            generationConfig: { responseMimeType: 'application/json' }
           });
 
-          const response = await model.generateContent({
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: `Analisa percakapan ini:\n\n${conversationText}` }]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: 'application/json'
-            }
-          });
-
-          responseText = response.response.text();
+          responseText = resObj.text;
           console.log(`[Deep Analysis] Successfully analyzed Lead ${leadId} using model: ${modelName} | Key: ${keyObj.label}`);
           markApiKeyUsed(keyObj.id);
           break;
         } catch (err) {
           lastError = err;
           if (err.message && (err.message.includes('429') || err.message.includes('Quota exceeded') || err.message.includes('QuotaFailure'))) {
-            console.warn(`[Deep Analysis Warning] Key ${keyObj.label} hit rate limit 429. Cooldown 10m...`);
+            console.warn(`[Deep Analysis Warning] Key "${keyObj.label}" hit rate limit 429 on model "${modelName}". Putting key in 10m cooldown & switching to next model...`);
             markApiKeyRateLimited(keyObj.id, 10);
           } else {
-            console.warn(`[Deep Analysis Warning] Model ${modelName} with Key ${keyObj.label} failed: ${err.message}`);
+            console.warn(`[Deep Analysis Warning] Model "${modelName}" with Key "${keyObj.label}" failed: ${err.message}. Retrying next model in matrix...`);
           }
         }
       }
@@ -1974,7 +1966,7 @@ router.post('/system/error-logs/clear', authMiddleware, permissionMiddleware('er
 // --- Dynamic AI Models & Gemini API Key Config Endpoints ---
 
 // Get current Gemini API Keys list and AI models
-router.get('/ai-config', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+router.get('/ai-config', authMiddleware, permissionMiddleware('ai-config', 'read'), async (req, res, next) => {
   try {
     const keys = await getAllApiKeys();
     const models = await getAllAIModels();
@@ -1994,7 +1986,7 @@ router.get('/ai-config', authMiddleware, permissionMiddleware('settings', 'read'
 // --- Multi-API Keys CRUD Endpoints ---
 
 // Get all API Keys
-router.get('/ai-config/keys', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+router.get('/ai-config/keys', authMiddleware, permissionMiddleware('ai-config', 'read'), async (req, res, next) => {
   try {
     const keys = await getAllApiKeys();
     res.json({ success: true, data: keys });
@@ -2004,7 +1996,7 @@ router.get('/ai-config/keys', authMiddleware, permissionMiddleware('settings', '
 });
 
 // Add new API Key
-router.post('/ai-config/keys', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/ai-config/keys', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const keyObj = await createApiKey(req.body);
     res.json({ success: true, data: keyObj, message: `API Key "${keyObj.label}" berhasil ditambahkan.` });
@@ -2014,7 +2006,7 @@ router.post('/ai-config/keys', authMiddleware, permissionMiddleware('settings', 
 });
 
 // Update API Key or Reset Cooldown
-router.patch('/ai-config/keys/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.patch('/ai-config/keys/:id', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const updated = await updateApiKey(id, req.body);
@@ -2025,7 +2017,7 @@ router.patch('/ai-config/keys/:id', authMiddleware, permissionMiddleware('settin
 });
 
 // Delete API Key
-router.delete('/ai-config/keys/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.delete('/ai-config/keys/:id', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     await deleteApiKey(id);
@@ -2036,7 +2028,7 @@ router.delete('/ai-config/keys/:id', authMiddleware, permissionMiddleware('setti
 });
 
 // Save / Update Gemini API Key
-router.post('/ai-config/key', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/ai-config/key', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const { apiKey } = req.body;
     if (!apiKey || typeof apiKey !== 'string') {
@@ -2050,33 +2042,67 @@ router.post('/ai-config/key', authMiddleware, permissionMiddleware('settings', '
 });
 
 // Test Gemini API Key Connection
-router.post('/ai-config/test', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/ai-config/test', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
-    const availableKeys = await getRotatedApiKeys();
-    if (availableKeys.length === 0) {
-      return res.status(400).json({ success: false, error: 'Tidak ada Gemini API Key yang aktif.' });
-    }
-    
-    // Test key (by default the specific keyId passed in body or first rotated key)
-    let keyObj = availableKeys[0];
+    let keyObj = null;
+
     if (req.body.keyId) {
-      const allKeys = await getAllApiKeys();
-      const match = allKeys.find(k => k.id === parseInt(req.body.keyId));
-      if (match) keyObj = match;
+      keyObj = await prisma.geminiApiKey.findUnique({ where: { id: parseInt(req.body.keyId) } });
     }
 
-    const genAI = new GoogleGenerativeAI(keyObj.api_key || keyObj.api_key_masked);
-    const models = await getActiveFallbackModels();
-    const testModelName = models[0] || 'gemini-2.5-flash-lite';
-    
-    const model = genAI.getGenerativeModel({ model: testModelName });
-    const response = await model.generateContent('Katakan "OK" jika koneksi API Key berhasil.');
-    const text = response.response.text();
+    if (!keyObj) {
+      const availableKeys = await getRotatedApiKeys();
+      if (availableKeys.length > 0) {
+        keyObj = availableKeys[0];
+      }
+    }
 
-    res.json({
-      success: true,
-      message: `Koneksi API Key "${keyObj.label}" berhasil divalidasi dengan model ${testModelName}!`,
-      responseSnippet: text.trim()
+    if (!keyObj || !keyObj.api_key) {
+      return res.status(400).json({ success: false, error: 'API Key yang dipilih tidak ditemukan atau tidak aktif.' });
+    }
+
+    const models = await getActiveFallbackModels();
+
+    if (!models || models.length === 0) {
+      return res.status(400).json({ success: false, error: 'Tidak ada Model AI yang aktif di database.' });
+    }
+
+    const failedAttempts = [];
+    
+    for (const testModelName of models) {
+      try {
+        console.log(`[Test API Key] Testing Key "${keyObj.label}" (ID #${keyObj.id}) with Model "${testModelName}"...`);
+        const { text } = await callGeminiApi({
+          apiKey: keyObj.api_key,
+          modelName: testModelName,
+          contents: 'Katakan "OK" jika koneksi API Key berhasil.'
+        });
+
+        const skippedInfo = failedAttempts.length > 0
+          ? ` (${failedAttempts.length} model sebelumnya terkena limit/gagal: ${failedAttempts.map(f => f.model).join(', ')})`
+          : '';
+
+        return res.json({
+          success: true,
+          message: `Koneksi API Key "${keyObj.label}" BERHASIL divalidasi menggunakan model "${testModelName}"!${skippedInfo}`,
+          testedModel: testModelName,
+          responseSnippet: text.trim(),
+          failedAttempts
+        });
+      } catch (err) {
+        console.warn(`[Test API Key Warning] Model "${testModelName}" failed: ${err.message}. Auto-rolling to next model...`);
+        failedAttempts.push({
+          model: testModelName,
+          error: err.message
+        });
+      }
+    }
+
+    // If ALL models fail:
+    const errorDetails = failedAttempts.map(a => `• Model "${a.model}": ${a.error}`).join(' | ');
+    return res.status(400).json({
+      success: false,
+      error: `Uji coba API Key "${keyObj.label}" gagal pada semua model yang diinputkan: ${errorDetails}`
     });
   } catch (err) {
     res.status(400).json({
@@ -2087,7 +2113,7 @@ router.post('/ai-config/test', authMiddleware, permissionMiddleware('settings', 
 });
 
 // Get AI Models list
-router.get('/ai-config/models', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
+router.get('/ai-config/models', authMiddleware, permissionMiddleware('ai-config', 'read'), async (req, res, next) => {
   try {
     const models = await getAllAIModels();
     res.json({ success: true, data: models });
@@ -2097,7 +2123,7 @@ router.get('/ai-config/models', authMiddleware, permissionMiddleware('settings',
 });
 
 // Create new AI Model
-router.post('/ai-config/models', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/ai-config/models', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const model = await createAIModel(req.body);
     res.json({ success: true, data: model, message: `Model ${model.model_name} berhasil ditambahkan.` });
@@ -2107,7 +2133,7 @@ router.post('/ai-config/models', authMiddleware, permissionMiddleware('settings'
 });
 
 // Update existing AI Model
-router.patch('/ai-config/models/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.patch('/ai-config/models/:id', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const model = await updateAIModel(id, req.body);
@@ -2118,7 +2144,7 @@ router.patch('/ai-config/models/:id', authMiddleware, permissionMiddleware('sett
 });
 
 // Delete AI Model
-router.delete('/ai-config/models/:id', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.delete('/ai-config/models/:id', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     await deleteAIModel(id);
@@ -2129,7 +2155,7 @@ router.delete('/ai-config/models/:id', authMiddleware, permissionMiddleware('set
 });
 
 // Reorder AI Models priorities
-router.post('/ai-config/models/reorder', authMiddleware, permissionMiddleware('settings', 'write'), async (req, res, next) => {
+router.post('/ai-config/models/reorder', authMiddleware, permissionMiddleware('ai-config', 'write'), async (req, res, next) => {
   try {
     const { orderedIds } = req.body;
     if (!Array.isArray(orderedIds)) {
