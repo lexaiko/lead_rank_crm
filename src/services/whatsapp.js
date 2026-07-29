@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, BufferJSON, downloadMediaMessage } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, BufferJSON, downloadMediaMessage, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import sharp from 'sharp';
 import fs from 'fs';
@@ -337,8 +337,19 @@ export async function startAdminSession(adminId) {
 
   const { state, saveCreds } = await usePrismaAuthState(adminId);
 
+  // Fetch latest Baileys version to avoid version mismatch / Noise handshake failures
+  let version;
+  try {
+    const versionRes = await fetchLatestBaileysVersion();
+    version = versionRes.version;
+    console.log(`[Baileys Version] Using WA Web version: ${version?.join('.')}`);
+  } catch (vErr) {
+    console.warn(`[Baileys Version] Failed to fetch latest WA version, using default fallback:`, vErr.message);
+  }
+
   const makeWASocketFn = makeWASocket.default || makeWASocket;
   const sock = makeWASocketFn({
+    version,
     auth: state,
     logger: pino({ 
       level: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'].includes(process.env.BAILEYS_LOG_LEVEL) 
@@ -378,7 +389,22 @@ export async function startAdminSession(adminId) {
       }
       
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+      // Check for unrecoverable auth or session errors:
+      // 401: Logged Out
+      // 403: Forbidden
+      // 405: Connection Replaced / Method Not Allowed / Auth registration failure from corrupt creds
+      // 440 / DisconnectReason.connectionReplaced: Connection Replaced
+      // 500 / DisconnectReason.badSession: Bad Session
+      const isUnrecoverableAuthError = [
+        DisconnectReason.loggedOut, // 401
+        DisconnectReason.forbidden, // 403
+        DisconnectReason.connectionReplaced, // 440
+        DisconnectReason.badSession, // 500
+        405
+      ].includes(statusCode);
+
+      const shouldReconnect = !isUnrecoverableAuthError;
       
       console.log(`Connection closed for Admin ID: ${adminId}. Reason code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
 
@@ -388,7 +414,7 @@ export async function startAdminSession(adminId) {
           startAdminSession(adminId);
         }, 5000);
       } else {
-        console.log(`Logged out. Cleaning up session database records for Admin ID: ${adminId}`);
+        console.log(`Unrecoverable auth/session error (Reason ${statusCode}). Cleaning up session database records for Admin ID: ${adminId}`);
         activeSockets.delete(adminId);
         try {
           if (prisma.whatsAppSession) {
@@ -1231,7 +1257,11 @@ export async function clearAdminSession(adminId) {
   if (sock) {
     try {
       sock.isManualShutdown = true;
-      sock.end();
+      if (sock.user) {
+        await sock.logout().catch(() => {});
+      } else {
+        sock.end();
+      }
     } catch (_) {}
     activeSockets.delete(adminId);
   }

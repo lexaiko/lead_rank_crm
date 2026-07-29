@@ -11,6 +11,8 @@ import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetin
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sseEmitter, broadcastChatMessage, broadcastLeadUpdate } from '../services/sse.js';
 
+import QRCode from 'qrcode';
+
 const router = Router();
 
 // Auth Endpoints
@@ -441,11 +443,10 @@ router.get('/admins/:id/session', authMiddleware, permissionMiddleware('settings
       return res.status(400).send('Admin has no WA number assigned.');
     }
 
-    const socket = activeSockets.get(adminId);
-    const isConnected = !!(socket && socket.user);
+    const hasSocket = activeSockets.has(adminId);
 
-    // Only (re)start the socket when not connected — restarting a live socket would drop the session
-    if (!isConnected) {
+    // Only start a new socket if NO socket exists for this admin ID
+    if (!hasSocket) {
       startAdminSession(adminId).catch(err => {
         console.error(`Async start session failed for Admin ${adminId}:`, err);
       });
@@ -628,6 +629,9 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
       `);
     }
 
+    // Convert QR string to base64 Data URL server-side (zero external CDN dependency!)
+    const qrDataUrl = await QRCode.toDataURL(qr, { width: 180, margin: 1 });
+
     if (isRaw) {
       return res.send(`
         <html>
@@ -635,9 +639,9 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
               body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; overflow: hidden; height: 100vh; }
-              #qrcode { background: white; padding: 8px; border-radius: 8px; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+              .qr-box { background: white; padding: 8px; border-radius: 8px; display: inline-flex; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+              img { display: block; width: 180px; height: 180px; }
             </style>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
             <script>
               const renderedQr = ${JSON.stringify(qr)};
               setInterval(async () => {
@@ -657,17 +661,9 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             </script>
           </head>
           <body>
-            <div id="qrcode"></div>
-            <script>
-              new QRCode(document.getElementById("qrcode"), {
-                text: ${JSON.stringify(qr)},
-                width: 180,
-                height: 180,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.M
-              });
-            </script>
+            <div class="qr-box">
+              <img src="${qrDataUrl}" alt="WhatsApp QR Code" />
+            </div>
           </body>
         </html>
       `);
@@ -682,11 +678,11 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             body { font-family: 'Inter', sans-serif; text-align: center; padding: 20px 10px; background: ${bgColor}; color: ${textColor}; margin: 0; }
             .card { background: ${cardColor}; padding: 20px; border-radius: 16px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid ${borderColor}; max-width: 290px; }
             h1 { color: #6366f1; margin-top: 0; font-size: 20px; }
-            #qrcode { background: white; padding: 10px; border-radius: 8px; display: inline-block; margin: 15px 0; }
+            .qr-box { background: white; padding: 10px; border-radius: 8px; display: inline-flex; margin: 15px 0; }
+            img { display: block; width: 180px; height: 180px; }
             p { color: ${mutedColor}; line-height: 1.4; font-size: 13px; }
             .btn { background: #475569; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 500; display: inline-block; margin-top: 10px; font-size: 12px; border: none; cursor: pointer; }
           </style>
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
           <script>
             const renderedQr = ${JSON.stringify(qr)};
             setInterval(async () => {
@@ -710,20 +706,12 @@ router.get('/admins/:id/qr', authMiddleware, permissionMiddleware('settings', 'r
             <h1>WhatsApp Scan</h1>
             <p>Admin: <strong>${escapeHtml(admin.nama_admin)}</strong></p>
             <p>Scan using Linked Devices in WhatsApp:</p>
-            <div id="qrcode"></div>
+            <div class="qr-box">
+              <img src="${qrDataUrl}" alt="WhatsApp QR Code" />
+            </div>
             <br/>
             <a class="btn" href="#" onclick="fetch('/api/admins/${adminId}/session/start?theme=${isLightTheme ? 'light' : 'dark'}', { method: 'POST' }).then(() => window.location.reload()); return false;">Regenerate QR</a>
           </div>
-          <script>
-            new QRCode(document.getElementById("qrcode"), {
-              text: ${JSON.stringify(qr)},
-              width: 180,
-              height: 180,
-              colorDark : "#000000",
-              colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.M
-            });
-          </script>
         </body>
       </html>
     `);

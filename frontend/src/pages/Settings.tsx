@@ -579,6 +579,7 @@ export const Settings: React.FC = () => {
                   const adminId = clearConfirmAdmin.id;
                   setClearConfirmAdmin(null);
                   await clearAdminSession(adminId);
+                  fetchAdmins();
                 }}
                 className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
               >
