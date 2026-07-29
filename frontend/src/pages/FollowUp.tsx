@@ -410,7 +410,10 @@ export const FollowUp: React.FC = () => {
             <thead>
               <tr className="bg-rose-500/5 border-b border-border/80">
                 <th className="px-4 py-3.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Kode &amp; Customer
+                  Lead Code
+                </th>
+                <th className="px-4 py-3.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Customer Contact
                 </th>
                 <th className="px-4 py-3.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                   Status Pipeline
@@ -438,13 +441,13 @@ export const FollowUp: React.FC = () => {
             <tbody className="divide-y divide-border/55">
               {leadsLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center">
+                  <td colSpan={9} className="px-5 py-12 text-center">
                     <Loader2 className="animate-spin mx-auto text-muted-foreground" size={24} />
                   </td>
                 </tr>
               ) : filteredFollowUpLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-14 text-center">
+                  <td colSpan={9} className="px-5 py-14 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                         <Check size={24} />
@@ -465,20 +468,16 @@ export const FollowUp: React.FC = () => {
                       onClick={() => setSelectedLeadId(lead.id)}
                       className="hover:bg-muted/40 cursor-pointer transition-colors"
                     >
-                      {/* Kode & Customer */}
+                      {/* Lead Code */}
+                      <td className="px-4 py-3.5 font-bold text-sm text-primary font-mono whitespace-nowrap">
+                        {lead.kode_lead}
+                      </td>
+
+                      {/* Customer Contact */}
                       <td className="px-4 py-3.5">
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-foreground hover:text-primary transition-colors">
-                              {lead.customerNama || 'Pelanggan WA'}
-                            </span>
-                            <span className="font-mono text-[11px] font-bold text-primary bg-primary/10 px-1.5 py-0.2 rounded-md">
-                              {lead.kode_lead}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {lead.customerHp}
-                          </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-foreground">{lead.customerNama || 'Pelanggan WA'}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{lead.customerHp}</span>
                         </div>
                       </td>
 

@@ -70,6 +70,7 @@ bin-patched/
 # Temporary check scripts
 src/delete-temp.js
 src/check-messages.js
+scratch_*.js
 
 # Mobile application directory
 mobile/

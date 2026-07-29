@@ -1179,9 +1179,9 @@ export async function generateKodeLead(adminId) {
   const now = new Date();
   const yy = now.getFullYear().toString().slice(-2);
   const mm = (now.getMonth() + 1).toString().padStart(2, '0');
-  const prefix = `${yy}${mm}`;
+  const prefix = `${yy}${mm}${adminInitial}`;
   
-  // Find all leads created in this month
+  // Find all leads created in this month matching this admin's prefix (e.g. 2607D)
   const monthlyLeads = await prisma.lead.findMany({
     where: {
       kode_lead: {
@@ -1195,9 +1195,9 @@ export async function generateKodeLead(adminId) {
   
   let maxIndex = 0;
   for (const l of monthlyLeads) {
-    // Extract the index part (last 3 characters)
-    const indexPart = l.kode_lead.slice(-3);
-    const indexNum = parseInt(indexPart, 10);
+    // Extract the index part immediately following prefix (e.g. 2607D175 -> 175)
+    const suffix = l.kode_lead.slice(prefix.length).split('_')[0];
+    const indexNum = parseInt(suffix, 10);
     if (!isNaN(indexNum) && indexNum > maxIndex) {
       maxIndex = indexNum;
     }
@@ -1205,7 +1205,7 @@ export async function generateKodeLead(adminId) {
   
   const nextIndex = maxIndex + 1;
   const indexStr = nextIndex.toString().padStart(3, '0');
-  return `${prefix}${adminInitial}${indexStr}`;
+  return `${prefix}${indexStr}`;
 }
 
 /**
