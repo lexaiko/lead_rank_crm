@@ -43,7 +43,16 @@ export const LeadDetailDrawer: React.FC = () => {
   // Follow Up modal state
   const [followUpModal, setFollowUpModal] = useState(false);
   const [followUpTemplate, setFollowUpTemplate] = useState(0);
+  const [editedMessage, setEditedMessage] = useState('');
   const [isSendingWA, setIsSendingWA] = useState(false);
+
+  // Sync editedMessage when template or lead changes
+  useEffect(() => {
+    if (leadData) {
+      const msg = getFollowUpTemplates(leadData.customerNama || '', leadData.minat_destinasi || '')[followUpTemplate]?.message || '';
+      setEditedMessage(msg);
+    }
+  }, [followUpTemplate, selectedLeadId]);
 
   // Deep Analysis state
   const [deepAnalysisModal, setDeepAnalysisModal] = useState(false);
@@ -245,7 +254,7 @@ export const LeadDetailDrawer: React.FC = () => {
   const handleSendFollowUp = async () => {
     if (!selectedLeadId || !leadData) return;
     const templates = getFollowUpTemplates(leadData.customerNama || '', leadData.minat_destinasi || '');
-    const msg = templates[followUpTemplate]?.message || '';
+    const msg = editedMessage || templates[followUpTemplate]?.message || '';
     setIsSendingWA(true);
     try {
       const res = await api.addManualMessage(selectedLeadId, {
@@ -926,15 +935,31 @@ export const LeadDetailDrawer: React.FC = () => {
               </div>
             </div>
 
-            {/* Preview */}
+            {/* Preview / Edit */}
             <div className="px-5 pb-4">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Preview Pesan</span>
-              <div className="mt-2 p-3.5 rounded-xl bg-muted/50 border border-border/80 text-xs font-semibold text-foreground leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
-                {getFollowUpTemplates(
-                  leadData.customerNama || '',
-                  leadData.minat_destinasi || ''
-                )[followUpTemplate]?.message}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Preview &amp; Edit Pesan</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orig = getFollowUpTemplates(
+                      leadData.customerNama || '',
+                      leadData.minat_destinasi || ''
+                    )[followUpTemplate]?.message || '';
+                    setEditedMessage(orig);
+                  }}
+                  className="text-[10px] text-muted-foreground hover:text-primary font-semibold underline cursor-pointer"
+                >
+                  Reset ke template
+                </button>
               </div>
+              <textarea
+                value={editedMessage}
+                onChange={(e) => setEditedMessage(e.target.value)}
+                rows={6}
+                className="w-full p-3.5 rounded-xl bg-muted/50 border border-border/80 text-xs font-semibold text-foreground leading-relaxed resize-y focus:outline-none focus:border-emerald-500 transition-colors"
+                placeholder="Ketik atau edit pesan di sini..."
+              />
             </div>
 
             {/* Actions */}
@@ -976,7 +1001,7 @@ export const LeadDetailDrawer: React.FC = () => {
                       leadData.customerNama || '',
                       leadData.minat_destinasi || ''
                     );
-                    handleOpenWhatsApp(leadData.customerHp, templates[followUpTemplate]?.message || '');
+                    handleOpenWhatsApp(leadData.customerHp, editedMessage || templates[followUpTemplate]?.message || '');
                     setFollowUpModal(false);
                   }}
                   className="text-[11px] text-muted-foreground hover:text-emerald-600 font-semibold underline flex items-center gap-1 cursor-pointer transition-colors"
