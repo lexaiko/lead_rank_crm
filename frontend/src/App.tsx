@@ -45,29 +45,34 @@ export const App: React.FC = () => {
   }
 
   const renderActivePage = () => {
+    const permissions = user?.permissions || {};
+
+    // Helper: cek apakah user punya akses ke suatu tab (bukan 'none')
+    const canAccess = (permKey: string) => permissions[permKey] !== 'none';
+
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
       case 'leads':
-        return <Leads />;
+        return canAccess('leads') ? <Leads /> : <Dashboard />;
       case 'followup':
-        return <FollowUp />;
+        return canAccess('leads') ? <FollowUp /> : <Dashboard />;
       case 'customers':
-        return <Customers />;
+        return canAccess('customers') ? <Customers /> : <Dashboard />;
       case 'ai-queue':
-        return <AIQueue />;
+        return canAccess('queue') ? <AIQueue /> : <Dashboard />;
       case 'ai-config':
-        return <AIConfig />;
+        return canAccess('ai-config') ? <AIConfig /> : <Dashboard />;
       case 'reports':
-        return <Reports />;
+        return canAccess('reports') ? <Reports /> : <Dashboard />;
       case 'settings':
-        return <Settings />;
+        return canAccess('settings') ? <Settings /> : <Dashboard />;
       case 'users':
-        return <Users />;
+        return canAccess('users') ? <Users /> : <Dashboard />;
       case 'roles':
-        return <Roles />;
+        return canAccess('roles') ? <Roles /> : <Dashboard />;
       case 'error-logs':
-        return <ErrorLogs />;
+        return canAccess('error-logs') ? <ErrorLogs /> : <Dashboard />;
       default:
         return <Dashboard />;
     }

@@ -161,9 +161,25 @@ export async function processAIQueue(force = false) {
         continue;
       }
 
+      // Check if admin has replied (needed for NEW-stuck guard below)
+      const adminMessageCount = await prisma.chatMessage.count({
+        where: { lead_id: lead.id, pengirim: 'admin' }
+      });
+      const adminHasReplied = adminMessageCount > 0;
+
+      // Guard: if lead is still NEW but admin has already replied, reset the analysis
+      // checkpoint so ALL messages are reprocessed. This prevents the lead from being
+      // stuck at NEW when the admin reply came in after the last AI analysis checkpoint
+      // (at which point admin_has_replied was false and AI returned NEW).
+      let effectiveLastAnalyzedId = lead.ai_last_analyzed_message_id;
+      if (lead.status_lead === 'NEW' && adminHasReplied && lead.ai_last_analyzed_message_id !== null) {
+        console.log(`[AI Worker] Lead ${lead.id} is NEW but admin has replied — resetting analysis checkpoint to reprocess all messages.`);
+        effectiveLastAnalyzedId = null;
+      }
+
       // Query ChatMessage based on last analyzed ID
       let messages = [];
-      if (lead.ai_last_analyzed_message_id === null) {
+      if (effectiveLastAnalyzedId === null) {
         messages = await prisma.chatMessage.findMany({
           where: { lead_id: lead.id },
           orderBy: { id: 'asc' }
@@ -172,7 +188,7 @@ export async function processAIQueue(force = false) {
         messages = await prisma.chatMessage.findMany({
           where: {
             lead_id: lead.id,
-            id: { gt: lead.ai_last_analyzed_message_id }
+            id: { gt: effectiveLastAnalyzedId }
           },
           orderBy: { id: 'asc' }
         });
@@ -188,13 +204,6 @@ export async function processAIQueue(force = false) {
       const latestMsgId = messages[messages.length - 1].id;
       latestMessageIds.set(lead.id, latestMsgId);
 
-      const adminMessageCount = await prisma.chatMessage.count({
-        where: {
-          lead_id: lead.id,
-          pengirim: 'admin'
-        }
-      });
-      const adminHasReplied = adminMessageCount > 0;
 
       // Attach images (e.g. payment proofs) from the newest unanalyzed messages.
       // Each image gets a unique ref (IMG_<messageId>) bound to this lead_id so the LLM cannot confuse
@@ -434,16 +443,12 @@ Tugasmu:
      Aturan khusus kata sapaan: HANYA berlaku jika pesan PALING AWAL dari seluruh percakapan dikirim oleh pelanggan (pelanggan yang memulai chat) DAN kalimatnya DIAWALI kata sapaan tersebut: ${greetingRuleText}. Sapaan di tengah percakapan atau di tengah kalimat TIDAK berlaku. Jika tidak ada sapaan yang cocok dan pelanggan tidak pernah menyebutkan sumbernya, isi "tidak diketahui". Jika 'referral_source' pada current_lead sudah terisi (bukan "tidak diketahui"), PERTAHANKAN nilai tersebut kecuali pelanggan secara eksplisit menyebutkan sumber lain.
    - 'estimasi_nilai_order' (estimasi nilai transaksi/order dalam format angka integer rupiah, jika tidak ada, isi dengan null).
 4. Tentukan 'status_lead' dengan aturan ketat berikut:
-   - ATURAN PRIORITAS TERTINGGI (CLOSED LOST OVERRIDE): Jika dalam percakapan (baik pesan baru maupun konteks sebelumnya) pelanggan secara eksplisit menyatakan PEMBATALAN atau TIDAK JADI booking (contoh frasa: "ngga jadi kak", "gajadi kak kemahalan", "maaf ngga jadi pake", "batal ya kak", "cancel dulu", "belum bisa jalan", "pakai travel lain", "ndak jadi", "fix tidak jadi"), MAKA status_lead WAJIB BERUBAH MENJADI 'CLOSED LOST', tanpa memedulikan status sebelumnya.
-   - CATATAN KHUSUS "KEMAHALAN" VS "GAJADI KEMAHALAN":
-     a. Kata "kemahalan" TANPA kata tidak jadi/batal (contoh: "kemahalan kak", "mahal banget ya", "bisa kurang gak", "ada promo gak") -> STATUS TETAP QUALIFIED/PROSPECT (karena pelanggan masih dalam tahap negosiasi/kualifikasi agar CS bisa menawarkan alternatif/diskon).
-     b. Kata "kemahalan" YANG DISERTAI FRASA TIDAK JADI/PEMBATALAN (contoh: "gajadi kak kemahalan", "ngga jadi ambil kemahalan", "batal kak kemahalan") -> WAJIB BERUBAH MENJADI 'CLOSED LOST' (karena pelanggan sudah secara tegas mengonfirmasi pembatalan).
-   - NEW: Status awal lead masuk. Jika 'admin_has_replied' bernilai false (admin/CS belum pernah membalas chat sama sekali untuk lead ini), status WAJIB tetap 'NEW'. Pengecualian hanya jika pelanggan menunjukkan kondisi mendesak/urgent untuk segera melakukan transaksi/booking saat itu juga.
-   - QUALIFIED: Admin/CS sudah pernah membalas chat ('admin_has_replied' bernilai true) DAN pelanggan mengajukan pertanyaan mengenai informasi umum, harga, destinasi, nego harga, atau fasilitas, tetapi belum ada kepastian jadwal/jumlah orang.
-   - PROSPECT: Pelanggan sudah menyebutkan dengan JELAS Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
-   - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (rekening, invoice, atau berjanji transfer).
-   - CLOSED WON: Pelanggan mengirimkan bukti transfer atau konfirmasi pembayaran berhasil.
-   - CLOSED LOST: Pelanggan secara eksplisit membatalkan rencana, menyatakan tidak jadi ("ngga jadi", "gajadi kak kemahalan", "batal", "cancel"), menolak tawaran secara final, atau komplain keras.
+   - NEW: Status awal lead masuk / belum ada interaksi tanya paket dari pelanggan.
+   - QUALIFIED: Pelanggan sudah mulai tanya-tanya mengenai paket, harga, destinasi, fasilitas, atau nego harga ("ada paket baluran?", "harga berapa kak?", "kemahalan kak"), tetapi belum lengkap pasti ketiga hal: destinasi, jumlah peserta, dan tanggal keberangkatan.
+   - PROSPECT: Pelanggan sudah menyebutkan dengan JELAS ketiga hal ini: Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
+   - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (nomor rekening, invoice, atau janji transfer).
+   - CLOSED WON: Pelanggan mengirimkan bukti transfer/pembayaran berhasil (termasuk verifikasi gambar).
+   - CLOSED LOST: Pelanggan secara eksplisit menyatakan PEMBATALAN / TIDAK JADI ("ngga jadi", "gajadi kak kemahalan", "batal", "cancel", "pakai travel lain"). Catatan: Frasa "kemahalan" tanpa frasa batal tetap QUALIFIED/PROSPECT.
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
 

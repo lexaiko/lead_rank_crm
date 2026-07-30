@@ -80,7 +80,8 @@ export const Sidebar: React.FC = () => {
               if (!user) return false;
               const permissions = user.permissions || {};
               const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
-              return permissions[permissionKey] !== 'none';
+              const perm = permissions[permissionKey];
+              return perm === 'read' || perm === 'write';
             })
             .map((item) => {
               const Icon = item.icon;
@@ -197,7 +198,8 @@ export const Sidebar: React.FC = () => {
           if (!user) return false;
           const permissions = user.permissions || {};
           const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
-          return permissions[permissionKey] !== 'none';
+          const perm = permissions[permissionKey];
+          return perm === 'read' || perm === 'write';
         });
 
         const useMoreMenu = allowedItems.length > 5;
