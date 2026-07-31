@@ -6,6 +6,7 @@ import path from 'path';
 import qrcode from 'qrcode-terminal';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
+import { sanitizeString } from '../utils/sanitize.js';
 import { enqueueAIJob } from './ai-queue.js';
 import { detectReferralSourceFromGreeting } from './greeting-rules.js';
 import { broadcastChatMessage } from './sse.js';
@@ -689,7 +690,7 @@ function buildReplyContext(message, customerHp) {
     else if (quoted.stickerMessage) snippet = '[Stiker]';
     else snippet = '[Pesan]';
   }
-  snippet = snippet.trim().slice(0, 300);
+  snippet = sanitizeString(snippet.trim().slice(0, 300));
 
   // Determine who wrote the quoted message by comparing the participant JID with the customer's number
   let sender = null;
@@ -706,7 +707,7 @@ function buildReplyContext(message, customerHp) {
   }
 
   return {
-    reply_to_wa_id: ctx.stanzaId || null,
+    reply_to_wa_id: sanitizeString(ctx.stanzaId) || null,
     reply_to_sender: sender,
     reply_to_snippet: snippet
   };
@@ -861,6 +862,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     if (!contactName && !fromMe) {
       contactName = msg.pushName || msg.verifiedBizName || null;
     }
+    contactName = sanitizeString(contactName);
 
     try {
       customer = await prisma.customer.create({
@@ -882,7 +884,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     }
   } else {
     // Auto-correct contact name if it's currently null/placeholder or was incorrectly set to the admin's name
-    const incomingPushName = msg.pushName || msg.verifiedBizName;
+    const incomingPushName = sanitizeString(msg.pushName || msg.verifiedBizName);
     if (!fromMe && incomingPushName) {
       const allAdmins = await prisma.admin.findMany({ select: { nama_admin: true } });
       const adminNames = allAdmins.map(a => a.nama_admin.toLowerCase());
@@ -990,10 +992,10 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     // 1. Create chat message
     const createdMsg = await prisma.chatMessage.create({
       data: {
-        wa_message_id: messageId,
+        wa_message_id: sanitizeString(messageId),
         lead_id: lead.id,
         pengirim,
-        pesan: text,
+        pesan: sanitizeString(text),
         waktu_pesan,
         ...(media ? media : {}),
         ...(replyContext ? replyContext : {})
@@ -1091,13 +1093,14 @@ async function updateCustomerFromContact(contact) {
     });
 
     if (existingCustomer) {
-      if (existingCustomer.nama_kontak !== contactName) {
+      const cleanName = sanitizeString(contactName);
+      if (existingCustomer.nama_kontak !== cleanName) {
         try {
           await prisma.customer.update({
             where: { id: existingCustomer.id },
-            data: { nama_kontak: contactName }
+            data: { nama_kontak: cleanName }
           });
-          console.log(`[Contacts Sync] Updated name for HP ${customerHp}: "${contactName}"`);
+          console.log(`[Contacts Sync] Updated name for HP ${customerHp}: "${cleanName}"`);
         } catch (updateErr) {
           console.warn(`[Contacts Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
         }
@@ -1148,13 +1151,14 @@ async function updateCustomerNameFromChat(chat) {
       where: { nomor_hp: customerHp }
     });
 
-    if (existingCustomer && existingCustomer.nama_kontak !== contactName) {
+    const cleanName = sanitizeString(contactName);
+    if (existingCustomer && existingCustomer.nama_kontak !== cleanName) {
       try {
         await prisma.customer.update({
           where: { id: existingCustomer.id },
-          data: { nama_kontak: contactName }
+          data: { nama_kontak: cleanName }
         });
-        console.log(`[Chats Sync] Updated name for HP ${customerHp}: "${contactName}"`);
+        console.log(`[Chats Sync] Updated name for HP ${customerHp}: "${cleanName}"`);
       } catch (updateErr) {
         console.warn(`[Chats Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
       }

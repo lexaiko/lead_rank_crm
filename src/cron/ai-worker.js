@@ -3,6 +3,7 @@ import fs from 'fs';
 import { prisma } from '../config/prisma.js';
 import { getGreetingRules } from '../services/greeting-rules.js';
 import { getRotatedApiKeys, markApiKeyUsed, markApiKeyRateLimited, getActiveFallbackModels, callGeminiApi } from '../services/ai-config.js';
+import { extractAndParseJson } from '../utils/sanitize.js';
 
 // Limits for image attachments sent to Gemini (images are already compressed at ingest time)
 const MAX_IMAGES_PER_LEAD = 3;
@@ -25,7 +26,11 @@ export function startAIWorker() {
     try {
       await processAIQueue();
     } catch (err) {
-      console.error('[AI Worker] Error inside worker cycle:', err);
+      if (err.code === 'P1001' || err.code === 'P1002' || (err.message && err.message.includes("Can't reach database server"))) {
+        console.warn(`[AI Worker Warning] Database server unreachable (${err.message}). Will retry on next cycle...`);
+      } else {
+        console.error('[AI Worker] Error inside worker cycle:', err);
+      }
     }
   }, intervalSeconds * 1000);
 }
@@ -491,7 +496,7 @@ Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \
         // Record key usage
         markApiKeyUsed(keyObj.id);
 
-        return JSON.parse(responseText.trim());
+        return extractAndParseJson(responseText);
       } catch (err) {
         lastError = err;
         if (err.message && (err.message.includes('429') || err.message.includes('Quota exceeded') || err.message.includes('QuotaFailure'))) {

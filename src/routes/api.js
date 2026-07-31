@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
+import { sanitizeString, extractAndParseJson } from '../utils/sanitize.js';
 import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearAdminSession } from '../services/whatsapp.js';
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
@@ -892,7 +893,7 @@ Harap diingat, kembalikan objek JSON murni secara lengkap tanpa menyertakan bloc
       throw new Error(`All Gemini models and API Keys failed in the resiliency matrix. Last error: ${lastError ? lastError.message : 'Unknown'}`);
     }
 
-    const analysisResult = JSON.parse(responseText.trim());
+    const analysisResult = extractAndParseJson(responseText);
     
     // Ensure is_deep is set to true
     analysisResult.is_deep = true;
@@ -992,11 +993,11 @@ router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('leads',
       data: {
         lead_id: leadId,
         pengirim: pengirim || 'admin',
-        pesan: pesan.trim(),
+        pesan: sanitizeString(pesan.trim()),
         waktu_pesan: parsedDate,
-        wa_message_id: generatedWaId,
-        reply_to_wa_id: reply_to_wa_id || null,
-        reply_to_snippet: reply_to_snippet || null,
+        wa_message_id: sanitizeString(generatedWaId) || null,
+        reply_to_wa_id: sanitizeString(reply_to_wa_id) || null,
+        reply_to_snippet: sanitizeString(reply_to_snippet) || null,
         reply_to_sender: reply_to_sender || null,
       }
     });
@@ -1901,26 +1902,50 @@ router.get('/system/error-logs', authMiddleware, permissionMiddleware('error-log
       }
     }
 
-    const lines = logContent.split('\n').filter(l => l.trim().length > 0);
-    const recentLines = lines.slice(-linesCount);
+    const rawLines = logContent.split('\n');
+    const groupedBlocks = [];
+    let currentBlock = [];
 
-    const parsedLogs = recentLines.map((line, idx) => {
+    for (const rawLine of rawLines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      const isNewBlockHeader = 
+        line.startsWith('[') || 
+        /^\d{4}-\d{2}-\d{2}/.test(line) || 
+        line.startsWith('Error:') || 
+        line.startsWith('Warning:');
+
+      if (isNewBlockHeader && currentBlock.length > 0) {
+        groupedBlocks.push(currentBlock.join('\n'));
+        currentBlock = [line];
+      } else {
+        currentBlock.push(line);
+      }
+    }
+    if (currentBlock.length > 0) {
+      groupedBlocks.push(currentBlock.join('\n'));
+    }
+
+    const recentBlocks = groupedBlocks.slice(-linesCount);
+
+    const parsedLogs = recentBlocks.map((block, idx) => {
       let level = 'ERROR';
-      if (line.includes('429 Too Many Requests') || line.includes('Quota exceeded') || line.includes('QuotaFailure')) {
+      if (block.includes('429') || block.includes('Quota exceeded') || block.includes('QuotaFailure')) {
         level = 'QUOTA_EXCEEDED';
-      } else if (line.includes('Warning') || line.includes('WARN')) {
+      } else if (block.includes('Warning') || block.includes('WARN')) {
         level = 'WARNING';
-      } else if (line.includes('Info') || line.includes('INFO')) {
+      } else if (block.includes('Info') || block.includes('INFO')) {
         level = 'INFO';
       }
 
       let timestamp = new Date().toISOString();
-      const tsMatch = line.match(/\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/);
+      const tsMatch = block.match(/\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/);
       if (tsMatch) {
         timestamp = tsMatch[0];
       }
 
-      const sanitizedMessage = sanitizeServerLogLine(line);
+      const sanitizedMessage = sanitizeServerLogLine(block);
 
       return {
         id: idx + 1,
@@ -1935,7 +1960,7 @@ router.get('/system/error-logs', authMiddleware, permissionMiddleware('error-log
       success: true,
       data: {
         logs: parsedLogs.reverse(),
-        totalLines: lines.length,
+        totalLines: groupedBlocks.length,
         logFilePath: '[PM2 Console Error Stream: tripbwi-crm]'
       }
     });
