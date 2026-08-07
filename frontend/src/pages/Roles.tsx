@@ -3,37 +3,37 @@ import { useStore } from '../store/useStore';
 import { Shield, Loader2, LockKeyhole, Plus, X } from 'lucide-react';
 
 const moduleLabels: Record<string, { title: string; desc: string }> = {
-  dashboard: { 
-    title: 'Dashboard Monitoring', 
-    desc: 'Membuka tab Dashboard untuk melihat statistik performa bisnis dan grafik interaktif.' 
+  dashboard: {
+    title: 'Dashboard Monitoring',
+    desc: 'Membuka tab Dashboard untuk melihat statistik performa bisnis dan grafik interaktif.'
   },
-  leads: { 
-    title: 'Leads Directory & Follow Up', 
-    desc: 'Mengakses direktori prospek (Leads), fitur bar Follow Up tabel, detail trip, serta riwayat obrolan WhatsApp.' 
+  leads: {
+    title: 'Leads Directory & Follow Up',
+    desc: 'Mengakses direktori prospek (Leads), fitur bar Follow Up tabel, detail trip, serta riwayat obrolan WhatsApp.'
   },
-  customers: { 
-    title: 'Customers Directory (Database Pelanggan)', 
-    desc: 'Membuka data profil kontak seluruh pelanggan yang terdaftar di dalam sistem.' 
+  customers: {
+    title: 'Customers Directory (Database Pelanggan)',
+    desc: 'Membuka data profil kontak seluruh pelanggan yang terdaftar di dalam sistem.'
   },
-  queue: { 
-    title: 'AI Worker Queue (Antrean AI)', 
-    desc: 'Memantau antrean pemrosesan ekstraksi chat otomatis oleh AI secara real-time.' 
+  queue: {
+    title: 'AI Worker Queue (Antrean AI)',
+    desc: 'Memantau antrean pemrosesan ekstraksi chat otomatis oleh AI secara real-time.'
   },
-  reports: { 
-    title: 'Analytics Reports (Laporan Analisis)', 
-    desc: 'Membuka menu laporan analitik performa konversi penjualan per agen CS.' 
+  reports: {
+    title: 'Analytics Reports (Laporan Analisis)',
+    desc: 'Membuka menu laporan analitik performa konversi penjualan per agen CS.'
   },
-  settings: { 
-    title: 'WhatsApp Connections (Koneksi WA)', 
-    desc: 'Mengontrol koneksi socket WhatsApp Web Baileys (menghubungkan & memutuskan nomor).' 
+  settings: {
+    title: 'WhatsApp Connections (Koneksi WA)',
+    desc: 'Mengontrol koneksi socket WhatsApp Web Baileys (menghubungkan & memutuskan nomor).'
   },
-  users: { 
-    title: 'User Accounts (Manajemen User)', 
-    desc: 'Membuka menu manajemen user untuk menambah, mengedit, mematikan status, atau menghapus akun CS/Admin.' 
+  users: {
+    title: 'User Accounts (Manajemen User)',
+    desc: 'Membuka menu manajemen user untuk menambah, mengedit, mematikan status, atau menghapus akun CS/Admin.'
   },
-  roles: { 
-    title: 'Role Permissions (Manajemen Role)', 
-    desc: 'Mengakses menu kebijakan wewenang hak akses per modul dan menambahkan tipe role kustom.' 
+  roles: {
+    title: 'Role Permissions (Manajemen Role)',
+    desc: 'Mengakses menu kebijakan wewenang hak akses per modul dan menambahkan tipe role kustom.'
   },
   'error-logs': {
     title: 'System Error Logs (Log Error Server)',
@@ -42,6 +42,10 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
   'ai-config': {
     title: 'AI Settings & Models (Konfigurasi Gemini AI)',
     desc: 'Mengontrol Gemini API Key, mengedit daftar model fallback AI (CRUD), dan menguji koneksi API.'
+  },
+  export: {
+    title: 'Export Data Excel (.xlsx)',
+    desc: 'Mengeksport data prospek (Leads) ke file spreadsheet Excel (.xlsx) berdasarkan filter waktu kustom dan status.'
   }
 };
 
@@ -85,7 +89,7 @@ export const Roles: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      
+
       {/* Page Header Layout */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
@@ -96,7 +100,7 @@ export const Roles: React.FC = () => {
             Atur kebijakan izin modul (none, read, write) untuk tiap tingkatan akun pengguna.
           </p>
         </div>
-        
+
         {/* Create Role Trigger Button */}
         {user && user.role === 'ADMIN' && (
           <button
@@ -114,13 +118,12 @@ export const Roles: React.FC = () => {
 
       {/* Page Custom Notification Alert Banner */}
       {pageNotice && (
-        <div className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between animate-fade-in ${
-          pageNotice.type === 'warning'
+        <div className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between animate-fade-in ${pageNotice.type === 'warning'
             ? 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
             : pageNotice.type === 'error'
-            ? 'border-rose-500/30 bg-rose-500/10 text-rose-500'
-            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
-        }`}>
+              ? 'border-rose-500/30 bg-rose-500/10 text-rose-500'
+              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'
+          }`}>
           <div className="flex items-center gap-2">
             <LockKeyhole size={16} />
             <span>{pageNotice.text}</span>
@@ -135,7 +138,7 @@ export const Roles: React.FC = () => {
       <div className="flex flex-col gap-8">
         {roles.map((role) => (
           <div key={role.id} className="p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-5">
-            
+
             {/* Role Title Section */}
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
@@ -168,11 +171,10 @@ export const Roles: React.FC = () => {
                       key={value}
                       type="button"
                       onClick={() => updateRoleDataScope(role.id, value)}
-                      className={`flex-1 sm:flex-none px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${
-                        isSelected
+                      className={`flex-1 sm:flex-none px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${isSelected
                           ? 'bg-primary text-primary-foreground shadow-sm font-black'
                           : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
-                      }`}
+                        }`}
                     >
                       {label}
                     </button>
@@ -185,11 +187,11 @@ export const Roles: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {Array.from(new Set([...Object.keys(moduleLabels), ...Object.keys(role.permissions || {})])).map((module) => {
                 const currentLevel = (role.permissions as any)?.[module] || 'none';
-                const info = moduleLabels[module] || { 
-                  title: module, 
-                  desc: `Mengatur hak akses dan wewenang untuk modul ${module}.` 
+                const info = moduleLabels[module] || {
+                  title: module,
+                  desc: `Mengatur hak akses dan wewenang untuk modul ${module}.`
                 };
-                
+
                 return (
                   <div key={module} className="p-4 rounded-xl bg-card border border-border/70 flex flex-col justify-between gap-4 shadow-sm hover:border-primary/25 transition-all">
                     <div className="flex flex-col gap-1.5 text-left">
@@ -200,7 +202,7 @@ export const Roles: React.FC = () => {
                         {info.desc}
                       </span>
                     </div>
-                    
+
                     {/* Weight Controls */}
                     <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-xl border border-border/40 w-full mt-2">
                       {(['none', 'read', 'write'] as const).map((level) => {
@@ -220,15 +222,14 @@ export const Roles: React.FC = () => {
                               };
                               updateRolePermissions(role.id, updatedPerms);
                             }}
-                            className={`flex-1 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${
-                              isSelected
+                            className={`flex-1 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer select-none text-center ${isSelected
                                 ? level === 'write'
                                   ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/10 font-black'
                                   : level === 'read'
-                                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/10 font-black'
-                                  : 'bg-muted-foreground text-card shadow-sm font-black'
+                                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/10 font-black'
+                                    : 'bg-muted-foreground text-card shadow-sm font-black'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
-                            }`}
+                              }`}
                           >
                             {level}
                           </button>
@@ -246,11 +247,11 @@ export const Roles: React.FC = () => {
 
       {/* Create New Role Pop-up Dialog Modal */}
       {isModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setIsModalOpen(false)}
         >
-          <div 
+          <div
             className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
@@ -260,7 +261,7 @@ export const Roles: React.FC = () => {
                 <LockKeyhole size={16} className="text-primary" />
                 <span className="font-bold text-sm text-foreground">Create New Access Role</span>
               </div>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
               >
@@ -271,11 +272,10 @@ export const Roles: React.FC = () => {
             {/* Modal Form */}
             <form onSubmit={handleCreateRoleSubmit} className="p-6 flex flex-col gap-4">
               {roleFormMsg && (
-                <div className={`p-3.5 rounded-xl border text-xs font-bold ${
-                  roleFormMsg.type === 'success' 
-                    ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500' 
+                <div className={`p-3.5 rounded-xl border text-xs font-bold ${roleFormMsg.type === 'success'
+                    ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'
                     : 'border-rose-500/20 bg-rose-500/5 text-rose-500'
-                }`}>
+                  }`}>
                   {roleFormMsg.text}
                 </div>
               )}

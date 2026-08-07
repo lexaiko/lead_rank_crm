@@ -75,3 +75,7 @@ scratch_*.js
 # Mobile application directory
 mobile/
 
+# Office temporary lock files
+~$*
+
+

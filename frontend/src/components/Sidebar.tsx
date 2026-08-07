@@ -19,7 +19,8 @@ import {
   Shield,
   MoreHorizontal,
   Terminal,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -40,6 +41,7 @@ export const Sidebar: React.FC = () => {
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
     { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
+    { id: 'export', label: 'Export Data Excel', shortLabel: 'Export', icon: FileSpreadsheet },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'ai-config', label: 'AI Settings & Models', shortLabel: 'AI Models', icon: Sparkles },
     { id: 'error-logs', label: 'System Error Logs', shortLabel: 'Logs', icon: Terminal },
@@ -80,7 +82,7 @@ export const Sidebar: React.FC = () => {
               if (!user) return false;
               const permissions = user.permissions || {};
               const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
-              const perm = permissions[permissionKey];
+              const perm = permissions[permissionKey] || (item.id === 'export' ? permissions['leads'] : 'none');
               return perm === 'read' || perm === 'write';
             })
             .map((item) => {
@@ -198,7 +200,7 @@ export const Sidebar: React.FC = () => {
           if (!user) return false;
           const permissions = user.permissions || {};
           const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
-          const perm = permissions[permissionKey];
+          const perm = permissions[permissionKey] || (item.id === 'export' ? permissions['leads'] : 'none');
           return perm === 'read' || perm === 'write';
         });
 

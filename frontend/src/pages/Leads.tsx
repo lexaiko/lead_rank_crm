@@ -520,11 +520,10 @@ export const Leads: React.FC = () => {
           <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-xs gap-0.5">
             <button
               onClick={() => toggleViewMode('kanban')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
-                viewMode === 'kanban'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${viewMode === 'kanban'
                   ? 'bg-primary text-primary-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
+                }`}
             >
               <LayoutGrid size={14} />
               <span>Kanban</span>
@@ -532,11 +531,10 @@ export const Leads: React.FC = () => {
 
             <button
               onClick={() => toggleViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
-                viewMode === 'table'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${viewMode === 'table'
                   ? 'bg-primary text-primary-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
+                }`}
             >
               <Table size={14} />
               <span>Tabel Directory</span>
@@ -571,11 +569,10 @@ export const Leads: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileFiltersExpanded(!isMobileFiltersExpanded)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer h-10 shrink-0 select-none ${
-              isMobileFiltersExpanded || activeFiltersCount > 0
+            className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer h-10 shrink-0 select-none ${isMobileFiltersExpanded || activeFiltersCount > 0
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border bg-card text-foreground hover:bg-muted/50'
-            }`}
+              }`}
           >
             <Filter size={13} />
             <span>Filter</span>
@@ -725,17 +722,15 @@ export const Leads: React.FC = () => {
                 <button
                   key={col.key}
                   onClick={() => scrollToColumn(col.key)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer shrink-0 select-none ${
-                    isActive
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer shrink-0 select-none ${isActive
                       ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
                       : 'bg-card text-muted-foreground border-border/80 hover:bg-muted'
-                  }`}
+                    }`}
                 >
                   {col.icon}
                   <span>{col.title}</span>
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    isActive ? 'bg-white/20 text-white' : col.badgeStyle
-                  }`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${isActive ? 'bg-white/20 text-white' : col.badgeStyle
+                    }`}>
                     {count}
                   </span>
                 </button>
@@ -766,11 +761,10 @@ export const Leads: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, col.key)}
                   onDragLeave={(e) => handleDragLeave(e, col.key)}
                   onDrop={(e) => handleDrop(e, col.key)}
-                  className={`w-[86vw] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center flex flex-col rounded-2xl bg-card border shadow-xs transition-all min-h-[480px] ${
-                    isTargeting
+                  className={`w-[86vw] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center flex flex-col rounded-2xl bg-card border shadow-xs transition-all min-h-[480px] ${isTargeting
                       ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
                       : 'border-border/80'
-                  }`}
+                    }`}
                 >
                   {/* Column Header */}
                   <div className={`p-3.5 md:p-4 rounded-t-2xl border-b border-border/80 flex flex-col gap-2 ${col.headerBg}`}>
@@ -874,11 +868,10 @@ export const Leads: React.FC = () => {
                                         key={st}
                                         disabled={st === lead.status_lead}
                                         onClick={() => handleQuickStatusChange(lead.id, st)}
-                                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                                          st === lead.status_lead
+                                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${st === lead.status_lead
                                             ? 'bg-primary/10 text-primary opacity-60'
                                             : 'hover:bg-muted text-foreground'
-                                        }`}
+                                          }`}
                                       >
                                         <span>{st}</span>
                                         {st === lead.status_lead && <Check size={12} />}
@@ -975,11 +968,10 @@ export const Leads: React.FC = () => {
                                     setConfirmAnalysisLead(lead);
                                   }
                                 }}
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 cursor-pointer select-none transition-all ${
-                                  lead.has_deep_analysis
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 cursor-pointer select-none transition-all ${lead.has_deep_analysis
                                     ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500 hover:text-white'
                                     : 'bg-muted border-border/80 text-muted-foreground hover:bg-violet-500/10 hover:text-violet-500'
-                                }`}
+                                  }`}
                               >
                                 <Brain size={10} className={lead.has_deep_analysis ? 'animate-pulse' : ''} />
                                 {lead.has_deep_analysis ? 'Sudah AI' : 'Belum AI'}
@@ -1210,11 +1202,10 @@ export const Leads: React.FC = () => {
                       <button
                         key={p}
                         onClick={() => handlePageChange(p as number)}
-                        className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
-                          page === p
+                        className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${page === p
                             ? 'bg-primary text-primary-foreground shadow-xs'
                             : 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-                        }`}
+                          }`}
                       >
                         {p}
                       </button>
@@ -1309,11 +1300,10 @@ export const Leads: React.FC = () => {
                               setConfirmAnalysisLead(lead);
                             }
                           }}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 cursor-pointer select-none transition-all ${
-                            lead.has_deep_analysis
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 cursor-pointer select-none transition-all ${lead.has_deep_analysis
                               ? 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500 hover:text-white'
                               : 'bg-muted border-border/80 text-muted-foreground hover:bg-violet-500/10 hover:text-violet-500'
-                          }`}
+                            }`}
                         >
                           <Brain size={10} className={lead.has_deep_analysis ? 'animate-pulse' : ''} />
                           {lead.has_deep_analysis ? 'Sudah AI' : 'Belum AI'}
@@ -1536,11 +1526,10 @@ export const Leads: React.FC = () => {
                       key={idx}
                       type="button"
                       onClick={() => setFollowUpTemplate(idx)}
-                      className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
-                        followUpTemplate === idx
+                      className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${followUpTemplate === idx
                           ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-xs'
                           : 'border-border/80 bg-background text-muted-foreground hover:border-emerald-500/50'
-                      }`}
+                        }`}
                     >
                       {tmpl.label}
                     </button>

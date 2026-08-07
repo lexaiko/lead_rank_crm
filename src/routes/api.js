@@ -17,6 +17,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sseEmitter, broadcastChatMessage, broadcastLeadUpdate } from '../services/sse.js';
 
 import QRCode from 'qrcode';
+import XLSX from 'xlsx';
 
 const router = Router();
 
@@ -143,7 +144,14 @@ router.get('/auth/me', authMiddleware, (req, res) => {
 router.get('/roles', authMiddleware, permissionMiddleware('roles', 'read'), async (req, res, next) => {
   try {
     const roles = await prisma.role.findMany();
-    res.json({ success: true, data: roles });
+    const formatted = roles.map(r => {
+      const perms = (r.permissions && typeof r.permissions === 'object') ? { ...r.permissions } : {};
+      if (perms.export === undefined) {
+        perms.export = perms.leads || 'read';
+      }
+      return { ...r, permissions: perms };
+    });
+    res.json({ success: true, data: formatted });
   } catch (err) {
     next(err);
   }
@@ -1165,6 +1173,145 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
         totalPages: Math.ceil(total / limitNum)
       }
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Export Leads to Excel (.xlsx) with Custom Date Range Filter
+router.get('/leads/export', authMiddleware, async (req, res, next) => {
+  try {
+    const permissions = req.admin?.role?.permissions || {};
+    const exportPermission = permissions.export !== undefined ? permissions.export : (permissions.leads || 'none');
+
+    if (exportPermission === 'none') {
+      return res.status(403).json({
+        success: false,
+        error: "Forbidden: Insufficient permissions for exporting data."
+      });
+    }
+
+    const {
+      search = '',
+      status = '',
+      admin_id = '',
+      referral = '',
+      date_from = '',
+      date_to = '',
+      sort_by = 'createdAt',
+      sort_order = 'desc'
+    } = req.query;
+
+    const where = {
+      customer: { is_ignored: false }
+    };
+
+    if (status && status !== 'ALL') {
+      if (status === 'ACTIVE') {
+        where.status_lead = { notIn: ['CLOSED WON', 'CLOSED LOST'] };
+      } else {
+        where.status_lead = status;
+      }
+    }
+    if (referral && referral !== 'ALL') where.referral_source = referral;
+
+    if (isOwnScope(req.admin)) {
+      if (admin_id && admin_id !== 'ALL' && parseInt(admin_id) !== req.admin.id) {
+        where.admin_id = -1;
+      } else {
+        where.admin_id = req.admin.id;
+      }
+    } else if (admin_id && admin_id !== 'ALL') {
+      where.admin_id = parseInt(admin_id);
+    }
+
+    if (date_from || date_to) {
+      where.createdAt = {};
+      if (date_from) where.createdAt.gte = new Date(date_from);
+      if (date_to) {
+        const end = new Date(date_to);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    if (search) {
+      where.OR = [
+        { kode_lead: { contains: search } },
+        { minat_destinasi: { contains: search } },
+        { customer: { nama_kontak: { contains: search } } },
+        { customer: { nomor_hp: { contains: search } } }
+      ];
+    }
+
+    const leads = await prisma.lead.findMany({
+      where,
+      include: {
+        customer: true,
+        admin: true
+      },
+      orderBy: { createdAt: sort_order === 'asc' ? 'asc' : 'desc' }
+    });
+
+    const excelRows = leads.map(l => {
+      const createdDate = l.createdAt ? new Date(l.createdAt).toISOString().substring(0, 10) : '-';
+      const tripDate = l.estimasi_waktu ? new Date(l.estimasi_waktu).toISOString().substring(0, 10) : '-';
+      return {
+        'KODE': l.kode_lead || '',
+        'TANGGAL': createdDate,
+        'NAMA': l.customer?.nama_kontak || 'Tanpa Nama',
+        'WHATSAPP': l.customer?.nomor_hp || '',
+        'SOURCE': l.referral_source || '-',
+        'AGEN': l.admin?.nama_admin || '-',
+        'STATUS': l.status_lead || 'NEW',
+        'PAKET / DESTINASI': l.minat_destinasi || '-',
+        'TANGGAL TRIP': tripDate,
+        'PAX': l.jumlah_peserta ?? 0,
+        'ESTIMASI NILAI ORDER': l.estimasi_nilai_order ?? 0,
+        'KETERANGAN': l.catatan_khusus || '-'
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+    // Apply custom number formatting to ESTIMASI NILAI ORDER column (Column K, index 10)
+    // keeps raw data as integer while displaying with "Rp " and thousand separators
+    if (worksheet['!ref']) {
+      const range = XLSX.utils.decode_range(worksheet['!ref']);
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: 10 });
+        if (worksheet[cellAddress]) {
+          worksheet[cellAddress].z = '"Rp "#,##0';
+        }
+      }
+    }
+
+    worksheet['!cols'] = [
+      { wch: 15 }, // KODE
+      { wch: 18 }, // TANGGAL
+      { wch: 22 }, // NAMA
+      { wch: 16 }, // WHATSAPP
+      { wch: 15 }, // SOURCE
+      { wch: 18 }, // AGEN
+      { wch: 14 }, // STATUS
+      { wch: 25 }, // PAKET / DESTINASI
+      { wch: 14 }, // TANGGAL TRIP
+      { wch: 8 },  // PAX
+      { wch: 22 }, // ESTIMASI NILAI ORDER
+      { wch: 35 }  // KETERANGAN
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Leads');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    const nowStr = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+    const filename = `Data_Leads_TripBwi_${nowStr}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   } catch (err) {
     next(err);
   }
