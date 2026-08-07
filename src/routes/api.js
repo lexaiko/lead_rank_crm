@@ -1717,28 +1717,33 @@ router.get('/customers', authMiddleware, permissionMiddleware('customers', 'read
 
     const where = { is_ignored: isIgnored };
     if (isOwnScope(req.admin)) {
-      // CS-level roles only see customers whose (single) lead belongs to them
-      where.lead = { admin_id: req.admin.id };
+      // CS-level roles only see customers who have at least one lead belonging to them
+      where.leads = { some: { admin_id: req.admin.id } };
     }
 
     const customers = await prisma.customer.findMany({
       where,
-      include: { lead: true },
+      include: { leads: true },
       orderBy: { createdAt: 'desc' }
     });
 
     const result = customers.map(c => {
-      const lead = c.lead;
-      const totalRevenue = lead && lead.status_lead === 'CLOSED WON' ? (lead.estimasi_nilai_order || 0) : 0;
+      const userLeads = isOwnScope(req.admin)
+        ? (c.leads || []).filter(l => l.admin_id === req.admin.id)
+        : (c.leads || []);
+
+      const leadsCount = userLeads.length;
+      const latestLead = userLeads.length > 0 ? userLeads[userLeads.length - 1] : null;
+      const totalRevenue = userLeads.reduce((acc, l) => acc + (l.status_lead === 'CLOSED WON' ? (l.estimasi_nilai_order || 0) : 0), 0);
 
       return {
         id: c.id,
         nama_kontak: c.nama_kontak || 'Pelanggan WA',
         nomor_hp: c.nomor_hp,
-        leadsCount: lead ? 1 : 0,
-        lastStatus: lead ? lead.status_lead : 'NONE',
+        leadsCount,
+        lastStatus: latestLead ? latestLead.status_lead : 'NONE',
         totalRevenue,
-        leads: lead ? [lead] : []
+        leads: userLeads
       };
     });
 
@@ -1792,7 +1797,7 @@ router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
 
     if (isOwnScope(req.admin)) {
       const owned = await prisma.customer.findFirst({
-        where: { id: customerId, lead: { admin_id: req.admin.id } },
+        where: { id: customerId, leads: { some: { admin_id: req.admin.id } } },
         select: { id: true }
       });
       if (!owned) {
@@ -1838,7 +1843,7 @@ router.delete('/customers/:id', authMiddleware, async (req, res, next) => {
 
     if (isOwnScope(req.admin)) {
       const owned = await prisma.customer.findFirst({
-        where: { id: customerId, lead: { admin_id: req.admin.id } },
+        where: { id: customerId, leads: { some: { admin_id: req.admin.id } } },
         select: { id: true }
       });
       if (!owned) {

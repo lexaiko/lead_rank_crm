@@ -238,45 +238,45 @@ async function mergeLidCustomerRecord(lid, phone) {
   try {
     const lidCust = await prisma.customer.findUnique({
       where: { nomor_hp: lid },
-      include: { lead: { include: { messages: true } } }
+      include: { leads: { include: { messages: true } } }
     });
 
     if (!lidCust) return false;
 
     const phoneCust = await prisma.customer.findUnique({
       where: { nomor_hp: phone },
-      include: { lead: true }
+      include: { leads: true }
     });
 
     if (phoneCust) {
       console.log(`[LID Merge] Merging duplicate customer JID ${lid} into ${phone}...`);
 
-      // Get target lead for the real phone customer
-      let targetLead = phoneCust.lead;
-      if (!targetLead) {
-        const adminId = lidCust.lead?.admin_id || 10;
-        const kode_lead = await generateKodeLead(adminId);
-        targetLead = await prisma.lead.create({
-          data: {
-            kode_lead,
-            customer_id: phoneCust.id,
-            admin_id: adminId,
-            status_lead: 'NEW'
-          }
-        });
-      }
+      // Merge leads and messages per admin_id
+      for (const lidLead of (lidCust.leads || [])) {
+        let targetLead = phoneCust.leads?.find(l => l.admin_id === lidLead.admin_id);
+        if (!targetLead) {
+          const adminId = lidLead.admin_id || 10;
+          const kode_lead = await generateKodeLead(adminId);
+          targetLead = await prisma.lead.create({
+            data: {
+              kode_lead,
+              customer_id: phoneCust.id,
+              admin_id: adminId,
+              status_lead: 'NEW'
+            }
+          });
+        }
 
-      // Move all messages to the target lead
-      if (lidCust.lead) {
+        // Move all messages to the target lead
         await prisma.chatMessage.updateMany({
-          where: { lead_id: lidCust.lead.id },
+          where: { lead_id: lidLead.id },
           data: { lead_id: targetLead.id }
         });
+
+        // Enqueue the target lead to AI queue
+        await enqueueAIJob(targetLead.id);
       }
 
-      // Enqueue the target lead to AI queue
-      await enqueueAIJob(targetLead.id);
-      
       // Delete the duplicate LID customer record
       await prisma.customer.delete({
         where: { id: lidCust.id }
@@ -926,23 +926,30 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     }
   }
 
-  // 4. Pengecekan Lead — one customer has exactly one lead, so always reuse it
-  let lead = await prisma.lead.findUnique({ where: { customer_id: customer.id } });
+  // 4. Pengecekan Lead — find lead for this specific customer + admin combination
+  let lead = await prisma.lead.findUnique({
+    where: {
+      customer_id_admin_id: {
+        customer_id: customer.id,
+        admin_id: admin.id
+      }
+    }
+  });
 
-  // Reopen it if it was previously closed — there's no separate lead to fall back to
+  // Reopen it if it was previously closed
   if (lead && (lead.status_lead === 'CLOSED WON' || lead.status_lead === 'CLOSED LOST')) {
     try {
       lead = await prisma.lead.update({
         where: { id: lead.id },
         data: { status_lead: 'QUALIFIED', closed_at: null }
       });
-      console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp}`);
+      console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp} (Admin: ${admin.nama_admin})`);
     } catch (reopenErr) {
       console.error(`[Lead Reopen] Failed to reopen lead ${lead.kode_lead}:`, reopenErr);
     }
   }
 
-  // 5. Buat Lead Baru if this customer has never had one
+  // 5. Buat Lead Baru if this customer + admin combination doesn't have one yet
   if (!lead) {
     try {
       const kode_lead = await generateKodeLead(admin.id);
@@ -957,11 +964,18 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
           ...(greetingSource ? { referral_source: greetingSource } : {})
         }
       });
-      console.log(`Created new active lead ${kode_lead} for customer ${customerHp}${greetingSource ? ` (referral: ${greetingSource} via greeting)` : ''}`);
+      console.log(`Created new active lead ${kode_lead} for customer ${customerHp} (Admin: ${admin.nama_admin})${greetingSource ? ` (referral: ${greetingSource} via greeting)` : ''}`);
     } catch (leadErr) {
       // If lead creation fails due to a race condition, another request already created it
       if (leadErr.code === 'P2002') {
-        lead = await prisma.lead.findUnique({ where: { customer_id: customer.id } });
+        lead = await prisma.lead.findUnique({
+          where: {
+            customer_id_admin_id: {
+              customer_id: customer.id,
+              admin_id: admin.id
+            }
+          }
+        });
       }
       if (!lead) throw leadErr;
     }

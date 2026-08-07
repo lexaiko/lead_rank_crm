@@ -36,7 +36,7 @@ model Customer {
   nomor_hp    String   @unique @db.VarChar(20)
   nama_kontak String?  @db.VarChar(100)
   is_ignored  Boolean  @default(false)
-  lead        Lead?
+  leads       Lead[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -44,7 +44,7 @@ model Customer {
 model Lead {
   id                           Int           @id @default(autoincrement())
   kode_lead                    String        @unique @db.VarChar(50)
-  customer_id                  Int           @unique
+  customer_id                  Int
   customer                     Customer      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
   admin_id                     Int
   admin                        Admin         @relation(fields: [admin_id], references: [id])
@@ -69,6 +69,8 @@ model Lead {
   createdAt                    DateTime      @default(now())
   updatedAt                    DateTime      @updatedAt
 
+  @@unique([customer_id, admin_id])
+  @@index([customer_id])
   @@index([status_lead])
   @@index([updatedAt])
 }
