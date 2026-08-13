@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
 import { sanitizeString, extractAndParseJson } from '../utils/sanitize.js';
-import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearAdminSession } from '../services/whatsapp.js';
+import { startAdminSession, activeSockets, activeQrs, logoutAdminSession, clearAdminSession, getAdminWASessionStatus } from '../services/whatsapp.js';
 import { processAIQueue } from '../cron/ai-worker.js';
 import { authMiddleware, permissionMiddleware, isOwnScope } from '../middleware/auth.js';
 import { getGreetingRules, createGreetingRule, updateGreetingRule, deleteGreetingRule, isDuplicateKeywordError } from '../services/greeting-rules.js';
@@ -138,6 +138,111 @@ router.get('/auth/me', authMiddleware, (req, res) => {
       data_scope: admin.role.data_scope
     }
   });
+});
+
+// Self-Service Profile & WA Connection Management for Logged-In User (CS / Admin)
+router.get('/me/whatsapp/status', authMiddleware, async (req, res, next) => {
+  try {
+    const adminId = req.admin.id;
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+    const statusInfo = getAdminWASessionStatus(adminId);
+
+    res.json({
+      success: true,
+      adminId,
+      nomor_wa: admin?.nomor_wa || null,
+      nama_admin: admin?.nama_admin || '',
+      connected: statusInfo.connected,
+      connectedUser: statusInfo.connectedUser,
+      qr: statusInfo.qr
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/me/whatsapp/start', authMiddleware, async (req, res, next) => {
+  try {
+    const adminId = req.admin.id;
+    const admin = await prisma.admin.findUnique({ where: { id: adminId } });
+    if (!admin) return res.status(404).json({ success: false, error: 'Admin not found' });
+    if (!admin.nomor_wa) return res.status(400).json({ success: false, error: 'Nomor WA belum diatur di akun Anda. Hubungi administrator.' });
+
+    startAdminSession(adminId).catch(err => {
+      console.error(`Async start session failed for Admin ${adminId}:`, err);
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    res.json({ success: true, message: 'Proses koneksi WhatsApp dimulai. Silakan scan QR jika belum terhubung.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/me/whatsapp/logout', authMiddleware, async (req, res, next) => {
+  try {
+    const adminId = req.admin.id;
+    await logoutAdminSession(adminId);
+    res.json({ success: true, message: 'Koneksi WhatsApp berhasil diputuskan.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/me/whatsapp/clear', authMiddleware, async (req, res, next) => {
+  try {
+    const adminId = req.admin.id;
+    await clearAdminSession(adminId);
+    res.json({ success: true, message: 'Data sesi WhatsApp berhasil dibersihkan.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/me/profile', authMiddleware, async (req, res, next) => {
+  try {
+    const adminId = req.admin.id;
+    const { nama_admin, nomor_wa, password } = req.body;
+
+    const updateData = {};
+    if (nama_admin) updateData.nama_admin = nama_admin;
+    if (nomor_wa !== undefined) {
+      const normalized = nomor_wa ? normalizePhoneNumber(nomor_wa) : null;
+      if (normalized) {
+        const duplicate = await prisma.admin.findFirst({
+          where: { nomor_wa: normalized, NOT: { id: adminId } }
+        });
+        if (duplicate) {
+          return res.status(400).json({ success: false, error: 'Nomor WhatsApp sudah digunakan oleh akun lain.' });
+        }
+      }
+      updateData.nomor_wa = normalized;
+    }
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await prisma.admin.update({
+      where: { id: adminId },
+      data: updateData,
+      include: { role: true }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        id: updated.id,
+        nama_admin: updated.nama_admin,
+        nomor_wa: updated.nomor_wa,
+        username: updated.username,
+        role: updated.role.name,
+        permissions: updated.role.permissions,
+        data_scope: updated.role.data_scope
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Role Management Endpoints
@@ -481,16 +586,14 @@ router.get('/admins/:id/session', authMiddleware, permissionMiddleware('settings
 router.get('/admins/:id/status', authMiddleware, permissionMiddleware('settings', 'read'), async (req, res, next) => {
   try {
     const adminId = parseInt(req.params.id);
-    const hasSocket = activeSockets.has(adminId);
-    const socket = activeSockets.get(adminId);
-    const connected = hasSocket && socket?.user;
+    const statusInfo = getAdminWASessionStatus(adminId);
 
     res.json({
       success: true,
       adminId,
-      connected: !!connected,
-      // Current QR payload so the QR page can detect rotation and re-render (QR codes rotate every ~20-60s)
-      qr: connected ? null : (activeQrs.get(adminId) || null)
+      connected: statusInfo.connected,
+      connectedUser: statusInfo.connectedUser,
+      qr: statusInfo.qr
     });
   } catch (err) {
     next(err);
@@ -1043,7 +1146,7 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
       referral = '',
       date_from = '',
       date_to = '',
-      sort_by = 'last_activity_at',
+      sort_by = 'updatedAt',
       sort_order = 'desc',
       deep_analysis = 'ALL'
     } = req.query;
@@ -1128,13 +1231,9 @@ router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), asyn
           admin: true,
           _count: { select: { messages: true } }
         },
-        // Always push leads with null last_activity_at to the bottom
-        orderBy: [
-          ...(sortField === 'last_activity_at'
-            ? [{ last_activity_at: { sort: sortDir, nulls: 'last' } }]
-            : [{ [sortField]: sortDir }, { last_activity_at: { sort: 'desc', nulls: 'last' } }]
-          )
-        ],
+        orderBy: sortField === 'last_activity_at'
+          ? [{ last_activity_at: { sort: sortDir, nulls: 'last' } }, { updatedAt: sortDir }, { id: sortDir }]
+          : [{ [sortField]: sortDir }, { createdAt: sortDir }, { id: sortDir }],
         skip,
         take: limitNum
       }),

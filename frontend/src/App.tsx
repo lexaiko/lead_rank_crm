@@ -13,6 +13,7 @@ import { Roles } from './pages/Roles';
 import { ErrorLogs } from './pages/ErrorLogs';
 import { AIConfig } from './pages/AIConfig';
 import { ExportData } from './pages/ExportData';
+import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Compass, Loader2 } from 'lucide-react';
 
@@ -76,6 +77,8 @@ export const App: React.FC = () => {
         return canAccess('error-logs') ? <ErrorLogs /> : <Dashboard />;
       case 'export':
         return (canAccess('export') || canAccess('leads')) ? <ExportData /> : <Dashboard />;
+      case 'profile':
+        return <Profile />;
       default:
         return <Dashboard />;
     }

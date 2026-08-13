@@ -11,7 +11,7 @@ const DEFAULT_LEADS_PARAMS: LeadsParams = {
   referral: '',
   date_from: '',
   date_to: '',
-  sort_by: 'last_activity_at',
+  sort_by: 'updatedAt',
   sort_order: 'desc',
   deep_analysis: 'ALL',
 };
@@ -25,7 +25,7 @@ interface StoreState {
   activeChatMessages: ChatMessage[];
   selectedLeadId: number | null;
   openDeepAnalysisModal: boolean;
-  activeTab: 'dashboard' | 'leads' | 'followup' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles' | 'error-logs' | 'ai-config' | 'export';
+  activeTab: 'dashboard' | 'leads' | 'followup' | 'customers' | 'ai-queue' | 'reports' | 'settings' | 'users' | 'roles' | 'error-logs' | 'ai-config' | 'export' | 'profile';
   theme: 'light' | 'dark';
   isLoading: boolean;
   isLoadingMessages: boolean;
@@ -40,11 +40,13 @@ interface StoreState {
   user: (Admin & { permissions: Record<string, 'read' | 'write' | 'none'>; data_scope: 'all' | 'own' }) | null;
   checkingAuth: boolean;
   roles: Role[];
+  myWaConnected: boolean | null;
 
   // Actions
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  fetchMyWaStatus: () => Promise<void>;
   fetchRoles: () => Promise<void>;
   updateRolePermissions: (roleId: number, permissions: any) => Promise<boolean>;
   updateRoleDataScope: (roleId: number, data_scope: 'all' | 'own') => Promise<boolean>;
@@ -103,6 +105,7 @@ export const useStore = create<StoreState>((set, get) => ({
   user: null,
   checkingAuth: true,
   roles: [],
+  myWaConnected: null,
 
   // Actions
   login: async (username, password) => {
@@ -111,6 +114,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const res = await api.login(username, password);
       if (res.success) {
         set({ user: res.data });
+        get().fetchMyWaStatus();
         return { success: true };
       }
       return { success: false, error: res.error || 'Invalid credentials' };
@@ -128,7 +132,7 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       console.error('Error logging out', e);
     } finally {
-      set({ user: null, activeTab: 'dashboard' });
+      set({ user: null, activeTab: 'dashboard', myWaConnected: null });
     }
   },
 
@@ -138,6 +142,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const res = await api.getMe();
       if (res.success) {
         set({ user: res.data });
+        get().fetchMyWaStatus();
       } else {
         set({ user: null });
       }
@@ -146,6 +151,17 @@ export const useStore = create<StoreState>((set, get) => ({
       set({ user: null });
     } finally {
       set({ checkingAuth: false });
+    }
+  },
+
+  fetchMyWaStatus: async () => {
+    try {
+      const res = await api.getMyWAStatus();
+      if (res.success) {
+        set({ myWaConnected: res.connected });
+      }
+    } catch (e) {
+      console.error('Error fetching WA status:', e);
     }
   },
 

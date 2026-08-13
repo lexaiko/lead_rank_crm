@@ -1302,4 +1302,27 @@ export async function clearAdminSession(adminId) {
   }
 }
 
+/**
+ * Check connection status of an Admin's WhatsApp session
+ * @param {number|string} adminId 
+ */
+export function getAdminWASessionStatus(adminId) {
+  const numId = Number(adminId);
+  const strId = String(adminId);
+  const sock = activeSockets.get(numId) || activeSockets.get(strId);
+  const qr = activeQrs.get(numId) || activeQrs.get(strId);
 
+  const userJid = sock?.user?.id || sock?.authState?.creds?.me?.id || null;
+  const connected = !!(sock && userJid);
+
+  let connectedUser = null;
+  if (userJid) {
+    connectedUser = userJid.split('@')[0].split(':')[0];
+  }
+
+  return {
+    connected,
+    connectedUser,
+    qr: connected ? null : (qr || null)
+  };
+}

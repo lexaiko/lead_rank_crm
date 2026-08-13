@@ -20,7 +20,8 @@ import {
   MoreHorizontal,
   Terminal,
   Sparkles,
-  FileSpreadsheet
+  FileSpreadsheet,
+  User
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -30,17 +31,28 @@ export const Sidebar: React.FC = () => {
     theme, 
     toggleTheme,
     user,
-    logout
+    logout,
+    myWaConnected,
+    fetchMyWaStatus
   } = useStore();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      fetchMyWaStatus();
+      const interval = setInterval(() => fetchMyWaStatus(), 10000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
     { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
+    { id: 'profile', label: 'Profil Saya / WA', shortLabel: 'Profil', icon: User },
     { id: 'export', label: 'Export Data Excel', shortLabel: 'Export', icon: FileSpreadsheet },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'ai-config', label: 'AI Settings & Models', shortLabel: 'AI Models', icon: Sparkles },
@@ -80,6 +92,7 @@ export const Sidebar: React.FC = () => {
           {menuItems
             .filter((item) => {
               if (!user) return false;
+              if (item.id === 'profile') return true; // Profile is accessible to ALL users
               const permissions = user.permissions || {};
               const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
               const perm = permissions[permissionKey] || (item.id === 'export' ? permissions['leads'] : 'none');
@@ -104,7 +117,20 @@ export const Sidebar: React.FC = () => {
                   title={item.label}
                 >
                   <Icon size={18} className="shrink-0" />
-                  {!isCollapsed && <span>{item.label}</span>}
+                  {!isCollapsed && (
+                    <div className="flex items-center justify-between w-full">
+                      <span>{item.label}</span>
+                      {item.id === 'profile' && myWaConnected !== null && (
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          myWaConnected 
+                            ? 'bg-emerald-500/20 text-emerald-500' 
+                            : 'bg-rose-500/20 text-rose-500'
+                        }`}>
+                          {myWaConnected ? 'Connected' : 'Disconnected'}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {isActive && !isCollapsed && (
                     <div className="absolute right-3 h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
                   )}
@@ -119,23 +145,32 @@ export const Sidebar: React.FC = () => {
         {/* User profile & Logout */}
         {user && (
           <div className="px-2">
-            <div className={`flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-muted/40 border border-border/50 ${isCollapsed ? 'flex-col py-2' : ''}`}>
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-muted/40 hover:bg-muted/80 border border-border/50 transition-all ${isCollapsed ? 'flex-col py-2' : ''}`}>
+              <button 
+                onClick={() => setTab('profile')}
+                className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
+                title="Buka Profil Saya & Status WA"
+              >
                 {/* User Avatar Initials */}
-                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20">
+                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20 relative">
                   {user.nama_admin.slice(0, 2)}
+                  <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${
+                    myWaConnected ? 'bg-emerald-500' : 'bg-rose-500'
+                  }`} />
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col text-left min-w-0">
                     <span className="text-[11px] font-black text-foreground leading-tight truncate" title={user.nama_admin}>
                       {user.nama_admin}
                     </span>
-                    <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">
-                      {user.role}
+                    <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
+                      myWaConnected ? 'text-emerald-500' : 'text-rose-500'
+                    }`}>
+                      {myWaConnected ? 'Connected' : 'Disconnected'}
                     </span>
                   </div>
                 )}
-              </div>
+              </button>
               
               {/* Logout Button */}
               <button
@@ -154,16 +189,16 @@ export const Sidebar: React.FC = () => {
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all cursor-pointer"
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            {!isCollapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
 
-          {/* Collapse toggle (desktop only) */}
+          {/* Collapse Sidebar Button */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:block p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 cursor-pointer"
+            className="p-1.5 rounded-xl bg-muted/60 text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             <Menu size={18} />
@@ -185,13 +220,43 @@ export const Sidebar: React.FC = () => {
         </div>
         
         {/* Mobile Header Quick Actions */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        {(() => {
+          const hasWaNumber = !!(user?.nomor_wa && user.nomor_wa.trim().length > 5);
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTab('profile')}
+                className={`p-1.5 px-2.5 rounded-xl border transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  !hasWaNumber
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                    : myWaConnected === true
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                }`}
+                title="Profil Saya & WA"
+              >
+                <div className={`h-2 w-2 rounded-full ${
+                  !hasWaNumber
+                    ? 'bg-amber-500'
+                    : myWaConnected === true
+                    ? 'bg-emerald-500 animate-pulse'
+                    : 'bg-rose-500'
+                }`} />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {!hasWaNumber ? 'No WA' : myWaConnected === true ? 'Connected' : 'Disconnected'}
+                </span>
+              </button>
+
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground transition-all shrink-0 cursor-pointer"
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
@@ -303,15 +368,22 @@ export const Sidebar: React.FC = () => {
                   {/* User profile & Logout at bottom of mobile sheet */}
                   {user && (
                     <div className="border-t border-border/50 pt-3 mt-1 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <button 
+                        onClick={() => {
+                          setTab('profile');
+                          setShowMoreMenu(false);
+                        }}
+                        className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
+                        title="Buka Profil Saya & Status WA"
+                      >
                         <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20">
                           {user.nama_admin.slice(0, 2)}
                         </div>
                         <div className="flex flex-col text-left min-w-0">
                           <span className="text-xs font-bold text-foreground truncate">{user.nama_admin}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{user.role}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{user.role} (Profil WA)</span>
                         </div>
-                      </div>
+                      </button>
                       <button
                         onClick={() => {
                           setShowMoreMenu(false);

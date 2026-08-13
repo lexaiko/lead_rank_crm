@@ -84,6 +84,35 @@ export const api = {
     return res.json();
   },
 
+  async getMyWAStatus(): Promise<{ success: boolean; connected: boolean; qr: string | null; nomor_wa: string | null; nama_admin: string; connectedUser?: string }> {
+    const res = await fetch(`${API_BASE}/me/whatsapp/status`);
+    return res.json();
+  },
+
+  async startMyWASession(): Promise<{ success: boolean; message: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/me/whatsapp/start`, { method: 'POST' });
+    return res.json();
+  },
+
+  async logoutMyWASession(): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/me/whatsapp/logout`, { method: 'POST' });
+    return res.json();
+  },
+
+  async clearMyWASession(): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/me/whatsapp/clear`, { method: 'POST' });
+    return res.json();
+  },
+
+  async updateMyProfile(payload: { nama_admin?: string; nomor_wa?: string; password?: string }): Promise<{ success: boolean; data?: Admin; error?: string }> {
+    const res = await fetch(`${API_BASE}/me/profile`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
   async getLeads(params: Partial<LeadsParams> = {}): Promise<{ success: boolean; data: LeadListItem[]; meta: LeadsMeta }> {
     const query = new URLSearchParams();
     if (params.page)      query.set('page',       String(params.page));

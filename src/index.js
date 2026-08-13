@@ -72,6 +72,14 @@ app.get('*', (req, res, next) => {
 
 // Global error handling middleware (production-grade)
 app.use((err, req, res, next) => {
+  // Handle invalid/malformed URI requests cleanly (e.g., bot scanner probes like /%c0)
+  if (err instanceof URIError || err.status === 400) {
+    return res.status(400).json({
+      success: false,
+      error: 'Bad Request: Malformed URI sequence'
+    });
+  }
+
   console.error('[Global Error]', err);
   res.status(err.status || 500).json({
     success: false,

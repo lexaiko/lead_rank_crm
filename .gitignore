@@ -78,4 +78,6 @@ mobile/
 # Office temporary lock files
 ~$*
 
-
+# Database & migration backups
+*.sql
+*.zip
