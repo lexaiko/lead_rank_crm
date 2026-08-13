@@ -13,6 +13,7 @@ import {
   Shield, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   Loader2,
   Save
 } from 'lucide-react';
@@ -28,6 +29,7 @@ export const Profile: React.FC = () => {
   
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Edit profile form state
@@ -102,8 +104,12 @@ export const Profile: React.FC = () => {
     }
   };
 
-  const handleLogoutSession = async () => {
-    if (!confirm('Apakah Anda yakin ingin memutuskan koneksi WhatsApp ini?')) return;
+  const handleLogoutSession = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogoutSession = async () => {
+    setShowLogoutModal(false);
     setActionLoading(true);
     setNotification(null);
     try {
@@ -451,6 +457,45 @@ export const Profile: React.FC = () => {
           </form>
         </div>
       </div>
+
+      {/* Custom Disconnect Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card border border-rose-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-scale-up">
+            <div className="flex items-center gap-3.5 border-b border-border/40 pb-4">
+              <div className="h-12 w-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="font-heading font-black text-lg text-foreground">Putuskan Sesi WhatsApp?</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Konfirmasi Pemutusan Koneksi WhatsApp</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Apakah Anda yakin ingin memutuskan koneksi sesi WhatsApp akun ini? Setelah terputus, sistem tidak akan dapat menerima atau memproses pesan pesan masuk sampai Anda melakukan <b>Scan QR (Re-connect)</b> kembali.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-muted text-muted-foreground hover:text-foreground text-xs font-bold transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmLogoutSession}
+                className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <LogOut size={15} />
+                <span>Ya, Putuskan Sesi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
