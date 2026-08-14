@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Bot, RefreshCw, AlertCircle, Play, CheckCircle2, Loader2, Calendar, ChevronLeft, ChevronRight, Trash2, XCircle } from 'lucide-react';
+import { Bot, RefreshCw, AlertCircle, Play, CheckCircle2, Loader2, Calendar, ChevronLeft, ChevronRight, Trash2, XCircle, Search, X, Filter } from 'lucide-react';
 
 const CountdownTimer: React.FC<{ targetDateStr: string | null; status: string }> = ({ targetDateStr, status }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -59,6 +59,10 @@ export const AIQueue: React.FC = () => {
 
   const canWrite = user?.permissions?.queue === 'write';
 
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
   // Confirm and Toast Notifications
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -83,10 +87,45 @@ export const AIQueue: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const totalItems = aiQueue.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  // Filter Queue based on Search Query and Status Filter
+  const filteredQueue = aiQueue.filter((job) => {
+    if (statusFilter !== 'ALL' && job.status !== statusFilter) {
+      return false;
+    }
+
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+
+    const idStr = `#${job.id}`.toLowerCase();
+    const idNumStr = String(job.id);
+    const kodeLead = (job.lead?.kode_lead || '').toLowerCase();
+    const leadIdStr = String(job.lead_id);
+    const customerName = (job.lead?.customerName || '').toLowerCase();
+    const customerHp = (job.lead?.customerHp || '').toLowerCase();
+    const adminName = (job.lead?.adminName || '').toLowerCase();
+    const statusStr = (job.status || '').toLowerCase();
+
+    return (
+      idStr.includes(q) ||
+      idNumStr.includes(q) ||
+      kodeLead.includes(q) ||
+      leadIdStr.includes(q) ||
+      customerName.includes(q) ||
+      customerHp.includes(q) ||
+      adminName.includes(q) ||
+      statusStr.includes(q)
+    );
+  });
+
+  // Reset page when filter/search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  const totalItems = filteredQueue.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedQueue = aiQueue.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedQueue = filteredQueue.slice(startIndex, startIndex + itemsPerPage);
 
   const getPageNumbers = () => {
     if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -236,13 +275,73 @@ export const AIQueue: React.FC = () => {
             </span>
           </div>
         </div>
-        <div className="p-4 bg-card border border-border/80 rounded-xl flex justify-between items-center">
+        <div 
+          onClick={() => setStatusFilter(statusFilter === 'FAILED' ? 'ALL' : 'FAILED')}
+          className={`p-4 bg-card border rounded-xl flex justify-between items-center cursor-pointer transition-all ${
+            statusFilter === 'FAILED' ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-border/80 hover:border-border'
+          }`}
+        >
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Failed</span>
             <span className="text-xl font-extrabold font-heading text-rose-500 mt-1">
               {aiQueue.filter(j => j.status === 'FAILED').length}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Search & Filter Toolbar */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-card border border-border/80 p-3.5 rounded-2xl shadow-sm">
+        {/* Search Input Box */}
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3.5 top-3 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari Kode Lead, Nama Pelanggan, No WA, CS, atau Job ID (#123)..."
+            className="w-full pl-10 pr-9 py-2 rounded-xl bg-background border border-border text-foreground text-xs font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+              title="Hapus kata kunci pencarian"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Status Filter Buttons */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 shrink-0">
+          {[
+            { id: 'ALL', label: 'Semua', count: aiQueue.length },
+            { id: 'WAITING', label: 'Waiting', count: aiQueue.filter(j => j.status === 'WAITING').length },
+            { id: 'PROCESSING', label: 'Processing', count: aiQueue.filter(j => j.status === 'PROCESSING').length },
+            { id: 'DONE', label: 'Done', count: aiQueue.filter(j => j.status === 'DONE').length },
+            { id: 'FAILED', label: 'Failed', count: aiQueue.filter(j => j.status === 'FAILED').length },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-background text-muted-foreground'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -268,7 +367,19 @@ export const AIQueue: React.FC = () => {
                 {paginatedQueue.length === 0 ? (
                   <tr>
                     <td colSpan={canWrite ? 9 : 8} className="px-5 py-12 text-center text-sm text-muted-foreground">
-                      No active background jobs present in the queue database.
+                      {searchQuery || statusFilter !== 'ALL' ? (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <span>Tidak ada pekerjaan AI yang sesuai dengan kata kunci / filter Anda.</span>
+                          <button
+                            onClick={() => { setSearchQuery(''); setStatusFilter('ALL'); }}
+                            className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                          >
+                            Reset Kata Kunci & Filter
+                          </button>
+                        </div>
+                      ) : (
+                        <span>Tidak ada pekerjaan antrean AI aktif di dalam database.</span>
+                      )}
                     </td>
                   </tr>
                 ) : (
