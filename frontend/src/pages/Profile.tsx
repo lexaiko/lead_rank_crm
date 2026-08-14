@@ -174,7 +174,7 @@ export const Profile: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header Profile Title */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/50 pb-5">
         <div className="flex items-center gap-4">
