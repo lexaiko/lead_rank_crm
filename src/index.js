@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import dns from 'dns';
 import { rateLimit } from 'express-rate-limit';
 import { prisma } from './config/prisma.js';
 import { startAdminSession } from './services/whatsapp.js';
@@ -8,6 +9,11 @@ import { initCronJobs } from './cron/jobs.js';
 import { startAIWorker } from './cron/ai-worker.js';
 import apiRouter from './routes/api.js';
 import { authMiddleware } from './middleware/auth.js';
+
+// Prefer IPv4 for fetch/HTTP requests to prevent VPS IPv6 connection timeouts to WA CDN
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
 
 dotenv.config();
 

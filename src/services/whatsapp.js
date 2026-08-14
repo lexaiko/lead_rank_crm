@@ -720,18 +720,36 @@ const CHAT_MEDIA_DIR = path.join('uploads', 'chat-media');
  * and writes it to uploads/chat-media. Returns { media_type, media_path, media_mime } or null on failure.
  */
 async function downloadAndCompressImage(sock, msg, messageId) {
-  try {
-    const buffer = await downloadMediaMessage(
-      msg,
-      'buffer',
-      {},
-      {
-        logger: pino({ level: 'silent' }),
-        reuploadRequest: sock.updateMediaMessage
-      }
-    );
-    if (!buffer || buffer.length === 0) return null;
+  let buffer = null;
+  let attempts = 0;
+  const maxAttempts = 3;
 
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      buffer = await downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        {
+          logger: pino({ level: 'silent' }),
+          reuploadRequest: sock.updateMediaMessage
+        }
+      );
+      if (buffer && buffer.length > 0) break;
+    } catch (err) {
+      if (attempts >= maxAttempts) {
+        console.error(`[Media] Failed to download/compress image for message ${messageId} after ${maxAttempts} attempts:`, err.message);
+        return null;
+      }
+      console.warn(`[Media] Download attempt ${attempts}/${maxAttempts} failed for message ${messageId} (${err.message}). Retrying in 1.5s...`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  }
+
+  if (!buffer || buffer.length === 0) return null;
+
+  try {
     const compressed = await sharp(buffer)
       .rotate() // respect EXIF orientation
       .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
@@ -751,7 +769,7 @@ async function downloadAndCompressImage(sock, msg, messageId) {
       media_mime: 'image/jpeg'
     };
   } catch (err) {
-    console.error(`[Media] Failed to download/compress image for message ${messageId}:`, err.message);
+    console.error(`[Media] Failed to process/compress image buffer for message ${messageId}:`, err.message);
     return null;
   }
 }
