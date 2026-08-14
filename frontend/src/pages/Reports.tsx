@@ -54,6 +54,7 @@ export const Reports: React.FC = () => {
     QUALIFIED: byStatus['QUALIFIED'] || 0,
     HOT: byStatus['HOT'] || 0,
     WON: byStatus['CLOSED WON'] || 0,
+    LOST: byStatus['CLOSED LOST'] || 0,
   };
 
   const totalLeads = thisMonth.total;
@@ -93,6 +94,7 @@ export const Reports: React.FC = () => {
     { label: 'Prospect trip set', count: counts.PROSPECT, color: 'bg-blue-500' },
     { label: 'HOT payment pending', count: counts.HOT, color: 'bg-orange-500' },
     { label: 'CLOSED WON paid', count: counts.WON, color: 'bg-emerald-500' },
+    { label: 'CLOSED LOST failed', count: counts.LOST, color: 'bg-rose-500' },
   ];
 
   return (
