@@ -451,9 +451,14 @@ Tugasmu:
    - NEW: Status awal lead masuk / belum ada interaksi tanya paket dari pelanggan.
    - QUALIFIED: Pelanggan sudah mulai tanya-tanya mengenai paket, harga, destinasi, fasilitas, atau nego harga ("ada paket baluran?", "harga berapa kak?", "kemahalan kak"), tetapi belum lengkap pasti ketiga hal: destinasi, jumlah peserta, dan tanggal keberangkatan.
    - PROSPECT: Pelanggan sudah menyebutkan dengan JELAS ketiga hal ini: Destinasi, Jumlah Peserta, DAN Jadwal/Estimasi Waktu keberangkatan.
-   - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (nomor rekening, invoice, atau janji transfer).
-   - CLOSED WON: Pelanggan mengirimkan bukti transfer/pembayaran berhasil (termasuk verifikasi gambar).
+   - HOT: Pelanggan sudah setuju dan meminta instruksi pembayaran (nomor rekening, invoice, janji transfer, atau QRIS).
+   - CLOSED WON: Pelanggan mengirimkan bukti transfer/pembayaran berhasil (termasuk verifikasi gambar), atau mengirim pesan teks konfirmasi pembayaran (seperti "sudah transfer", "bukti bayar", "lunas", "dp 50%", "sudah tf").
    - CLOSED LOST: Pelanggan secara eksplisit menyatakan PEMBATALAN / TIDAK JADI ("ngga jadi", "gajadi kak kemahalan", "batal", "cancel", "pakai travel lain"). Catatan: Frasa "kemahalan" tanpa frasa batal tetap QUALIFIED/PROSPECT.
+
+   ATURAN TAMBAHAN KHUSUS (FORM RESERVASI, HYSTERESIS & BUKTI TRANSFER):
+   - ATURAN KHUSUS FORM RESERVASI: Jika dalam percakapan/summary terdapat FORM RESERVASI yang sudah terisi (atau dikirim oleh CS dan dikonfirmasi/diisi pelanggan), maka status_lead MINIMAL harus PROSPECT. Jika Form Reservasi sudah disertai instruksi pembayaran/nomor rekening, status_lead menjadi HOT.
+   - ATURAN HYSTERESIS (MENCEGAH DOWNGRADE): Jika status_lead saat ini (current_lead.status_lead) sudah PROSPECT, HOT, atau CLOSED WON, JANGAN PERNAH menurunkan statusnya kembali ke status lebih rendah (seperti QUALIFIED atau NEW) kecuali ada pernyataan pembatalan tegas (CLOSED LOST). Jika status saat ini sudah CLOSED WON, PERTAHANKAN status CLOSED WON tersebut kecuali ada pernyataan pembatalan tegas (CLOSED LOST).
+   - ATURAN BUKTI TRANSFER & PELUNASAN: Jika pelanggan mengirim bukti transfer/struk bayar (termasuk verifikasi gambar image_ref), atau mengirim pesan teks konfirmasi pembayaran (seperti "sudah transfer", "bukti bayar", "lunas", "dp 50%", "sudah di tf", "tf m-banking"), status_lead WAJIB berubah menjadi CLOSED WON.
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
 
