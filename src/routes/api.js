@@ -1884,6 +1884,28 @@ router.post('/customers', authMiddleware, async (req, res, next) => {
   }
 });
 
+/**
+ * Deletes all leads and associated child data (AI jobs, AI analyses, chat messages)
+ * for the given customer ID or array of customer IDs.
+ */
+export async function deleteLeadsForCustomer(customerIds) {
+  const ids = Array.isArray(customerIds) ? customerIds : [customerIds];
+  if (ids.length === 0) return;
+
+  const leads = await prisma.lead.findMany({
+    where: { customer_id: { in: ids } },
+    select: { id: true }
+  });
+  if (leads.length === 0) return;
+
+  const leadIds = leads.map(l => l.id);
+
+  await prisma.aIJob.deleteMany({ where: { lead_id: { in: leadIds } } }).catch(() => {});
+  await prisma.aIAnalysis.deleteMany({ where: { lead_id: { in: leadIds } } }).catch(() => {});
+  await prisma.chatMessage.deleteMany({ where: { lead_id: { in: leadIds } } }).catch(() => {});
+  await prisma.lead.deleteMany({ where: { id: { in: leadIds } } }).catch(() => {});
+}
+
 // Update Customer details
 router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
   try {
@@ -1907,7 +1929,13 @@ router.patch('/customers/:id', authMiddleware, async (req, res, next) => {
     const { is_ignored, nama_kontak, nomor_hp } = req.body;
 
     const updateData = {};
-    if (is_ignored !== undefined) updateData.is_ignored = is_ignored;
+    if (is_ignored !== undefined) {
+      updateData.is_ignored = is_ignored;
+      if (is_ignored === true) {
+        await deleteLeadsForCustomer(customerId);
+      }
+    }
+
     if (nama_kontak !== undefined) updateData.nama_kontak = nama_kontak;
     if (nomor_hp !== undefined) {
       const existing = await prisma.customer.findFirst({

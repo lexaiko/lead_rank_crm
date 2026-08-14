@@ -7,7 +7,7 @@ import { prisma } from './config/prisma.js';
 import { startAdminSession } from './services/whatsapp.js';
 import { initCronJobs } from './cron/jobs.js';
 import { startAIWorker } from './cron/ai-worker.js';
-import apiRouter from './routes/api.js';
+import apiRouter, { deleteLeadsForCustomer } from './routes/api.js';
 import { authMiddleware } from './middleware/auth.js';
 
 // Prefer IPv4 for fetch/HTTP requests to prevent VPS IPv6 connection timeouts to WA CDN
@@ -149,6 +149,21 @@ app.listen(PORT, async () => {
       }
     } else {
       console.log(`No active Admin accounts found in database.`);
+    }
+
+    // Cleanup all stale leads belonging to ignored contacts on server startup
+    try {
+      const ignoredCustomers = await prisma.customer.findMany({
+        where: { is_ignored: true },
+        select: { id: true }
+      });
+      if (ignoredCustomers.length > 0) {
+        const ids = ignoredCustomers.map(c => c.id);
+        await deleteLeadsForCustomer(ids);
+        console.log(`[Startup Cleanup] Successfully purged leads for ${ids.length} ignored contact(s).`);
+      }
+    } catch (cleanupErr) {
+      console.error('[Startup Cleanup Error] Failed to purge leads for ignored contacts:', cleanupErr.message);
     }
   } catch (err) {
     console.error('Failed to query active Admins on startup:', err.message);
