@@ -1456,6 +1456,14 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       customer: { is_ignored: false },
       ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {})
     };
+    const closedPeriodFilter = {
+      customer: { is_ignored: false },
+      ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {}),
+      OR: [
+        { closed_at: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) } },
+        { closed_at: null, updatedAt: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) } }
+      ]
+    };
     const allTimeFilter = {
       customer: { is_ignored: false },
       ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {})
@@ -1465,7 +1473,9 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
     // Run all aggregation queries in parallel
     const [
       admins,
-      statusGroups,
+      activeStatusGroups,
+      closedWonCount,
+      closedLostCount,
       potentialWonAgg,
       potentialLostAgg,
       referralGroups,
@@ -1473,6 +1483,7 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       adminWon,
       adminPotential,
       totalLeads,
+      periodLeadsCount,
       todayCount,
       destinationLeads,
       byDayRaw,
@@ -1487,11 +1498,21 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         include: { role: true }
       }),
 
-      // Status counts for the selected period
+      // Active status counts for the selected period (by creation date)
       prisma.lead.groupBy({
         by: ['status_lead'],
-        where: periodFilter,
+        where: { ...periodFilter, status_lead: { in: ['NEW', 'QUALIFIED', 'PROSPECT', 'HOT'] } },
         _count: { id: true }
+      }),
+
+      // CLOSED WON count for the selected period (by closed_at / closing date)
+      prisma.lead.count({
+        where: { ...closedPeriodFilter, status_lead: 'CLOSED WON' }
+      }),
+
+      // CLOSED LOST count for the selected period (by closed_at / closing date)
+      prisma.lead.count({
+        where: { ...closedPeriodFilter, status_lead: 'CLOSED LOST' }
       }),
 
       // Potential won: pipeline value of active leads QUALIFIED..HOT (closed-won revenue is recorded in a separate system)
@@ -1500,9 +1521,9 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         _sum: { estimasi_nilai_order: true }
       }),
 
-      // Potential lost: value of CLOSED LOST leads for the selected period
+      // Potential lost: value of CLOSED LOST leads for the selected period (by closing date)
       prisma.lead.aggregate({
-        where: { ...periodFilter, status_lead: 'CLOSED LOST' },
+        where: { ...closedPeriodFilter, status_lead: 'CLOSED LOST' },
         _sum: { estimasi_nilai_order: true }
       }),
 
@@ -1520,10 +1541,10 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         _count: { id: true }
       }),
 
-      // Per-admin: won count in the selected period
+      // Per-admin: won count in the selected period (by closing date)
       prisma.lead.groupBy({
         by: ['admin_id'],
-        where: { ...periodFilter, status_lead: 'CLOSED WON' },
+        where: { ...closedPeriodFilter, status_lead: 'CLOSED WON' },
         _count: { id: true }
       }),
 
@@ -1536,6 +1557,9 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
 
       // Total active leads (all time, respecting admin scope/filter)
       prisma.lead.count({ where: allTimeFilter }),
+
+      // Total leads created during the selected period filter (by createdAt)
+      prisma.lead.count({ where: periodFilter }),
 
       // New leads today (respecting admin scope/filter)
       prisma.lead.count({ where: { ...allTimeFilter, createdAt: { gte: today } } }),
@@ -1635,7 +1659,9 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
 
     // --- Build status map ---
     const byStatus = {};
-    statusGroups.forEach(g => { byStatus[g.status_lead] = g._count.id; });
+    activeStatusGroups.forEach(g => { byStatus[g.status_lead] = g._count.id; });
+    byStatus['CLOSED WON'] = closedWonCount;
+    byStatus['CLOSED LOST'] = closedLostCount;
 
     // --- Build referral map ---
     const byReferral = {};
@@ -1710,7 +1736,7 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         stats: {
           totalLeads,
           thisMonth: {
-            total: statusGroups.reduce((s, g) => s + g._count.id, 0),
+            total: periodLeadsCount,
             today: todayCount,
             byStatus,
             potentialWon: Number(potentialWonAgg._sum.estimasi_nilai_order || 0),

@@ -129,6 +129,11 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
       const lwStr = formatDateString(lastWeek);
       onChange(lwStr, todayStr, 'WEEK');
       setIsOpen(false);
+    } else if (type === 'THIS_MONTH') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const fdStr = formatDateString(firstDay);
+      onChange(fdStr, todayStr, 'THIS_MONTH');
+      setIsOpen(false);
     } else if (type === 'MONTH') {
       const lastMonth = new Date();
       lastMonth.setDate(today.getDate() - 30);
@@ -152,6 +157,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     if (presetType === 'TODAY') return 'Hari Ini';
     if (presetType === 'YESTERDAY') return 'Kemarin';
     if (presetType === 'WEEK') return '7 Hari Terakhir';
+    if (presetType === 'THIS_MONTH') return 'Bulan Ini';
     if (presetType === 'MONTH') return '30 Hari Terakhir';
 
     if (startDate && endDate) {
@@ -213,11 +219,12 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
           <div className="flex flex-row sm:flex-col gap-1 overflow-x-auto sm:overflow-x-visible pb-2 sm:pb-0 border-b sm:border-b-0 sm:border-r border-border/60 pr-0 sm:pr-3 shrink-0">
             <span className="hidden sm:block text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Preset Cepat</span>
             {[
-              { id: 'ALL', label: 'Semua Waktu' },
+              { id: 'THIS_MONTH', label: 'Bulan Ini' },
+              { id: 'MONTH', label: '30 Hari Terakhir' },
+              { id: 'WEEK', label: '7 Hari Terakhir' },
               { id: 'TODAY', label: 'Hari Ini' },
               { id: 'YESTERDAY', label: 'Kemarin' },
-              { id: 'WEEK', label: '7 Hari Terakhir' },
-              { id: 'MONTH', label: '30 Hari Terakhir' },
+              { id: 'ALL', label: 'Semua Waktu' },
               { id: 'CUSTOM', label: 'Kustom Tanggal' },
             ].map((p) => (
               <button

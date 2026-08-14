@@ -12,9 +12,27 @@ export const Reports: React.FC = () => {
   const isOwnScope = user?.data_scope === 'own';
 
   const [adminFilter, setAdminFilter] = useState('ALL');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [dateFilterType, setDateFilterType] = useState('ALL');
+
+  // Default to THIS_MONTH (Bulan Ini: Tanggal 1 Bulan Berjalan s/d Hari Ini)
+  const getInitialDates = () => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    return {
+      from: fmt(firstDay),
+      to: fmt(today)
+    };
+  };
+
+  const initialDates = getInitialDates();
+  const [dateFrom, setDateFrom] = useState(initialDates.from);
+  const [dateTo, setDateTo] = useState(initialDates.to);
+  const [dateFilterType, setDateFilterType] = useState('THIS_MONTH');
 
   useEffect(() => {
     if (!isOwnScope) fetchAdmins();
@@ -29,10 +47,11 @@ export const Reports: React.FC = () => {
   }, [adminFilter, dateFrom, dateTo]);
 
   const resetFilters = () => {
+    const d = getInitialDates();
     setAdminFilter('ALL');
-    setDateFrom('');
-    setDateTo('');
-    setDateFilterType('ALL');
+    setDateFrom(d.from);
+    setDateTo(d.to);
+    setDateFilterType('THIS_MONTH');
   };
 
   if (!dashboardData) {

@@ -14,8 +14,7 @@ interface CustomNotice {
 
 const getDefaultDates = () => {
   const today = new Date();
-  const lastMonth = new Date();
-  lastMonth.setDate(today.getDate() - 30);
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   
   const formatDateString = (date: Date) => {
     const y = date.getFullYear();
@@ -25,7 +24,7 @@ const getDefaultDates = () => {
   };
 
   return {
-    start: formatDateString(lastMonth),
+    start: formatDateString(firstDayOfMonth),
     end: formatDateString(today)
   };
 };
@@ -33,11 +32,11 @@ const getDefaultDates = () => {
 export const ExportData: React.FC = () => {
   const { user, admins, fetchAdmins } = useStore();
 
-  // Local filter states for export (defaults to 30 days range to prevent loading full database)
+  // Local filter states for export (defaults to THIS_MONTH range: 1st of month to today)
   const defaultDates = getDefaultDates();
   const [dateFrom, setDateFrom] = useState<string>(defaultDates.start);
   const [dateTo, setDateTo] = useState<string>(defaultDates.end);
-  const [presetType, setPresetType] = useState<string>('MONTH');
+  const [presetType, setPresetType] = useState<string>('THIS_MONTH');
   const [status, setStatus] = useState<string>('ALL');
   const [adminId, setAdminId] = useState<string>('');
   const [referral, setReferral] = useState<string>('ALL');
@@ -154,7 +153,7 @@ export const ExportData: React.FC = () => {
     const { start, end } = getDefaultDates();
     setDateFrom(start);
     setDateTo(end);
-    setPresetType('MONTH');
+    setPresetType('THIS_MONTH');
     setStatus('ALL');
     setAdminId('');
     setReferral('ALL');
