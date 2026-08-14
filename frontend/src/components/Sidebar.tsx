@@ -52,7 +52,6 @@ export const Sidebar: React.FC = () => {
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
     { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
-    { id: 'profile', label: 'Profil Saya / WA', shortLabel: 'Profil', icon: User },
     { id: 'export', label: 'Export Data Excel', shortLabel: 'Export', icon: FileSpreadsheet },
     { id: 'ai-queue', label: 'AI Worker Queue', shortLabel: 'Queue', icon: Bot },
     { id: 'ai-config', label: 'AI Settings & Models', shortLabel: 'AI Models', icon: Sparkles },
@@ -92,7 +91,6 @@ export const Sidebar: React.FC = () => {
           {menuItems
             .filter((item) => {
               if (!user) return false;
-              if (item.id === 'profile') return true; // Profile is accessible to ALL users
               const permissions = user.permissions || {};
               const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
               const perm = permissions[permissionKey] || (item.id === 'export' ? permissions['leads'] : 'none');
@@ -120,15 +118,6 @@ export const Sidebar: React.FC = () => {
                   {!isCollapsed && (
                     <div className="flex items-center justify-between w-full">
                       <span>{item.label}</span>
-                      {item.id === 'profile' && myWaConnected !== null && (
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                          myWaConnected 
-                            ? 'bg-emerald-500/20 text-emerald-500' 
-                            : 'bg-rose-500/20 text-rose-500'
-                        }`}>
-                          {myWaConnected ? 'Connected' : 'Disconnected'}
-                        </span>
-                      )}
                     </div>
                   )}
                   {isActive && !isCollapsed && (
@@ -145,7 +134,11 @@ export const Sidebar: React.FC = () => {
         {/* User profile & Logout */}
         {user && (
           <div className="px-2">
-            <div className={`flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-muted/40 hover:bg-muted/80 border border-border/50 transition-all ${isCollapsed ? 'flex-col py-2' : ''}`}>
+            <div className={`flex items-center justify-between gap-2 p-1.5 rounded-2xl border transition-all ${
+              activeTab === 'profile'
+                ? 'bg-primary/10 border-primary/40 text-primary shadow-sm'
+                : 'bg-muted/40 hover:bg-muted/80 border-border/50'
+            } ${isCollapsed ? 'flex-col py-2' : ''}`}>
               <button 
                 onClick={() => setTab('profile')}
                 className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
@@ -155,7 +148,11 @@ export const Sidebar: React.FC = () => {
                 <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-black text-xs uppercase flex items-center justify-center shrink-0 border border-primary/20 relative">
                   {user.nama_admin.slice(0, 2)}
                   <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${
-                    myWaConnected ? 'bg-emerald-500' : 'bg-rose-500'
+                    myWaConnected === true
+                      ? 'bg-emerald-500'
+                      : myWaConnected === false
+                      ? 'bg-rose-500'
+                      : 'bg-amber-500'
                   }`} />
                 </div>
                 {!isCollapsed && (
@@ -163,10 +160,14 @@ export const Sidebar: React.FC = () => {
                     <span className="text-[11px] font-black text-foreground leading-tight truncate" title={user.nama_admin}>
                       {user.nama_admin}
                     </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
-                      myWaConnected ? 'text-emerald-500' : 'text-rose-500'
+                    <span className={`text-[9px] font-extrabold uppercase tracking-wider mt-0.5 ${
+                      myWaConnected === true
+                        ? 'text-emerald-500'
+                        : myWaConnected === false
+                        ? 'text-rose-500'
+                        : 'text-amber-500'
                     }`}>
-                      {myWaConnected ? 'Connected' : 'Disconnected'}
+                      {myWaConnected === true ? 'Connected' : myWaConnected === false ? 'Disconnected' : 'No WA'}
                     </span>
                   </div>
                 )}
