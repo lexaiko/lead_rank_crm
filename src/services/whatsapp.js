@@ -1118,21 +1118,37 @@ async function updateCustomerFromContact(contact) {
       return;
     }
 
-    // Only update the customer's contact name if the customer already exists in our database.
-    // We do not want to create new customer records for every phonebook contact or story author who hasn't chatted with us.
+    // Only update the customer's contact name if the customer already exists in our database,
+    // AND the current contact name is empty, null, placeholder, or incorrectly set to admin name.
+    // This prevents WhatsApp pushName background sync from overwriting manual admin edits.
     const existingCustomer = await prisma.customer.findUnique({
       where: { nomor_hp: customerHp }
     });
 
     if (existingCustomer) {
       const cleanName = sanitizeString(contactName);
-      if (existingCustomer.nama_kontak !== cleanName) {
+      if (!cleanName) return;
+
+      const admins = await prisma.admin.findMany({ select: { nama_admin: true } });
+      const adminNames = admins.map(a => a.nama_admin.toLowerCase());
+
+      if (adminNames.includes(cleanName.toLowerCase())) return;
+
+      const currentName = existingCustomer.nama_kontak;
+      const currentNameLower = currentName ? currentName.trim().toLowerCase() : '';
+      const isPlaceholderOrIncorrect = !currentName ||
+                                       currentNameLower === 'pelanggan wa' ||
+                                       currentNameLower === 'pelanggan' ||
+                                       currentNameLower === 'tanpa nama' ||
+                                       adminNames.includes(currentNameLower);
+
+      if (isPlaceholderOrIncorrect) {
         try {
           await prisma.customer.update({
             where: { id: existingCustomer.id },
             data: { nama_kontak: cleanName }
           });
-          console.log(`[Contacts Sync] Updated name for HP ${customerHp}: "${cleanName}"`);
+          console.log(`[Contacts Sync] Updated placeholder name for HP ${customerHp}: "${cleanName}"`);
         } catch (updateErr) {
           console.warn(`[Contacts Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
         }
@@ -1145,6 +1161,7 @@ async function updateCustomerFromContact(contact) {
 
 /**
  * Updates an existing customer's name from a Baileys chat object (always synchronized on reconnect).
+ * Only updates if current contact name is empty, null, placeholder, or incorrectly set to admin name.
  * 
  * @param {object} chat 
  */
@@ -1172,27 +1189,39 @@ async function updateCustomerNameFromChat(chat) {
     const contactName = chat.name;
     if (!contactName) return;
 
+    const cleanName = sanitizeString(contactName);
+    if (!cleanName) return;
+
     // Fetch active admins to filter out admin numbers/names
     const admins = await prisma.admin.findMany({ select: { nama_admin: true } });
     const adminNames = admins.map(a => a.nama_admin.toLowerCase());
     
     // Ignore updates that match admin names
-    if (adminNames.includes(contactName.toLowerCase())) return;
+    if (adminNames.includes(cleanName.toLowerCase())) return;
 
     const existingCustomer = await prisma.customer.findUnique({
       where: { nomor_hp: customerHp }
     });
 
-    const cleanName = sanitizeString(contactName);
-    if (existingCustomer && existingCustomer.nama_kontak !== cleanName) {
-      try {
-        await prisma.customer.update({
-          where: { id: existingCustomer.id },
-          data: { nama_kontak: cleanName }
-        });
-        console.log(`[Chats Sync] Updated name for HP ${customerHp}: "${cleanName}"`);
-      } catch (updateErr) {
-        console.warn(`[Chats Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
+    if (existingCustomer) {
+      const currentName = existingCustomer.nama_kontak;
+      const currentNameLower = currentName ? currentName.trim().toLowerCase() : '';
+      const isPlaceholderOrIncorrect = !currentName ||
+                                       currentNameLower === 'pelanggan wa' ||
+                                       currentNameLower === 'pelanggan' ||
+                                       currentNameLower === 'tanpa nama' ||
+                                       adminNames.includes(currentNameLower);
+
+      if (isPlaceholderOrIncorrect) {
+        try {
+          await prisma.customer.update({
+            where: { id: existingCustomer.id },
+            data: { nama_kontak: cleanName }
+          });
+          console.log(`[Chats Sync] Updated placeholder name for HP ${customerHp}: "${cleanName}"`);
+        } catch (updateErr) {
+          console.warn(`[Chats Sync Warning] Failed to update name for ${customerHp} due to concurrency:`, updateErr.message);
+        }
       }
     }
   } catch (err) {
