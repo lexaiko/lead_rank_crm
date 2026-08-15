@@ -348,23 +348,33 @@ export async function processAIQueue(force = false) {
         updates.ai_last_analyzed_at = new Date();
       }
 
-      // Apply updates in a transaction alongside audit log creation
-      await prisma.$transaction([
-        prisma.lead.update({
-          where: { id: job.lead_id },
-          data: updates
-        }),
-        prisma.aIAnalysis.create({
-          data: {
-            lead_id: job.lead_id,
-            result_json: result
-          }
-        }),
-        prisma.aIJob.update({
-          where: { id: job.id },
-          data: { status: 'DONE' }
-        })
-      ]);
+      // Apply updates in a transaction alongside audit log creation (with retry for 1020 concurrency locks)
+      let saveRetries = 3;
+      while (saveRetries > 0) {
+        try {
+          await prisma.$transaction([
+            prisma.lead.update({
+              where: { id: job.lead_id },
+              data: updates
+            }),
+            prisma.aIAnalysis.create({
+              data: {
+                lead_id: job.lead_id,
+                result_json: result
+              }
+            }),
+            prisma.aIJob.update({
+              where: { id: job.id },
+              data: { status: 'DONE' }
+            })
+          ]);
+          break;
+        } catch (trxErr) {
+          saveRetries--;
+          if (saveRetries === 0 || !trxErr.message?.includes('1020')) throw trxErr;
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
 
       console.log(`[AI Worker] Successfully processed Lead ${job.lead_id}. New Status: ${result.status_lead}`);
     } catch (saveErr) {

@@ -2051,11 +2051,22 @@ router.patch('/leads/:id', authMiddleware, permissionMiddleware('leads', 'write'
       updateData.closed_at = null;
     }
     
-    const updatedLead = await prisma.lead.update({
-      where: { id: leadId },
-      data: updateData,
-      include: { customer: true, admin: true }
-    });
+    let updatedLead;
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        updatedLead = await prisma.lead.update({
+          where: { id: leadId },
+          data: updateData,
+          include: { customer: true, admin: true }
+        });
+        break;
+      } catch (err) {
+        retries--;
+        if (retries === 0 || !err.message?.includes('1020')) throw err;
+        await new Promise(r => setTimeout(r, 150));
+      }
+    }
     
     res.json({ success: true, data: updatedLead });
   } catch (err) {
