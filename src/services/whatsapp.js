@@ -899,6 +899,28 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
       } else {
         throw createErr;
       }
+  } else {
+    // If customer already exists (e.g. created when admin sent outbound message),
+    // fill in pushName ONCE when customer replies if current name is still a generic placeholder ('Pelanggan WA', 'Pelanggan', 'Tanpa Nama', or empty)
+    const currentName = customer.nama_kontak;
+    const currentNameLower = currentName ? currentName.trim().toLowerCase() : '';
+    const isPlaceholder = !currentName ||
+                          currentNameLower === 'pelanggan wa' ||
+                          currentNameLower === 'pelanggan' ||
+                          currentNameLower === 'tanpa nama';
+
+    const incomingPushName = sanitizeString(msg.pushName || msg.verifiedBizName);
+
+    if (!fromMe && isPlaceholder && incomingPushName) {
+      try {
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { nama_kontak: incomingPushName }
+        });
+        console.log(`[PushName Auto-Fill] Filled placeholder name for customer ${customerHp} with pushName: "${incomingPushName}"`);
+      } catch (updateErr) {
+        console.warn(`[PushName Auto-Fill Warning] Failed to update customer name:`, updateErr.message);
+      }
     }
   }
 
