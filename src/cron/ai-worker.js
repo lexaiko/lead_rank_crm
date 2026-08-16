@@ -467,7 +467,11 @@ Tugasmu:
 
    ATURAN TAMBAHAN KHUSUS (FORM RESERVASI, HYSTERESIS & BUKTI TRANSFER):
    - ATURAN KHUSUS FORM RESERVASI: Jika dalam percakapan/summary terdapat FORM RESERVASI yang sudah terisi (atau dikirim oleh CS dan dikonfirmasi/diisi pelanggan), maka status_lead MINIMAL harus PROSPECT. Jika Form Reservasi sudah disertai instruksi pembayaran/nomor rekening, status_lead menjadi HOT.
-   - ATURAN HYSTERESIS (MENCEGAH DOWNGRADE): Jika status_lead saat ini (current_lead.status_lead) sudah PROSPECT, HOT, atau CLOSED WON, JANGAN PERNAH menurunkan statusnya kembali ke status lebih rendah (seperti QUALIFIED atau NEW) kecuali ada pernyataan pembatalan tegas (CLOSED LOST). Jika status saat ini sudah CLOSED WON, PERTAHANKAN status CLOSED WON tersebut kecuali ada pernyataan pembatalan tegas (CLOSED LOST).
+    - ATURAN HYSTERESIS & REPEAT ORDER:
+      a. Jika status_lead saat ini adalah PROSPECT atau HOT, JANGAN PERNAH menurunkan statusnya kembali ke QUALIFIED/NEW kecuali ada pembatalan tegas (CLOSED LOST).
+      b. Jika status_lead saat ini adalah CLOSED WON:
+         - PERTAHANKAN status CLOSED WON apabila percakapan baru hanya berisi pertanyaan penunjang/operasional seputar trip yang sudah di-booking (misal: titik kumpul/meeting point, jam berapa, hotel, rincian barang bawaan, konfirmasi H-1).
+         - JIKA DAN HANYA JIKA pelanggan secara eksplisit menyatakan ingin REPEAT ORDER / BOOKING BARU / ORDER LAGI (misal: "mau booking lagi kak", "mau order paket lagi buat bulan depan", "mau pesan trip baru untuk rombongan lain", "ada paket lain kak saya mau jalan lagi"), maka UBAH status_lead kembali menjadi QUALIFIED (atau PROSPECT jika destinasi, tanggal, dan peserta trip baru sudah disebutkan) agar masuk ke pipeline penawaran order baru.
    - ATURAN BUKTI TRANSFER & PELUNASAN: Jika pelanggan mengirim bukti transfer/struk bayar (termasuk verifikasi gambar image_ref), atau mengirim pesan teks konfirmasi pembayaran (seperti "sudah transfer", "bukti bayar", "lunas", "dp 50%", "sudah di tf", "tf m-banking"), status_lead WAJIB berubah menjadi CLOSED WON.
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;

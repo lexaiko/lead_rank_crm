@@ -954,18 +954,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     }
   });
 
-  // Reopen it if it was previously closed
-  if (lead && (lead.status_lead === 'CLOSED WON' || lead.status_lead === 'CLOSED LOST')) {
-    try {
-      lead = await prisma.lead.update({
-        where: { id: lead.id },
-        data: { status_lead: 'QUALIFIED', closed_at: null }
-      });
-      console.log(`[Lead Reopen] Reopened closed lead ${lead.kode_lead} for customer ${customerHp} (Admin: ${admin.nama_admin})`);
-    } catch (reopenErr) {
-      console.error(`[Lead Reopen] Failed to reopen lead ${lead.kode_lead}:`, reopenErr);
-    }
-  }
+
 
   // 5. Buat Lead Baru if this customer + admin combination doesn't have one yet
   if (!lead) {
