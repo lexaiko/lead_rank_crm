@@ -1500,23 +1500,38 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       ? req.admin.id
       : (admin_id && admin_id !== 'ALL' ? parseInt(admin_id) : null);
 
+    const createdAtCond = {};
+    if (date_from) {
+      const pStart = new Date(date_from);
+      pStart.setHours(0, 0, 0, 0);
+      createdAtCond.gte = pStart;
+    }
+    if (date_to) {
+      const pEnd = new Date(date_to);
+      pEnd.setHours(23, 59, 59, 999);
+      createdAtCond.lte = pEnd;
+    }
+
     const periodFilter = {
-      createdAt: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) },
+      ...(Object.keys(createdAtCond).length > 0 ? { createdAt: createdAtCond } : {}),
       customer: { is_ignored: false },
       ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {})
     };
+
     const closedPeriodFilter = {
       customer: { is_ignored: false },
       ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {}),
-      OR: [
-        { closed_at: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) } },
-        { closed_at: null, updatedAt: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) } }
-      ]
+      ...(Object.keys(createdAtCond).length > 0 ? {
+        OR: [
+          { closed_at: createdAtCond },
+          { closed_at: null, updatedAt: createdAtCond }
+        ]
+      } : {})
     };
     const adminIdSql = effectiveAdminId ? Prisma.sql`AND l.admin_id = ${effectiveAdminId}` : Prisma.empty;
 
     // Compute previous period range for comparison
-    const actualEnd = periodEnd || new Date();
+    const actualEnd = date_to ? new Date(date_to) : new Date();
     const diffMs = actualEnd.getTime() - periodStart.getTime();
 
     let prevPeriodStart;
