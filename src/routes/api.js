@@ -1711,8 +1711,7 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       prisma.lead.findMany({
         where: periodFilter,
         include: { customer: true, admin: true },
-        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
-        take: 100
+        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }]
       })
     ]);
 
