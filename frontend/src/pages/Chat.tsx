@@ -360,7 +360,7 @@ export const Chat: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-[calc(100vh-2rem)] w-full rounded-2xl bg-card border border-border/80 shadow-lg overflow-hidden -my-2 md:-my-3">
+    <div className="flex flex-col h-[calc(100vh-9.5rem)] md:h-[calc(100vh-2rem)] w-full rounded-2xl bg-card border border-border/80 shadow-lg overflow-hidden">
       
       {/* 3-Pane Container Grid (Inline Embedded, 0% Popups) */}
       <div className="grid grid-cols-1 md:grid-cols-12 flex-1 h-full overflow-hidden">
