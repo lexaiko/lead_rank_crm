@@ -219,6 +219,12 @@ export const LeadDetailDrawer: React.FC = () => {
   const canWriteLeads = user?.permissions?.leads === 'write';
   const canIgnore = user?.permissions?.leads === 'write' || user?.permissions?.customers === 'write';
 
+  const deepPerm = user?.permissions?.deep_analysis !== undefined 
+    ? user.permissions.deep_analysis 
+    : (user?.permissions?.leads || 'none');
+  const canReadDeepAnalyze = deepPerm !== 'none';
+  const canWriteDeepAnalyze = deepPerm === 'write';
+
   // WhatsApp follow up templates
   const getFollowUpTemplates = (name: string, destination: string) => [
     {
@@ -490,13 +496,15 @@ export const LeadDetailDrawer: React.FC = () => {
               <Phone size={13} /> Follow Up
             </button>
 
-            <button
-              type="button"
-              onClick={handleOpenDeepAnalysis}
-              className="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-[11px] md:text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
-            >
-              <Brain size={13} /> {deepAnalysisData ? 'Deep AI' : 'Mulai AI'}
-            </button>
+            {canReadDeepAnalyze && (
+              <button
+                type="button"
+                onClick={handleOpenDeepAnalysis}
+                className="flex-1 py-1.5 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-[11px] md:text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
+              >
+                <Brain size={13} /> {deepAnalysisData ? 'Deep AI' : 'Mulai AI'}
+              </button>
+            )}
 
             {canIgnore && (
               <button

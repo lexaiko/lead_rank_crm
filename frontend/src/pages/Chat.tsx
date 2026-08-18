@@ -46,6 +46,13 @@ export const Chat: React.FC = () => {
     ? user.permissions['chat'] === 'write' 
     : user?.permissions?.['leads'] === 'write';
 
+  // Role Permissions Check for 'deep_analysis' module (fallback to 'chat' / 'leads')
+  const deepPerm = user?.permissions?.['deep_analysis'] !== undefined 
+    ? user.permissions['deep_analysis'] 
+    : (user?.permissions?.['chat'] || user?.permissions?.['leads'] || 'none');
+  const canReadDeepAnalyze = deepPerm !== 'none';
+  const canWriteDeepAnalyze = deepPerm === 'write';
+
   // Local Chat Selection State (prevents global modal popups)
   const [activeLeadId, setActiveLeadId] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -944,119 +951,121 @@ export const Chat: React.FC = () => {
               </div>
 
               {/* Inline Deep AI Analysis Section (Disabled if read-only) */}
-              <div className="p-3.5 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Brain size={15} className="text-violet-500" />
-                    <span className="font-heading font-black text-xs text-foreground uppercase tracking-wider">
-                      Deep AI Analysis
-                    </span>
+              {canReadDeepAnalyze && (
+                <div className="p-3.5 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Brain size={15} className="text-violet-500" />
+                      <span className="font-heading font-black text-xs text-foreground uppercase tracking-wider">
+                        Deep AI Analysis
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowAnalysisInline(!showAnalysisInline)}
+                      className="text-muted-foreground hover:text-foreground text-[10px] font-bold flex items-center gap-0.5"
+                    >
+                      <span>{showAnalysisInline ? 'Sembunyikan' : 'Tampilkan'}</span>
+                      {showAnalysisInline ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setShowAnalysisInline(!showAnalysisInline)}
-                    className="text-muted-foreground hover:text-foreground text-[10px] font-bold flex items-center gap-0.5"
-                  >
-                    <span>{showAnalysisInline ? 'Sembunyikan' : 'Tampilkan'}</span>
-                    {showAnalysisInline ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  </button>
+
+                  {!deepAnalysisData && !isLoadingAnalysis && canWriteDeepAnalyze && (
+                    <button
+                      onClick={handleTriggerDeepAnalysis}
+                      className="w-full py-2 px-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles size={13} />
+                      <span>Jalankan Deep AI Analysis</span>
+                    </button>
+                  )}
+
+                  {isLoadingAnalysis && (
+                    <div className="py-4 text-center text-xs text-violet-500 font-semibold flex items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      Menganalisis percakapan...
+                    </div>
+                  )}
+
+                  {deepAnalysisData && (
+                    <div className="flex flex-col gap-2.5">
+                      {showAnalysisInline && (
+                        <div className="flex flex-col gap-2 border-t border-violet-500/20 pt-2 text-xs">
+                          
+                          {/* Skor & Potensi */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {deepAnalysisData.skor_kualitas && (
+                              <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold text-violet-500 uppercase tracking-wider">Skor Kualitas</span>
+                                <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.skor_kualitas}</span>
+                              </div>
+                            )}
+                            {deepAnalysisData.potensi_closing && (
+                              <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Potensi Closing</span>
+                                <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.potensi_closing}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Budget & Buyer Type */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {deepAnalysisData.budget_sensitivity && (
+                              <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Budget Sensitivity</span>
+                                <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.budget_sensitivity}</span>
+                              </div>
+                            )}
+                            {deepAnalysisData.tipe_buyer && (
+                              <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                                <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">Tipe Buyer</span>
+                                <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.tipe_buyer}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Objection Utama */}
+                          {deepAnalysisData.objection_utama && (
+                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">Keberatan Utama (Objection)</span>
+                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.objection_utama}</span>
+                            </div>
+                          )}
+
+                          {/* Kesalahan Saya / Evaluasi Admin */}
+                          {deepAnalysisData.kesalahan_saya && (
+                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Evaluasi CS / Kekurangan</span>
+                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.kesalahan_saya}</span>
+                            </div>
+                          )}
+
+                          {/* Saran Respon */}
+                          {deepAnalysisData.saran_respon && (
+                            <div className="p-2.5 rounded-xl bg-violet-600/10 border border-violet-500/20 flex flex-col gap-1">
+                              <span className="text-[9px] font-extrabold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                                <Sparkles size={10} /> Saran Respon Selanjutnya
+                              </span>
+                              <p className="text-[10px] font-semibold text-foreground leading-relaxed">
+                                {deepAnalysisData.saran_respon}
+                              </p>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+
+                      {canWriteDeepAnalyze && (
+                        <button
+                          onClick={handleTriggerDeepAnalysis}
+                          className="text-[10px] font-bold text-violet-500 hover:underline flex items-center justify-center gap-1 mt-1 cursor-pointer"
+                        >
+                          <RefreshCw size={10} /> Analisis Ulang AI
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {!deepAnalysisData && !isLoadingAnalysis && canWrite && (
-                  <button
-                    onClick={handleTriggerDeepAnalysis}
-                    className="w-full py-2 px-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                  >
-                    <Sparkles size={13} />
-                    <span>Jalankan Deep AI Analysis</span>
-                  </button>
-                )}
-
-                {isLoadingAnalysis && (
-                  <div className="py-4 text-center text-xs text-violet-500 font-semibold flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin" />
-                    Menganalisis percakapan...
-                  </div>
-                )}
-
-                {deepAnalysisData && (
-                  <div className="flex flex-col gap-2.5">
-                    {showAnalysisInline && (
-                      <div className="flex flex-col gap-2 border-t border-violet-500/20 pt-2 text-xs">
-                        
-                        {/* Skor & Potensi */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {deepAnalysisData.skor_kualitas && (
-                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-violet-500 uppercase tracking-wider">Skor Kualitas</span>
-                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.skor_kualitas}</span>
-                            </div>
-                          )}
-                          {deepAnalysisData.potensi_closing && (
-                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Potensi Closing</span>
-                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.potensi_closing}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Budget & Buyer Type */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {deepAnalysisData.budget_sensitivity && (
-                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Budget Sensitivity</span>
-                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.budget_sensitivity}</span>
-                            </div>
-                          )}
-                          {deepAnalysisData.tipe_buyer && (
-                            <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">Tipe Buyer</span>
-                              <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.tipe_buyer}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Objection Utama */}
-                        {deepAnalysisData.objection_utama && (
-                          <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                            <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">Keberatan Utama (Objection)</span>
-                            <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.objection_utama}</span>
-                          </div>
-                        )}
-
-                        {/* Kesalahan Saya / Evaluasi Admin */}
-                        {deepAnalysisData.kesalahan_saya && (
-                          <div className="p-2 rounded-xl bg-background/80 border border-border/60 flex flex-col gap-0.5">
-                            <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">Evaluasi CS / Kekurangan</span>
-                            <span className="text-[10px] font-semibold text-foreground">{deepAnalysisData.kesalahan_saya}</span>
-                          </div>
-                        )}
-
-                        {/* Saran Respon */}
-                        {deepAnalysisData.saran_respon && (
-                          <div className="p-2.5 rounded-xl bg-violet-600/10 border border-violet-500/20 flex flex-col gap-1">
-                            <span className="text-[9px] font-extrabold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1">
-                              <Sparkles size={10} /> Saran Respon Selanjutnya
-                            </span>
-                            <p className="text-[10px] font-semibold text-foreground leading-relaxed">
-                              {deepAnalysisData.saran_respon}
-                            </p>
-                          </div>
-                        )}
-
-                      </div>
-                    )}
-
-                    {canWrite && (
-                      <button
-                        onClick={handleTriggerDeepAnalysis}
-                        className="text-[10px] font-bold text-violet-500 hover:underline flex items-center justify-center gap-1 mt-1 cursor-pointer"
-                      >
-                        <RefreshCw size={10} /> Analisis Ulang AI
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
 
             </div>
           </div>
