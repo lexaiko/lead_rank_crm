@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { useStore } from '../store/useStore';
 import { 
   LayoutDashboard, 
@@ -43,8 +44,15 @@ export const Sidebar: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchMyWaStatus();
-      const interval = setInterval(() => fetchMyWaStatus(), 10000);
-      return () => clearInterval(interval);
+      const socket = io({ transports: ['websocket'] });
+      socket.on('wa_status_changed', (data: { admin_id: number; connected: boolean }) => {
+        if (user.id === data.admin_id) {
+          fetchMyWaStatus();
+        }
+      });
+      return () => {
+        socket.disconnect();
+      };
     }
   }, [user]);
 

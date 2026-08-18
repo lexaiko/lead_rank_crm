@@ -9,7 +9,7 @@ import { normalizePhoneNumber } from '../utils/phone.js';
 import { sanitizeString } from '../utils/sanitize.js';
 import { enqueueAIJob } from './ai-queue.js';
 import { detectReferralSourceFromGreeting } from './greeting-rules.js';
-import { broadcastChatMessage } from './sse.js';
+import { broadcastChatMessage, broadcastWaStatus } from './sse.js';
 
 function logDebug(...args) {
   if (process.env.BAILEYS_LOG_LEVEL && process.env.BAILEYS_LOG_LEVEL !== 'silent') {
@@ -375,6 +375,7 @@ export async function startAdminSession(adminId) {
     if (connection === 'open') {
       activeQrs.delete(adminId);
       console.log(`WhatsApp connection opened successfully for Admin ID: ${adminId}`);
+      broadcastWaStatus(adminId, true);
       
       // Update database status if needed
       const normalizedWa = normalizePhoneNumber(sock.user.id);
@@ -383,6 +384,7 @@ export async function startAdminSession(adminId) {
 
     if (connection === 'close') {
       activeQrs.delete(adminId);
+      broadcastWaStatus(adminId, false);
       
       if (sock.isManualShutdown) {
         console.log(`Connection closed (Manual Shutdown) for Admin ID: ${adminId}. Skipping reconnect.`);

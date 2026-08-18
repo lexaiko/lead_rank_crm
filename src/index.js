@@ -10,6 +10,9 @@ import { startAIWorker } from './cron/ai-worker.js';
 import apiRouter, { deleteLeadsForCustomer } from './routes/api.js';
 import { authMiddleware } from './middleware/auth.js';
 
+import http from 'http';
+import { initSocketServer } from './services/socket.js';
+
 // Prefer IPv4 for fetch/HTTP requests to prevent VPS IPv6 connection timeouts to WA CDN
 try {
   dns.setDefaultResultOrder('ipv4first');
@@ -20,6 +23,8 @@ dotenv.config();
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+initSocketServer(server);
 
 import path from 'path';
 
@@ -95,7 +100,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   console.log(`=========================================`);
   console.log(`Trip Banyuwangi CRM Backend is running!`);
   console.log(`Port: ${PORT}`);

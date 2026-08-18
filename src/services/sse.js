@@ -12,3 +12,7 @@ export function broadcastChatMessage(leadId, messageData) {
 export function broadcastLeadUpdate(leadData) {
   sseEmitter.emit('leadUpdate', leadData);
 }
+
+export function broadcastWaStatus(adminId, connected) {
+  sseEmitter.emit('waStatus', { adminId, connected });
+}

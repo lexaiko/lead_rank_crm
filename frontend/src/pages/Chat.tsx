@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { io } from 'socket.io-client';
 import { useStore } from '../store/useStore';
 import { VirtualChatList } from '../components/VirtualChatList';
 import { Lead, ChatMessage, LeadListItem } from '../types';
@@ -198,11 +199,23 @@ export const Chat: React.FC = () => {
         setSourceInput(found.referral_source || 'tidak diketahui');
       }
 
-      // Interval polling for chat messages (every 3 seconds)
-      const interval = setInterval(() => {
-        loadActiveLeadMessages(activeLeadId, true);
-      }, 3000);
-      return () => clearInterval(interval);
+      // Real-time Socket.IO WebSocket listener (Pure WebSocket transport)
+      const socket = io({ transports: ['websocket'] });
+
+      socket.on('new_message', (data: { lead_id: number; message: ChatMessage }) => {
+        if (data.lead_id === activeLeadId) {
+          setChatMessages(prev => {
+            if (prev.some(m => m.id === data.message.id || (m.wa_message_id && m.wa_message_id === data.message.wa_message_id))) {
+              return prev;
+            }
+            return [...prev, data.message];
+          });
+        }
+      });
+
+      return () => {
+        socket.disconnect();
+      };
     } else {
       setChatMessages([]);
       setDeepAnalysisData(null);
