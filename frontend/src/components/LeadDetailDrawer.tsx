@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert, Reply, Send, Loader2, ExternalLink } from 'lucide-react';
+import { X, Calendar, Users, MapPin, BadgePercent, MessageSquare, AlertCircle, Save, Check, LockKeyhole, CheckCircle2, XCircle, Phone, Brain, Copy, RefreshCw, User, Sparkles, Share2, UserCheck, ShieldAlert, Reply, Send, Loader2, ExternalLink, ChevronDown } from 'lucide-react';
 import { VirtualChatList } from './VirtualChatList';
 import { Lead, ChatMessage } from '../types';
 import { api } from '../store/services/api';
@@ -635,37 +635,44 @@ export const LeadDetailDrawer: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-foreground">Status Lead</label>
-                    <select
-                      value={localLead.status_lead}
-                      onChange={(e) => handleChange('status_lead', e.target.value)}
-                      disabled={!canWriteLeads}
-                      className="w-full px-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-bold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
-                    >
-                      <option value="NEW">NEW</option>
-                      <option value="QUALIFIED">QUALIFIED</option>
-                      <option value="PROSPECT">PROSPECT</option>
-                      <option value="HOT">HOT</option>
-                      <option value="CLOSED WON">CLOSED WON</option>
-                      <option value="CLOSED LOST">CLOSED LOST</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={localLead.status_lead}
+                        onChange={(e) => handleChange('status_lead', e.target.value)}
+                        disabled={!canWriteLeads}
+                        className="w-full pl-2.5 pr-6 py-2 border border-border/80 rounded-lg bg-background text-foreground text-[11px] sm:text-xs font-bold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed appearance-none cursor-pointer truncate"
+                      >
+                        <option value="NEW">NEW</option>
+                        <option value="QUALIFIED">QUALIFIED</option>
+                        <option value="PROSPECT">PROSPECT</option>
+                        <option value="HOT">HOT</option>
+                        <option value="CLOSED WON">CLOSED WON</option>
+                        <option value="CLOSED LOST">CLOSED LOST</option>
+                      </select>
+                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-foreground">Referral Source</label>
-                    <select
-                      value={localLead.referral_source}
-                      onChange={(e) => handleChange('referral_source', e.target.value)}
-                      disabled={!canWriteLeads}
-                      className="w-full px-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed capitalize"
-                    >
-                      <option value="tidak diketahui">Tidak Diketahui</option>
-                      <option value="instagram">Instagram</option>
-                      <option value="tiktok">TikTok</option>
-                      <option value="website">Website</option>
-                      <option value="rekomendasi">Rekomendasi</option>
-                      <option value="facebook">Facebook</option>
-                      <option value="lainnya">Lainnya</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={localLead.referral_source}
+                        onChange={(e) => handleChange('referral_source', e.target.value)}
+                        disabled={!canWriteLeads}
+                        className="w-full pl-2.5 pr-6 py-2 border border-border/80 rounded-lg bg-background text-foreground text-[11px] sm:text-xs font-bold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed capitalize appearance-none cursor-pointer truncate"
+                      >
+                        <option value="tidak diketahui">Tidak Diketahui</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="website">Website</option>
+                        <option value="rekomendasi">Rekomendasi</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="lainnya">Lainnya</option>
+                      </select>
+                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               </div>

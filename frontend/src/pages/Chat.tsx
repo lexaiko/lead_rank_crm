@@ -906,20 +906,23 @@ export const Chat: React.FC = () => {
 
                     <div className="flex flex-col gap-1">
                       <label className="text-[10px] font-bold text-muted-foreground">Channel Source:</label>
-                      <select
-                        value={sourceInput}
-                        onChange={(e) => setSourceInput(e.target.value)}
-                        className="px-2 py-1 bg-background border border-primary rounded-lg text-xs font-bold uppercase focus:outline-none cursor-pointer text-foreground"
-                      >
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="instagram">Instagram</option>
-                        <option value="tiktok">TikTok</option>
-                        <option value="website">Website</option>
-                        <option value="rekomendasi">Rekomendasi</option>
-                        <option value="facebook">Facebook</option>
-                        <option value="lainnya">Lainnya</option>
-                        <option value="tidak diketahui">Tidak Diketahui</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={sourceInput}
+                          onChange={(e) => setSourceInput(e.target.value)}
+                          className="w-full pl-2.5 pr-8 py-1 bg-background border border-primary rounded-lg text-xs font-bold capitalize focus:outline-none cursor-pointer text-foreground appearance-none"
+                        >
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="instagram">Instagram</option>
+                          <option value="tiktok">TikTok</option>
+                          <option value="website">Website</option>
+                          <option value="rekomendasi">Rekomendasi</option>
+                          <option value="facebook">Facebook</option>
+                          <option value="lainnya">Lainnya</option>
+                          <option value="tidak diketahui">Tidak Diketahui</option>
+                        </select>
+                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                      </div>
                     </div>
                   </div>
                 )}
