@@ -144,12 +144,19 @@ body {
   }
 }
 
-/* Fix mobile browser native date picker text alignment (iOS Safari / Chrome Mobile) */
+/* Fix mobile browser native date picker text alignment & overflow on iOS Safari */
 input[type="date"]::-webkit-date-and-time-value {
   text-align: left !important;
+  min-height: 1.5em !important;
 }
 input[type="date"] {
   text-align: left !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  -webkit-appearance: none !important;
 }
 
 /* Remove blue tap flash on Android/iOS for buttons and clickable cards */

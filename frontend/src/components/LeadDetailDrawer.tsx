@@ -692,17 +692,17 @@ export const LeadDetailDrawer: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tanggal Trip (Full Width) */}
-                <div className="flex flex-col gap-1">
+                {/* Tanggal Trip (Full Width & Overflow-Safe for iOS Safari) */}
+                <div className="flex flex-col gap-1 min-w-0 w-full overflow-hidden">
                   <label className="text-xs font-semibold text-foreground">Tanggal Trip</label>
-                  <div className="relative">
-                    <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 z-10" />
+                  <div className="relative min-w-0 w-full overflow-hidden rounded-lg">
+                    <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 z-10 pointer-events-none" />
                     <input
                       type="date"
                       value={localLead.estimasi_waktu ? localLead.estimasi_waktu.split('T')[0] : ''}
                       onChange={(e) => handleChange('estimasi_waktu', e.target.value || null)}
                       disabled={!canWriteLeads}
-                      className="w-full pl-8 pr-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed text-left"
+                      className="w-full max-w-full min-w-0 box-border pl-8 pr-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed text-left appearance-none"
                     />
                   </div>
                 </div>
