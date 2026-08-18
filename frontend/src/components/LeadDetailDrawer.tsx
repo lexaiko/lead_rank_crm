@@ -676,6 +676,7 @@ export const LeadDetailDrawer: React.FC = () => {
                   <MapPin size={11} className="text-primary" /> Detail Trip & Estimasi Order
                 </span>
 
+                {/* Destinasi Wisata */}
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-foreground">Destinasi Wisata</label>
                   <div className="relative">
@@ -691,11 +692,27 @@ export const LeadDetailDrawer: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Tanggal Trip (Full Width) */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-foreground">Tanggal Trip</label>
+                  <div className="relative">
+                    <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 z-10" />
+                    <input
+                      type="date"
+                      value={localLead.estimasi_waktu ? localLead.estimasi_waktu.split('T')[0] : ''}
+                      onChange={(e) => handleChange('estimasi_waktu', e.target.value || null)}
+                      disabled={!canWriteLeads}
+                      className="w-full pl-8 pr-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed text-left"
+                    />
+                  </div>
+                </div>
+
+                {/* Peserta (Pax) & Estimasi Order (Rp) - Kanan Kiri di bawah Tanggal Trip */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-foreground">Peserta (Pax)</label>
                     <div className="relative">
-                      <Users size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-500" />
+                      <Users size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-500 z-10" />
                       <input
                         type="number"
                         value={localLead.jumlah_peserta || ''}
@@ -708,39 +725,20 @@ export const LeadDetailDrawer: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-foreground">Tanggal Trip</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-foreground truncate">Estimasi Order (Rp)</label>
+                    </div>
                     <div className="relative">
-                      <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
+                      <BadgePercent size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-500" />
                       <input
-                        type="date"
-                        value={localLead.estimasi_waktu ? localLead.estimasi_waktu.split('T')[0] : ''}
-                        onChange={(e) => handleChange('estimasi_waktu', e.target.value || null)}
+                        type="number"
+                        value={localLead.estimasi_nilai_order || ''}
+                        onChange={(e) => handleChange('estimasi_nilai_order', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="Nominal"
                         disabled={!canWriteLeads}
-                        className="w-full pl-8 pr-1 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
+                        className="w-full pl-8 pr-2 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
                       />
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-foreground">Estimasi Nilai Order (Rp)</label>
-                    {localLead.estimasi_nilai_order ? (
-                      <span className="text-xs font-extrabold text-orange-600 dark:text-orange-400 font-heading">
-                        Rp {localLead.estimasi_nilai_order.toLocaleString('id-ID')}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="relative">
-                    <BadgePercent size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-500" />
-                    <input
-                      type="number"
-                      value={localLead.estimasi_nilai_order || ''}
-                      onChange={(e) => handleChange('estimasi_nilai_order', e.target.value ? parseInt(e.target.value) : null)}
-                      placeholder="Nominal transaksi"
-                      disabled={!canWriteLeads}
-                      className="w-full pl-8 pr-2.5 py-2 border border-border/80 rounded-lg bg-background text-foreground text-sm font-semibold focus:outline-none focus:border-primary disabled:opacity-75 disabled:cursor-not-allowed"
-                    />
                   </div>
                 </div>
               </div>
