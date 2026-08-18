@@ -160,9 +160,16 @@ export interface DashboardStats {
     byStatus: Record<string, number>;
     potentialWon: number;
     potentialLost: number;
+    valueWon?: number;
     byReferral: Record<string, number>;
     byDestination: Record<string, number>;
     byDay: Array<{ date: string; count: number }>;
+  };
+  previousPeriod?: {
+    total: number;
+    closedWon: number;
+    potentialWon: number;
+    valueWon: number;
   };
 }
 
@@ -181,9 +188,12 @@ export interface DashboardData {
     id: number;
     kode_lead: string;
     customerNama: string | null;
+    customerHp?: string;
     adminNama: string;
     status_lead: Lead['status_lead'];
     minat_destinasi: string | null;
+    estimasi_nilai_order?: number | null;
+    createdAt?: string;
     updatedAt: string;
   }>;
   messages: {

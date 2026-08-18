@@ -851,7 +851,7 @@ router.post('/jobs/ai-extract', authMiddleware, permissionMiddleware('queue', 'w
 });
 
 // Get Chat History for a Lead
-router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('chat', 'read'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
 
@@ -876,7 +876,7 @@ router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 
 });
 
 // Get Deep Analysis for a Lead
-router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('chat', 'read'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
 
@@ -905,7 +905,7 @@ router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('lea
 });
 
 // Trigger Deep Analysis for a Lead
-router.post('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('leads', 'write'), async (req, res, next) => {
+router.post('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('chat', 'write'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
 
@@ -1025,7 +1025,7 @@ Harap diingat, kembalikan objek JSON murni secara lengkap tanpa menyertakan bloc
 
 
 // Send / insert a chat message for a lead (Direct Baileys JS WhatsApp send & CRM log)
-router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('leads', 'write'), async (req, res, next) => {
+router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('chat', 'write'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
     const { pengirim = 'admin', pesan, waktu_pesan, reply_to_wa_id, reply_to_snippet, reply_to_sender } = req.body;
@@ -1464,11 +1464,40 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         { closed_at: null, updatedAt: { gte: periodStart, ...(periodEnd ? { lte: periodEnd } : {}) } }
       ]
     };
+    const adminIdSql = effectiveAdminId ? Prisma.sql`AND l.admin_id = ${effectiveAdminId}` : Prisma.empty;
+
+    // Compute previous period range for comparison
+    const actualEnd = periodEnd || new Date();
+    const diffMs = actualEnd.getTime() - periodStart.getTime();
+
+    let prevPeriodStart;
+    let prevPeriodEnd;
+
+    if (periodStart.getDate() === 1 && (!date_to || new Date(date_to).getMonth() === periodStart.getMonth())) {
+      prevPeriodStart = new Date(periodStart.getFullYear(), periodStart.getMonth() - 1, 1);
+      prevPeriodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), 0, 23, 59, 59, 999);
+    } else {
+      prevPeriodEnd = new Date(periodStart.getTime() - 1);
+      prevPeriodStart = new Date(prevPeriodEnd.getTime() - diffMs);
+    }
+
+    const prevPeriodFilter = {
+      createdAt: { gte: prevPeriodStart, lte: prevPeriodEnd },
+      customer: { is_ignored: false },
+      ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {})
+    };
+    const prevClosedPeriodFilter = {
+      customer: { is_ignored: false },
+      ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {}),
+      OR: [
+        { closed_at: { gte: prevPeriodStart, lte: prevPeriodEnd } },
+        { closed_at: null, updatedAt: { gte: prevPeriodStart, lte: prevPeriodEnd } }
+      ]
+    };
     const allTimeFilter = {
       customer: { is_ignored: false },
       ...(effectiveAdminId ? { admin_id: effectiveAdminId } : {})
     };
-    const adminIdSql = effectiveAdminId ? Prisma.sql`AND l.admin_id = ${effectiveAdminId}` : Prisma.empty;
 
     // Run all aggregation queries in parallel
     const [
@@ -1478,6 +1507,11 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       closedLostCount,
       potentialWonAgg,
       potentialLostAgg,
+      valueWonAgg,
+      prevPeriodLeadsCount,
+      prevClosedWonCount,
+      prevPotentialWonAgg,
+      prevValueWonAgg,
       referralGroups,
       adminAssigned,
       adminWon,
@@ -1524,6 +1558,24 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
       // Potential lost: value of CLOSED LOST leads for the selected period (by closing date)
       prisma.lead.aggregate({
         where: { ...closedPeriodFilter, status_lead: 'CLOSED LOST' },
+        _sum: { estimasi_nilai_order: true }
+      }),
+
+      // Value won: value of CLOSED WON leads for the selected period (by closing date)
+      prisma.lead.aggregate({
+        where: { ...closedPeriodFilter, status_lead: 'CLOSED WON' },
+        _sum: { estimasi_nilai_order: true }
+      }),
+
+      // Previous period metrics for comparison
+      prisma.lead.count({ where: prevPeriodFilter }),
+      prisma.lead.count({ where: { ...prevClosedPeriodFilter, status_lead: 'CLOSED WON' } }),
+      prisma.lead.aggregate({
+        where: { ...prevPeriodFilter, status_lead: { in: ['QUALIFIED', 'PROSPECT', 'HOT'] } },
+        _sum: { estimasi_nilai_order: true }
+      }),
+      prisma.lead.aggregate({
+        where: { ...prevClosedPeriodFilter, status_lead: 'CLOSED WON' },
         _sum: { estimasi_nilai_order: true }
       }),
 
@@ -1606,12 +1658,12 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
         orderBy: { waktu_pesan: 'asc' }
       }),
 
-      // 5 most recent leads for activity feed (respecting admin scope/filter)
+      // Recent leads for selected period (respecting admin scope & date filter)
       prisma.lead.findMany({
-        where: allTimeFilter,
+        where: periodFilter,
         include: { customer: true, admin: true },
-        orderBy: [{ last_activity_at: 'desc' }, { updatedAt: 'desc' }],
-        take: 5
+        orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
+        take: 100
       })
     ]);
 
@@ -1741,18 +1793,28 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
             byStatus,
             potentialWon: Number(potentialWonAgg._sum.estimasi_nilai_order || 0),
             potentialLost: Number(potentialLostAgg._sum.estimasi_nilai_order || 0),
+            valueWon: Number(valueWonAgg._sum.estimasi_nilai_order || 0),
             byReferral,
             byDestination,
             byDay
+          },
+          previousPeriod: {
+            total: prevPeriodLeadsCount,
+            closedWon: prevClosedWonCount,
+            potentialWon: Number(prevPotentialWonAgg._sum.estimasi_nilai_order || 0),
+            valueWon: Number(prevValueWonAgg._sum.estimasi_nilai_order || 0)
           }
         },
         recentLeads: recentLeads.map(l => ({
           id: l.id,
           kode_lead: l.kode_lead,
           customerNama: l.customer.nama_kontak,
+          customerHp: l.customer.nomor_wa,
           adminNama: l.admin.nama_admin,
           status_lead: l.status_lead,
           minat_destinasi: l.minat_destinasi,
+          estimasi_nilai_order: l.estimasi_nilai_order,
+          createdAt: l.createdAt,
           updatedAt: l.updatedAt
         })),
         messages: {

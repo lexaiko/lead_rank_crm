@@ -50,9 +50,15 @@ export const ExportData: React.FC = () => {
   // Custom Toast / Modal Notification (No browser alert)
   const [notice, setNotice] = useState<CustomNotice | null>(null);
 
+  const isOwnScope = user?.data_scope === 'own';
+
   useEffect(() => {
-    fetchAdmins();
-  }, []);
+    if (!isOwnScope) {
+      fetchAdmins();
+    } else if (user?.id) {
+      setAdminId(String(user.id));
+    }
+  }, [isOwnScope, user?.id]);
 
   // Auto hide notification after 6 seconds
   useEffect(() => {
@@ -155,7 +161,7 @@ export const ExportData: React.FC = () => {
     setDateTo(end);
     setPresetType('THIS_MONTH');
     setStatus('ALL');
-    setAdminId('');
+    setAdminId(isOwnScope && user?.id ? String(user.id) : '');
     setReferral('ALL');
     setSearch('');
     setNotice(null);
@@ -279,19 +285,28 @@ export const ExportData: React.FC = () => {
                 <User size={13} className="text-orange-500" />
                 Assigned Admin CS
               </label>
-              <select
-                value={adminId}
-                disabled={user?.data_scope === 'own'}
-                onChange={(e) => setAdminId(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-orange-500 transition-all disabled:opacity-60"
-              >
-                <option value="">Semua Admin CS</option>
-                {admins.map((adm) => (
-                  <option key={adm.id} value={String(adm.id)}>
-                    {adm.nama_admin}
-                  </option>
-                ))}
-              </select>
+              {isOwnScope ? (
+                <select
+                  value={String(user?.id)}
+                  disabled
+                  className="w-full px-3.5 py-2.5 text-sm font-semibold border border-border/80 rounded-xl bg-muted text-muted-foreground cursor-not-allowed"
+                >
+                  <option value={String(user?.id)}>{user?.nama_admin} (Akun Saya)</option>
+                </select>
+              ) : (
+                <select
+                  value={adminId}
+                  onChange={(e) => setAdminId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-orange-500 transition-all"
+                >
+                  <option value="">Semua Admin CS</option>
+                  {admins.map((adm) => (
+                    <option key={adm.id} value={String(adm.id)}>
+                      {adm.nama_admin}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Referral Source Filter */}
@@ -306,12 +321,13 @@ export const ExportData: React.FC = () => {
                 className="w-full px-3.5 py-2.5 text-sm font-semibold border border-border/80 rounded-xl bg-background text-foreground focus:outline-none focus:border-orange-500 transition-all"
               >
                 <option value="ALL">Semua Source</option>
-                <option value="whatsapp">WhatsApp Direct</option>
-                <option value="website">Website Official</option>
-                <option value="tiktok">TikTok Ad / Bio</option>
-                <option value="instagram">Instagram DM / Bio</option>
-                <option value="referral">Rekomendasi / Referral</option>
-                <option value="google">Google Search / Map</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="website">Website</option>
+                <option value="rekomendasi">Rekomendasi</option>
+                <option value="facebook">Facebook</option>
+                <option value="lainnya">Lainnya</option>
                 <option value="tidak diketahui">Tidak Diketahui</option>
               </select>
             </div>

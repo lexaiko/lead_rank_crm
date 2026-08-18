@@ -5,7 +5,7 @@ import {
   ReferralChart
 } from '../components/Charts';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { TrendingUp, TrendingDown, Award, Target, HelpCircle, Filter, RotateCcw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Award, Target, Filter, RotateCcw, Banknote } from 'lucide-react';
 
 export const Reports: React.FC = () => {
   const { dashboardData, fetchDashboard, admins: allAdmins, fetchAdmins, user } = useStore();
@@ -64,7 +64,7 @@ export const Reports: React.FC = () => {
 
   const { stats, admins } = dashboardData;
   const { thisMonth } = stats;
-  const byStatus = thisMonth.byStatus;
+  const byStatus = thisMonth.byStatus || {};
 
   // 1. Funnel Calculations
   const counts = {
@@ -76,11 +76,12 @@ export const Reports: React.FC = () => {
     LOST: byStatus['CLOSED LOST'] || 0,
   };
 
-  const totalLeads = thisMonth.total;
+  const totalLeads = thisMonth.total || 0;
   const totalWon = counts.WON;
-  const conversionRate = totalLeads > 0 ? ((totalWon / totalLeads) * 100).toFixed(1) : '0.0';
-  const potentialWonTotal = thisMonth.potentialWon;
-  const potentialLostTotal = thisMonth.potentialLost;
+  const closingRate = totalLeads > 0 ? ((totalWon / totalLeads) * 100).toFixed(1) : '0.0';
+  const potentialWonTotal = thisMonth.potentialWon || 0;
+  const valueWonTotal = thisMonth.valueWon || 0;
+  const potentialLostTotal = thisMonth.potentialLost || 0;
 
   const formatResponseTime = (seconds: number | null | undefined) => {
     if (seconds === null || seconds === undefined) return '-';
@@ -108,12 +109,12 @@ export const Reports: React.FC = () => {
     .sort((a, b) => b.potential - a.potential);
 
   const funnelStages = [
-    { label: 'New lead incoming', count: counts.NEW, color: 'bg-slate-400' },
-    { label: 'Qualified asking price', count: counts.QUALIFIED, color: 'bg-cyan-500' },
-    { label: 'Prospect trip set', count: counts.PROSPECT, color: 'bg-blue-500' },
-    { label: 'HOT payment pending', count: counts.HOT, color: 'bg-orange-500' },
-    { label: 'CLOSED WON paid', count: counts.WON, color: 'bg-emerald-500' },
-    { label: 'CLOSED LOST failed', count: counts.LOST, color: 'bg-rose-500' },
+    { label: 'NEW (Lead Baru)', count: counts.NEW, color: 'bg-slate-400' },
+    { label: 'QUALIFIED (Kualifikasi)', count: counts.QUALIFIED, color: 'bg-cyan-500' },
+    { label: 'PROSPECT (Penawaran)', count: counts.PROSPECT, color: 'bg-blue-500' },
+    { label: 'HOT (Proses Booking)', count: counts.HOT, color: 'bg-orange-500' },
+    { label: 'CLOSED WON (Closing)', count: counts.WON, color: 'bg-emerald-500' },
+    { label: 'CLOSED LOST (Batal / Lost)', count: counts.LOST, color: 'bg-rose-500' },
   ];
 
   return (
@@ -194,54 +195,81 @@ export const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Potential Won (Periode Terpilih)</span>
-            <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 font-heading">
+      {/* Stats Summary Panel (2 columns on mobile, 4/5 columns on desktop) */}
+      <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${isOwnScope ? 'lg:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-5'}`}>
+        
+        {/* Card 1: Potential Won */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Won</span>
+            <span className="text-sm sm:text-xl font-extrabold text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1 font-heading truncate">
               Rp {potentialWonTotal.toLocaleString('id-ID')}
             </span>
-            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Nilai pipeline aktif QUALIFIED-HOT</span>
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Pipeline QUALIFIED-HOT</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <TrendingUp size={20} />
+          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
-        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Potential Lost (Periode Terpilih)</span>
-            <span className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1 font-heading">
+
+        {/* Card 2: Value Won */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Value Won</span>
+            <span className="text-sm sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 font-heading truncate">
+              Rp {valueWonTotal.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Total omset CLOSED WON</span>
+          </div>
+          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
+          </div>
+        </div>
+
+        {/* Card 3: Potential Lost */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Lost</span>
+            <span className="text-sm sm:text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5 sm:mt-1 font-heading truncate">
               Rp {potentialLostTotal.toLocaleString('id-ID')}
             </span>
-            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">Nilai lead batal / lost</span>
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Nilai lead batal/lost</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-            <TrendingDown size={20} />
+          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
-        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Conversion Rate (Periode Terpilih)</span>
-            <span className="text-2xl font-extrabold text-foreground mt-1 font-heading">
-              {conversionRate} %
+
+        {/* Card 4: Closing Rate */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Closing Rate</span>
+            <span className="text-sm sm:text-xl font-extrabold text-foreground mt-0.5 sm:mt-1 font-heading truncate">
+              {closingRate} %
             </span>
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">{totalWon} dari {totalLeads} lead</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-            <Target size={20} />
-          </div>
-        </div>
-        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performing Agent (Periode Terpilih)</span>
-            <span className="text-sm font-bold text-foreground mt-1 truncate max-w-[150px]">
-              {adminStats[0]?.name || 'No Agent'}
-            </span>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-            <Award size={20} />
+          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Target className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
+
+        {/* Card 5: Top CS Agent (Only shown when not locked to 'own' scope) */}
+        {!isOwnScope && (
+          <div className="col-span-2 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Top Agent</span>
+              <span className="text-xs sm:text-sm font-extrabold text-foreground mt-0.5 sm:mt-1 truncate">
+                {adminStats[0]?.name || 'No Agent'}
+              </span>
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Pipeline tertinggi</span>
+            </div>
+            <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Award className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Lead Conversion Funnel */}
@@ -283,11 +311,11 @@ export const Reports: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             Lead Acquisition Referral Distribution
           </span>
-          <div className="h-64 flex items-center justify-center">
+          <div className="min-h-[350px] flex flex-col justify-center">
             <ReferralChart />
           </div>
         </div>

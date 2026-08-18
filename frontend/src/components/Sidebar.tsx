@@ -21,7 +21,8 @@ import {
   Terminal,
   Sparkles,
   FileSpreadsheet,
-  User
+  User,
+  MessageSquare
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -49,6 +50,7 @@ export const Sidebar: React.FC = () => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard },
+    { id: 'chat', label: 'Chat', shortLabel: 'Chat', icon: MessageSquare },
     { id: 'leads', label: 'Leads Directory', shortLabel: 'Leads', icon: Database },
     { id: 'followup', label: 'Follow Up Leads', shortLabel: 'FollowUp', icon: Clock },
     { id: 'customers', label: 'Customers', shortLabel: 'Cust', icon: Users },
@@ -93,7 +95,7 @@ export const Sidebar: React.FC = () => {
               if (!user) return false;
               const permissions = user.permissions || {};
               const permissionKey = item.id === 'ai-queue' ? 'queue' : item.id === 'followup' ? 'leads' : item.id;
-              const perm = permissions[permissionKey] || (item.id === 'export' ? permissions['leads'] : 'none');
+              const perm = permissions[permissionKey] || ((item.id === 'chat' || item.id === 'export') ? permissions['leads'] : 'none');
               return perm === 'read' || perm === 'write';
             })
             .map((item) => {

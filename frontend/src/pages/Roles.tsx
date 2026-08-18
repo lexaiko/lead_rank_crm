@@ -9,7 +9,11 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
   },
   leads: {
     title: 'Leads Directory & Follow Up',
-    desc: 'Mengakses direktori prospek (Leads), fitur bar Follow Up tabel, detail trip, serta riwayat obrolan WhatsApp.'
+    desc: 'Mengakses direktori prospek (Leads), fitur bar Follow Up tabel, dan detail trip.'
+  },
+  chat: {
+    title: 'Chat (WhatsApp 3-Pane Console)',
+    desc: 'Mengakses halaman ruang percakapan WhatsApp 3-Pane, mengirim balasan pesan WA, dan mengedit profil lead.'
   },
   customers: {
     title: 'Customers Directory (Database Pelanggan)',

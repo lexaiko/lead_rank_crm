@@ -899,6 +899,7 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
       } else {
         throw createErr;
       }
+    }
   } else {
     // If customer already exists (e.g. created when admin sent outbound message),
     // fill in pushName ONCE when customer replies if current name is still a generic placeholder ('Pelanggan WA', 'Pelanggan', 'Tanpa Nama', or empty)
@@ -936,6 +937,18 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
 
 
 
+  // Parse message timestamp
+  let timestampSec = msg.messageTimestamp;
+  if (timestampSec && typeof timestampSec === 'object' && typeof timestampSec.toNumber === 'function') {
+    timestampSec = timestampSec.toNumber();
+  } else if (timestampSec) {
+    timestampSec = Number(timestampSec);
+  }
+
+  const waktu_pesan = (timestampSec && !isNaN(timestampSec))
+    ? new Date(timestampSec * 1000) 
+    : new Date();
+
   // 5. Buat Lead Baru if this customer + admin combination doesn't have one yet
   if (!lead) {
     try {
@@ -948,6 +961,8 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
           customer_id: customer.id,
           admin_id: admin.id,
           status_lead: 'NEW',
+          createdAt: waktu_pesan,
+          last_activity_at: waktu_pesan,
           ...(greetingSource ? { referral_source: greetingSource } : {})
         }
       });
@@ -969,17 +984,6 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
   }
 
   // 6. Simpan Pesan to ChatMessage
-  let timestampSec = msg.messageTimestamp;
-  if (timestampSec && typeof timestampSec === 'object' && typeof timestampSec.toNumber === 'function') {
-    timestampSec = timestampSec.toNumber();
-  } else if (timestampSec) {
-    timestampSec = Number(timestampSec);
-  }
-
-  const waktu_pesan = (timestampSec && !isNaN(timestampSec))
-    ? new Date(timestampSec * 1000) 
-    : new Date();
-
   // Download & compress image attachments (e.g. payment proofs) so the AI worker can analyze them later
   let media = null;
   if (imageMessage && !isHistorySync) {
@@ -1007,6 +1011,9 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
     broadcastChatMessage(lead.id, createdMsg);
 
     // 2. Update Lead's timestamps (use updateMany to avoid P2025 errors if the record is not matched)
+    // Only self-correct createdAt if message is OLDER than current createdAt (e.g. out-of-order history sync)
+    const isMessageOlderThanLeadCreated = lead.createdAt && waktu_pesan < lead.createdAt;
+
     await prisma.lead.updateMany({
       where: {
         id: lead.id,
@@ -1019,7 +1026,8 @@ export async function handleIncomingMessage(sock, msg, adminId, isHistorySync = 
       },
       data: { 
         updatedAt: isHistorySync ? waktu_pesan : new Date(),
-        last_activity_at: isHistorySync ? waktu_pesan : new Date()
+        last_activity_at: isHistorySync ? waktu_pesan : new Date(),
+        ...(isMessageOlderThanLeadCreated ? { createdAt: waktu_pesan } : {})
       }
     });
 

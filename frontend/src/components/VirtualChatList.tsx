@@ -24,12 +24,29 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages, onRe
     });
   }, [messages]);
 
-  // Auto-scroll to bottom when new messages arrive or update
+  const isUserScrolledUp = useRef(false);
+  const prevMsgCount = useRef(0);
+
+  // Handle scroll on the container to detect if user manually scrolled up
+  const handleScroll = () => {
+    if (!parentRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
+    // If user is more than 120px away from bottom, mark as scrolled up
+    isUserScrolledUp.current = (scrollHeight - scrollTop - clientHeight) > 120;
+  };
+
+  // Auto-scroll to bottom ONLY when:
+  // 1. Initial render / new lead selected (prevMsgCount === 0)
+  // 2. Message count increased AND user is NOT scrolled up reading history
   useEffect(() => {
-    if (parentRef.current) {
+    if (!parentRef.current) return;
+
+    const countChanged = sortedMessages.length !== prevMsgCount.current;
+    if (prevMsgCount.current === 0 || (!isUserScrolledUp.current && countChanged)) {
       parentRef.current.scrollTop = parentRef.current.scrollHeight;
     }
-  }, [sortedMessages.length, sortedMessages]);
+    prevMsgCount.current = sortedMessages.length;
+  }, [sortedMessages.length]);
 
   useEffect(() => () => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
@@ -75,6 +92,7 @@ export const VirtualChatList: React.FC<VirtualChatListProps> = ({ messages, onRe
   return (
     <div
       ref={parentRef}
+      onScroll={handleScroll}
       className="flex-1 overflow-y-auto px-3 sm:px-4 py-6 bg-chat-bg border border-border/50 rounded-2xl relative flex flex-col gap-1"
     >
       {sortedMessages.length === 0 ? (

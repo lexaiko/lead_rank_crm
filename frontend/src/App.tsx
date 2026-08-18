@@ -14,6 +14,7 @@ import { ErrorLogs } from './pages/ErrorLogs';
 import { AIConfig } from './pages/AIConfig';
 import { ExportData } from './pages/ExportData';
 import { Profile } from './pages/Profile';
+import { Chat } from './pages/Chat';
 import { Login } from './pages/Login';
 import { Compass, Loader2 } from 'lucide-react';
 
@@ -55,6 +56,8 @@ export const App: React.FC = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
+      case 'chat':
+        return (canAccess('chat') || canAccess('leads')) ? <Chat /> : <Dashboard />;
       case 'leads':
         return canAccess('leads') ? <Leads /> : <Dashboard />;
       case 'followup':

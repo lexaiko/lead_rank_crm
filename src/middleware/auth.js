@@ -65,7 +65,16 @@ export function permissionMiddleware(module, requiredLevel = 'read') {
       }
 
       const permissions = admin.role.permissions || {};
-      const level = permissions[module] || 'none';
+      
+      // Fallback matrix for sub-modules if dedicated key is not set
+      let level = permissions[module];
+      if (level === undefined) {
+        if (module === 'chat' || module === 'export' || module === 'followup') {
+          level = permissions['leads'] || 'none';
+        } else {
+          level = 'none';
+        }
+      }
 
       const weight = { 'none': 0, 'read': 1, 'write': 2 };
       const userWeight = weight[level] || 0;
