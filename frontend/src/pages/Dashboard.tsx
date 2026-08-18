@@ -201,14 +201,16 @@ export const Dashboard: React.FC = () => {
                         {lead.kode_lead}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm text-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-sm text-foreground leading-tight">
                             {lead.customerNama || 'Pelanggan WA'}
                           </span>
-                          {lead.customerHp && (
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {lead.customerHp}
+                          {(lead.customerHp || (lead as any).customer?.nomor_hp) ? (
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-medium">
+                              {lead.customerHp || (lead as any).customer?.nomor_hp}
                             </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground font-mono">-</span>
                           )}
                         </div>
                       </td>

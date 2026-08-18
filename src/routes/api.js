@@ -1134,6 +1134,55 @@ router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('chat', 
 });
 
 
+// Get Single Lead Details by ID
+router.get('/leads/:id', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+  try {
+    const leadId = parseInt(req.params.id);
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      include: {
+        customer: true,
+        admin: true,
+        _count: { select: { messages: true } }
+      }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead tidak ditemukan.' });
+    }
+
+    if (isOwnScope(req.admin) && lead.admin_id !== req.admin.id) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Anda hanya dapat mengakses lead milik sendiri.' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: lead.id,
+        kode_lead: lead.kode_lead,
+        customer_id: lead.customer_id,
+        admin_id: lead.admin_id,
+        customerHp: lead.customer.nomor_hp,
+        customerNama: lead.customer.nama_kontak,
+        adminNama: lead.admin.nama_admin,
+        status_lead: lead.status_lead,
+        minat_destinasi: lead.minat_destinasi,
+        jumlah_peserta: lead.jumlah_peserta,
+        estimasi_waktu: lead.estimasi_waktu,
+        catatan_khusus: lead.catatan_khusus,
+        catatan_sistem: lead.catatan_sistem,
+        referral_source: lead.referral_source,
+        estimasi_nilai_order: lead.estimasi_nilai_order,
+        messagesCount: lead._count.messages,
+        createdAt: lead.createdAt,
+        updatedAt: lead.updatedAt
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // List Leads — Server-side pagination, filter, sort, search
 router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
   try {
@@ -1809,7 +1858,7 @@ router.get('/dashboard', authMiddleware, (req, res, next) => {
           id: l.id,
           kode_lead: l.kode_lead,
           customerNama: l.customer.nama_kontak,
-          customerHp: l.customer.nomor_wa,
+          customerHp: l.customer.nomor_hp || '',
           adminNama: l.admin.nama_admin,
           status_lead: l.status_lead,
           minat_destinasi: l.minat_destinasi,

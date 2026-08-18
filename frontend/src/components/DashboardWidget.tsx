@@ -138,122 +138,111 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ presetType = '
   };
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-5">
+    <div className="flex flex-col gap-2.5 sm:gap-4">
       
-      {/* Baris 1: Waktu (Hero Banner Mobile), Total Lead, Total Closing Win */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
+      {/* Baris 1: Waktu System (Full Width Mobile), Total Lead, Total Closing Win */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
         
         {/* Card 1: Waktu System */}
-        <div className="col-span-2 md:col-span-1 p-3.5 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+        <div className="col-span-2 lg:col-span-1 p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs hover:border-border transition-all flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-0.5 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">
                 WAKTU SYSTEM
               </span>
             </div>
-            <span className="text-lg sm:text-2xl font-black font-heading leading-tight tracking-tight text-foreground font-mono">
+            <span className="text-base sm:text-xl font-black font-heading leading-tight tracking-tight text-foreground font-mono truncate">
               {timeStr || '--:--:-- WIB'}
             </span>
-            <span className="text-[11px] sm:text-xs text-muted-foreground font-medium truncate capitalize">
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium truncate capitalize">
               {dateStr || 'Memuat tanggal...'}
             </span>
           </div>
-          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 text-blue-500 bg-blue-500/10 dark:bg-blue-500/10">
-            <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+          <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 text-blue-500 bg-blue-500/10">
+            <Clock className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
           </div>
         </div>
 
         {/* Card 2: Total Lead */}
-        <div className="col-span-1 p-3.5 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-2.5">
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
-            <div className="flex items-center justify-between gap-1 pr-1">
-              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
-                TOTAL LEAD
-              </span>
-            </div>
-            <span className="text-base sm:text-2xl font-black font-heading leading-tight tracking-tight text-foreground truncate">
-              {totalLeads.toLocaleString('id-ID')} <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground hidden sm:inline">Leads</span>
+        <div className="col-span-1 p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs hover:border-border transition-all flex items-center justify-between gap-1.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider truncate">
+              TOTAL LEAD
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <span className="text-base sm:text-xl font-black font-heading leading-tight tracking-tight text-foreground truncate">
+              {totalLeads.toLocaleString('id-ID')} <span className="text-[9px] font-semibold text-muted-foreground hidden sm:inline">Leads</span>
+            </span>
+            <div className="flex items-center gap-1 flex-wrap">
               {renderTrendBadge(totalLeads, prevTotalLeads)}
-              <span className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate hidden sm:inline">
-                ({thisMonth.today} hari ini)
-              </span>
             </div>
           </div>
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 text-orange-500 bg-orange-500/10 dark:bg-orange-500/10">
-            <Database className="h-4.5 w-4.5 sm:h-6 sm:w-6" />
+          <div className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 text-orange-500 bg-orange-500/10">
+            <Database className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
 
         {/* Card 3: Total Closing Win & Closing Rate */}
-        <div className="col-span-1 p-3.5 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-2.5">
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+        <div className="col-span-1 p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs hover:border-border transition-all flex items-center justify-between gap-1.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider truncate">
               CLOSING WIN
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-base sm:text-2xl font-black font-heading leading-tight tracking-tight text-foreground">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-base sm:text-xl font-black font-heading leading-tight tracking-tight text-foreground truncate">
                 {closedWonCount.toLocaleString('id-ID')}
               </span>
-              <span className="text-[9px] sm:text-xs font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
                 {closingRate}%
               </span>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <div className="flex items-center gap-1 flex-wrap">
               {renderTrendBadge(currentClosingRateNum, prevClosingRate, true)}
             </div>
           </div>
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/10">
-            <Trophy className="h-4.5 w-4.5 sm:h-6 sm:w-6" />
+          <div className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 text-emerald-500 bg-emerald-500/10">
+            <Trophy className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
 
       </div>
 
       {/* Baris 2: Potential Won & Value Won */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-5">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
         
-        {/* Card 1: Potential Won */}
-        <div className="col-span-1 p-3.5 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-2.5">
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+        {/* Card 4: Potential Won */}
+        <div className="col-span-1 p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs hover:border-border transition-all flex items-center justify-between gap-1.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider truncate">
               POTENTIAL WON
             </span>
-            <span className="text-sm sm:text-2xl font-black font-heading leading-tight tracking-tight text-amber-600 dark:text-amber-400 truncate">
+            <span className="text-xs sm:text-lg font-black font-heading leading-tight tracking-tight text-amber-600 dark:text-amber-400 truncate">
               Rp {potentialWonValue.toLocaleString('id-ID')}
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <div className="flex items-center gap-1 flex-wrap">
               {renderTrendBadge(potentialWonValue, prevStats.potentialWon)}
-              <span className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate hidden sm:inline">
-                ({pipelineCount} leads)
-              </span>
             </div>
           </div>
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10 dark:bg-amber-500/10">
-            <TrendingUp className="h-4.5 w-4.5 sm:h-6 sm:w-6" />
+          <div className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 text-amber-500 bg-amber-500/10">
+            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
 
-        {/* Card 2: Value Won */}
-        <div className="col-span-1 p-3.5 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 flex items-center justify-between gap-2.5">
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider truncate">
+        {/* Card 5: Value Won */}
+        <div className="col-span-1 p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs hover:border-border transition-all flex items-center justify-between gap-1.5">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider truncate">
               VALUE WON
             </span>
-            <span className="text-sm sm:text-2xl font-black font-heading leading-tight tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
+            <span className="text-xs sm:text-lg font-black font-heading leading-tight tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
               Rp {valueWon.toLocaleString('id-ID')}
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <div className="flex items-center gap-1 flex-wrap">
               {renderTrendBadge(valueWon, prevStats.valueWon)}
-              <span className="text-[10px] sm:text-xs text-muted-foreground font-medium truncate hidden sm:inline">
-                ({closedWonCount} leads)
-              </span>
             </div>
           </div>
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/10">
-            <Banknote className="h-4.5 w-4.5 sm:h-6 sm:w-6" />
+          <div className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 text-emerald-500 bg-emerald-500/10">
+            <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
 

@@ -130,6 +130,11 @@ export const api = {
     return res.json();
   },
 
+  async getLeadById(id: number): Promise<{ success: boolean; data?: Lead; error?: string }> {
+    const res = await fetch(`${API_BASE}/leads/${id}`);
+    return res.json();
+  },
+
   async getLeadMessages(id: number): Promise<{ success: boolean; data: ChatMessage[] }> {
     const res = await fetch(`${API_BASE}/leads/${id}/messages`);
     return res.json();

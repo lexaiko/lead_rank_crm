@@ -285,12 +285,28 @@ export const LeadDetailDrawer: React.FC = () => {
     window.open(`https://wa.me/${normalized}?text=${encoded}`, '_blank');
   };
 
-  // Find selected lead from paginated leads list
-  const leadData = leads.find(l => l.id === selectedLeadId);
+  const [singleLeadData, setSingleLeadData] = useState<Lead | null>(null);
+
+  // Find selected lead from store leads list or dashboard recentLeads or single fetched record
+  const leadData = leads.find(l => l.id === selectedLeadId) || 
+                    ((dashboardData?.recentLeads as any[]) || []).find(l => l.id === selectedLeadId) || 
+                    singleLeadData;
 
   // Fetch messages and deep analysis when drawer opens, and listen to real-time SSE event stream (zero polling)
   useEffect(() => {
-    if (!selectedLeadId) return;
+    if (!selectedLeadId) {
+      setSingleLeadData(null);
+      return;
+    }
+
+    const foundInStore = leads.find(l => l.id === selectedLeadId) || ((dashboardData?.recentLeads as any[]) || []).find(l => l.id === selectedLeadId);
+    if (!foundInStore) {
+      api.getLeadById(selectedLeadId).then(res => {
+        if (res.success && res.data) {
+          setSingleLeadData(res.data);
+        }
+      }).catch(err => console.error(err));
+    }
 
     fetchMessages(selectedLeadId);
     fetchDeepAnalysis(selectedLeadId);
@@ -580,13 +596,18 @@ export const LeadDetailDrawer: React.FC = () => {
                   <div className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-muted/50 border border-border/80">
                     <div className="flex items-center gap-1.5">
                       <Phone size={13} className="text-emerald-500 shrink-0" />
-                      <span className="font-semibold text-sm text-foreground">{leadData.customerHp}</span>
+                      <span className="font-semibold text-sm text-foreground font-mono">
+                        {leadData.customer?.nomor_hp || leadData.customerHp || (leadData as any).customer_hp || '-'}
+                      </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText(leadData.customerHp);
-                        showToast('Nomor WA berhasil disalin', 'success');
+                        const phoneToCopy = leadData.customer?.nomor_hp || leadData.customerHp || (leadData as any).customer_hp || '';
+                        if (phoneToCopy) {
+                          navigator.clipboard.writeText(phoneToCopy);
+                          showToast('Nomor WA berhasil disalin', 'success');
+                        }
                       }}
                       className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
                       title="Salin Nomor HP"

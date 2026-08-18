@@ -195,77 +195,81 @@ export const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Summary Panel (2 columns on mobile, 4/5 columns on desktop) */}
-      <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${isOwnScope ? 'lg:grid-cols-4' : 'lg:grid-cols-3 xl:grid-cols-5'}`}>
+      {/* Stats Summary Panel (Dynamic Varied Grid Layout for Desktop & Mobile) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         
-        {/* Card 1: Potential Won */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+        {/* Card 1: Value Won (Hero Featured Card - Spans 2 cols on lg) */}
+        <div className="sm:col-span-2 lg:col-span-2 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-card to-card border border-emerald-500/30 shadow-xs flex items-center justify-between gap-4">
           <div className="flex flex-col min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Won</span>
-            <span className="text-sm sm:text-xl font-extrabold text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1 font-heading truncate">
-              Rp {potentialWonTotal.toLocaleString('id-ID')}
+            <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Banknote size={14} /> Total Value Won (Closing)
             </span>
-            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Pipeline QUALIFIED-HOT</span>
-          </div>
-          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-            <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-        </div>
-
-        {/* Card 2: Value Won */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
-          <div className="flex flex-col min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Value Won</span>
-            <span className="text-sm sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 font-heading truncate">
+            <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-heading">
               Rp {valueWonTotal.toLocaleString('id-ID')}
             </span>
-            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Total omset CLOSED WON</span>
+            <span className="text-xs text-muted-foreground font-semibold mt-1">Total omset pendapatan dari lead CLOSED WON</span>
           </div>
-          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
+          <div className="h-12 w-12 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+            <Banknote className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
 
-        {/* Card 3: Potential Lost */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+        {/* Card 2: Closing Rate (Right Featured) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 via-card to-card border border-blue-500/30 shadow-xs flex items-center justify-between gap-4">
           <div className="flex flex-col min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Lost</span>
-            <span className="text-sm sm:text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5 sm:mt-1 font-heading truncate">
-              Rp {potentialLostTotal.toLocaleString('id-ID')}
+            <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Target size={14} /> Closing Rate
             </span>
-            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Nilai lead batal/lost</span>
-          </div>
-          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-            <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-        </div>
-
-        {/* Card 4: Closing Rate */}
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
-          <div className="flex flex-col min-w-0">
-            <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Closing Rate</span>
-            <span className="text-sm sm:text-xl font-extrabold text-foreground mt-0.5 sm:mt-1 font-heading truncate">
+            <span className="text-2xl sm:text-3xl font-black text-foreground mt-1 font-heading">
               {closingRate} %
             </span>
-            <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">{totalWon} dari {totalLeads} lead</span>
+            <span className="text-xs text-muted-foreground font-semibold mt-1">{totalWon} closing dari {totalLeads} total lead</span>
           </div>
-          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <Target className="h-4 w-4 sm:h-5 sm:w-5" />
+          <div className="h-12 w-12 rounded-2xl bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-inner">
+            <Target className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
         </div>
 
-        {/* Card 5: Top CS Agent (Only shown when not locked to 'own' scope) */}
+        {/* Card 3: Potential Won */}
+        <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3 hover:border-amber-500/40 transition-all">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Won (Pipeline)</span>
+            <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400 mt-1 font-heading truncate">
+              Rp {potentialWonTotal.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Tahap QUALIFIED s/d HOT</span>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Card 4: Potential Lost */}
+        <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3 hover:border-rose-500/40 transition-all">
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Potential Lost</span>
+            <span className="text-lg font-extrabold text-rose-600 dark:text-rose-400 mt-1 font-heading truncate">
+              Rp {potentialLostTotal.toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Nilai lead batal/lost</span>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <TrendingDown className="h-5 w-5" />
+          </div>
+        </div>
+
+        {/* Card 5: Top CS Agent */}
         {!isOwnScope && (
-          <div className="col-span-2 lg:col-span-1 p-3.5 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between gap-2">
+          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3 hover:border-violet-500/40 transition-all">
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Top Agent</span>
-              <span className="text-xs sm:text-sm font-extrabold text-foreground mt-0.5 sm:mt-1 truncate">
-                {adminStats[0]?.name || 'No Agent'}
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest truncate">Top CS Agent</span>
+              <span className="text-base font-extrabold text-foreground mt-1 truncate">
+                {adminStats[0]?.name || 'Belum Ada'}
               </span>
-              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Pipeline tertinggi</span>
+              <span className="text-[10px] text-muted-foreground font-semibold mt-0.5 truncate">Pencapaian omset tertinggi</span>
             </div>
-            <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Award className="h-4 w-4 sm:h-5 sm:w-5" />
+            <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+              <Award className="h-5 w-5" />
             </div>
           </div>
         )}
