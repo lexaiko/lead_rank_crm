@@ -69,7 +69,7 @@ export function permissionMiddleware(module, requiredLevel = 'read') {
       // Fallback matrix for sub-modules if dedicated key is not set
       let level = permissions[module];
       if (level === undefined) {
-        if (module === 'chat' || module === 'export' || module === 'followup') {
+        if (module === 'chat' || module === 'export' || module === 'followup' || module === 'deep_analysis') {
           level = permissions['leads'] || 'none';
         } else {
           level = 'none';

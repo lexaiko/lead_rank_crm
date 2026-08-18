@@ -15,6 +15,10 @@ const moduleLabels: Record<string, { title: string; desc: string }> = {
     title: 'Chat (WhatsApp 3-Pane Console)',
     desc: 'Mengakses halaman ruang percakapan WhatsApp 3-Pane, mengirim balasan pesan WA, dan mengedit profil lead.'
   },
+  deep_analysis: {
+    title: 'Deep AI Analysis (Analisis Percakapan AI)',
+    desc: 'Menjalankan fitur Deep AI Analysis untuk mengevaluasi skor kualitas lead, potensi closing, budget sensitivity, objection, dan rekomendasi respon CS.'
+  },
   customers: {
     title: 'Customers Directory (Database Pelanggan)',
     desc: 'Membuka data profil kontak seluruh pelanggan yang terdaftar di dalam sistem.'

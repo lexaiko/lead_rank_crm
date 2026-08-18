@@ -876,7 +876,7 @@ router.get('/leads/:id/messages', authMiddleware, permissionMiddleware('chat', '
 });
 
 // Get Deep Analysis for a Lead
-router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('chat', 'read'), async (req, res, next) => {
+router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('deep_analysis', 'read'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
 
@@ -905,7 +905,7 @@ router.get('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('cha
 });
 
 // Trigger Deep Analysis for a Lead
-router.post('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('chat', 'write'), async (req, res, next) => {
+router.post('/leads/:id/deep-analysis', authMiddleware, permissionMiddleware('deep_analysis', 'write'), async (req, res, next) => {
   try {
     const leadId = parseInt(req.params.id);
 
