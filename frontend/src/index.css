@@ -144,12 +144,29 @@ body {
   }
 }
 
-/* Fix mobile browser native date picker text alignment & overflow on iOS Safari */
+/* Universal Mobile Browser Fix (Chrome Android, Samsung Internet, iOS Safari, Firefox Mobile) */
 input[type="date"]::-webkit-date-and-time-value {
   text-align: left !important;
   min-height: 1.5em !important;
 }
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+}
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-clear-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
 input[type="date"] {
+  position: relative !important;
   text-align: left !important;
   max-width: 100% !important;
   min-width: 0 !important;
@@ -157,6 +174,7 @@ input[type="date"] {
   display: block !important;
   width: 100% !important;
   -webkit-appearance: none !important;
+  -moz-appearance: textfield !important;
 }
 
 /* Remove blue tap flash on Android/iOS for buttons and clickable cards */
