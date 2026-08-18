@@ -900,7 +900,7 @@ export const Chat: React.FC = () => {
                         type="date"
                         value={tglTripInput}
                         onChange={(e) => setTglTripInput(e.target.value)}
-                        className="px-2.5 py-1 bg-background border border-primary rounded-lg text-xs font-mono font-bold focus:outline-none text-foreground"
+                        className="w-full px-2.5 py-1 bg-background border border-primary rounded-lg text-xs font-mono font-bold focus:outline-none text-foreground text-left"
                       />
                     </div>
 

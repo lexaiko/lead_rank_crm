@@ -144,6 +144,14 @@ body {
   }
 }
 
+/* Fix mobile browser native date picker text alignment (iOS Safari / Chrome Mobile) */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left !important;
+}
+input[type="date"] {
+  text-align: left !important;
+}
+
 /* Remove blue tap flash on Android/iOS for buttons and clickable cards */
 button,
 a,
