@@ -1134,199 +1134,6 @@ router.post('/leads/:id/messages', authMiddleware, permissionMiddleware('chat', 
 });
 
 
-// Get Single Lead Details by ID
-router.get('/leads/:id', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
-  try {
-    const leadId = parseInt(req.params.id);
-    const lead = await prisma.lead.findUnique({
-      where: { id: leadId },
-      include: {
-        customer: true,
-        admin: true,
-        _count: { select: { messages: true } }
-      }
-    });
-
-    if (!lead) {
-      return res.status(404).json({ success: false, error: 'Lead tidak ditemukan.' });
-    }
-
-    if (isOwnScope(req.admin) && lead.admin_id !== req.admin.id) {
-      return res.status(403).json({ success: false, error: 'Forbidden: Anda hanya dapat mengakses lead milik sendiri.' });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        id: lead.id,
-        kode_lead: lead.kode_lead,
-        customer_id: lead.customer_id,
-        admin_id: lead.admin_id,
-        customerHp: lead.customer.nomor_hp,
-        customerNama: lead.customer.nama_kontak,
-        adminNama: lead.admin.nama_admin,
-        status_lead: lead.status_lead,
-        minat_destinasi: lead.minat_destinasi,
-        jumlah_peserta: lead.jumlah_peserta,
-        estimasi_waktu: lead.estimasi_waktu,
-        catatan_khusus: lead.catatan_khusus,
-        catatan_sistem: lead.catatan_sistem,
-        referral_source: lead.referral_source,
-        estimasi_nilai_order: lead.estimasi_nilai_order,
-        messagesCount: lead._count.messages,
-        createdAt: lead.createdAt,
-        updatedAt: lead.updatedAt
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// List Leads — Server-side pagination, filter, sort, search
-router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
-  try {
-    const {
-      page = '1',
-      limit = '20',
-      search = '',
-      status = '',
-      admin_id = '',
-      referral = '',
-      date_from = '',
-      date_to = '',
-      sort_by = 'updatedAt',
-      sort_order = 'desc',
-      deep_analysis = 'ALL'
-    } = req.query;
-
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 20));
-    const skip = (pageNum - 1) * limitNum;
-
-    // Whitelist sort fields to prevent injection
-    const validSortFields = ['updatedAt', 'createdAt', 'kode_lead', 'estimasi_nilai_order', 'last_activity_at'];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : 'updatedAt';
-    const sortDir = sort_order === 'asc' ? 'asc' : 'desc';
-
-    // Build filter
-    const where = {
-      customer: { is_ignored: false }
-    };
-
-    if (status && status !== 'ALL') {
-      if (status === 'ACTIVE') {
-        where.status_lead = { notIn: ['CLOSED WON', 'CLOSED LOST'] };
-      } else {
-        where.status_lead = status;
-      }
-    }
-    if (referral && referral !== 'ALL') where.referral_source = referral;
-
-    if (isOwnScope(req.admin)) {
-      if (admin_id && admin_id !== 'ALL' && parseInt(admin_id) !== req.admin.id) {
-        where.admin_id = -1; // impossible ID, return nothing
-      } else {
-        where.admin_id = req.admin.id;
-      }
-    } else if (admin_id && admin_id !== 'ALL') {
-      where.admin_id = parseInt(admin_id);
-    }
-
-    if (date_from || date_to) {
-      where.updatedAt = {};
-      if (date_from) where.updatedAt.gte = new Date(date_from);
-      if (date_to) {
-        const end = new Date(date_to);
-        end.setHours(23, 59, 59, 999);
-        where.updatedAt.lte = end;
-      }
-    }
-
-    if (search) {
-      where.OR = [
-        { kode_lead: { contains: search } },
-        { minat_destinasi: { contains: search } },
-        { customer: { nama_kontak: { contains: search } } },
-        { customer: { nomor_hp: { contains: search } } }
-      ];
-    }
-
-    // Fetch all AIAnalysis records to identify deep analysis leads
-    const allAnalyses = await prisma.aIAnalysis.findMany({
-      select: { lead_id: true, result_json: true }
-    });
-
-    const deepLeadIds = [...new Set(
-      allAnalyses
-        .filter(a => {
-          const json = a.result_json;
-          return json && (json.is_deep === true || typeof json.skor_kualitas !== 'undefined');
-        })
-        .map(a => a.lead_id)
-    )];
-
-    if (deep_analysis === 'YES') {
-      where.id = { in: deepLeadIds };
-    } else if (deep_analysis === 'NO') {
-      where.id = { notIn: deepLeadIds };
-    }
-
-    const [leads, total] = await Promise.all([
-      prisma.lead.findMany({
-        where,
-        include: {
-          customer: true,
-          admin: true,
-          _count: { select: { messages: true } }
-        },
-        orderBy: sortField === 'last_activity_at'
-          ? [{ last_activity_at: { sort: sortDir, nulls: 'last' } }, { updatedAt: sortDir }, { id: sortDir }]
-          : [{ [sortField]: sortDir }, { createdAt: sortDir }, { id: sortDir }],
-        skip,
-        take: limitNum
-      }),
-      prisma.lead.count({ where })
-    ]);
-
-    res.json({
-      success: true,
-      data: leads.map(l => ({
-        id: l.id,
-        kode_lead: l.kode_lead,
-        customer_id: l.customer_id,
-        admin_id: l.admin_id,
-        customerHp: l.customer.nomor_hp,
-        customerNama: l.customer.nama_kontak,
-        adminNama: l.admin.nama_admin,
-        status_lead: l.status_lead,
-        minat_destinasi: l.minat_destinasi,
-        jumlah_peserta: l.jumlah_peserta,
-        estimasi_waktu: l.estimasi_waktu,
-        catatan_khusus: l.catatan_khusus,
-        catatan_sistem: l.catatan_sistem,
-        referral_source: l.referral_source,
-        estimasi_nilai_order: l.estimasi_nilai_order,
-        messagesCount: l._count.messages,
-        ai_summary: l.ai_summary || null,
-        last_activity_at: l.last_activity_at,
-        has_deep_analysis: deepLeadIds.includes(l.id),
-        createdAt: l.createdAt,
-        updatedAt: l.updatedAt
-      })),
-      meta: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum)
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Export Leads to Excel (.xlsx) with Custom Date Range Filter
 router.get('/leads/export', authMiddleware, async (req, res, next) => {
   try {
     const permissions = req.admin?.role?.permissions || {};
@@ -2039,6 +1846,201 @@ router.post('/customers', authMiddleware, async (req, res, next) => {
  * Deletes all leads and associated child data (AI jobs, AI analyses, chat messages)
  * for the given customer ID or array of customer IDs.
  */
+
+
+// Get Single Lead Details by ID
+router.get('/leads/:id', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+  try {
+    const leadId = parseInt(req.params.id);
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      include: {
+        customer: true,
+        admin: true,
+        _count: { select: { messages: true } }
+      }
+    });
+
+    if (!lead) {
+      return res.status(404).json({ success: false, error: 'Lead tidak ditemukan.' });
+    }
+
+    if (isOwnScope(req.admin) && lead.admin_id !== req.admin.id) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Anda hanya dapat mengakses lead milik sendiri.' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: lead.id,
+        kode_lead: lead.kode_lead,
+        customer_id: lead.customer_id,
+        admin_id: lead.admin_id,
+        customerHp: lead.customer.nomor_hp,
+        customerNama: lead.customer.nama_kontak,
+        adminNama: lead.admin.nama_admin,
+        status_lead: lead.status_lead,
+        minat_destinasi: lead.minat_destinasi,
+        jumlah_peserta: lead.jumlah_peserta,
+        estimasi_waktu: lead.estimasi_waktu,
+        catatan_khusus: lead.catatan_khusus,
+        catatan_sistem: lead.catatan_sistem,
+        referral_source: lead.referral_source,
+        estimasi_nilai_order: lead.estimasi_nilai_order,
+        messagesCount: lead._count.messages,
+        createdAt: lead.createdAt,
+        updatedAt: lead.updatedAt
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// List Leads — Server-side pagination, filter, sort, search
+router.get('/leads', authMiddleware, permissionMiddleware('leads', 'read'), async (req, res, next) => {
+  try {
+    const {
+      page = '1',
+      limit = '20',
+      search = '',
+      status = '',
+      admin_id = '',
+      referral = '',
+      date_from = '',
+      date_to = '',
+      sort_by = 'updatedAt',
+      sort_order = 'desc',
+      deep_analysis = 'ALL'
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Whitelist sort fields to prevent injection
+    const validSortFields = ['updatedAt', 'createdAt', 'kode_lead', 'estimasi_nilai_order', 'last_activity_at'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'updatedAt';
+    const sortDir = sort_order === 'asc' ? 'asc' : 'desc';
+
+    // Build filter
+    const where = {
+      customer: { is_ignored: false }
+    };
+
+    if (status && status !== 'ALL') {
+      if (status === 'ACTIVE') {
+        where.status_lead = { notIn: ['CLOSED WON', 'CLOSED LOST'] };
+      } else {
+        where.status_lead = status;
+      }
+    }
+    if (referral && referral !== 'ALL') where.referral_source = referral;
+
+    if (isOwnScope(req.admin)) {
+      if (admin_id && admin_id !== 'ALL' && parseInt(admin_id) !== req.admin.id) {
+        where.admin_id = -1; // impossible ID, return nothing
+      } else {
+        where.admin_id = req.admin.id;
+      }
+    } else if (admin_id && admin_id !== 'ALL') {
+      where.admin_id = parseInt(admin_id);
+    }
+
+    if (date_from || date_to) {
+      where.updatedAt = {};
+      if (date_from) where.updatedAt.gte = new Date(date_from);
+      if (date_to) {
+        const end = new Date(date_to);
+        end.setHours(23, 59, 59, 999);
+        where.updatedAt.lte = end;
+      }
+    }
+
+    if (search) {
+      where.OR = [
+        { kode_lead: { contains: search } },
+        { minat_destinasi: { contains: search } },
+        { customer: { nama_kontak: { contains: search } } },
+        { customer: { nomor_hp: { contains: search } } }
+      ];
+    }
+
+    // Fetch all AIAnalysis records to identify deep analysis leads
+    const allAnalyses = await prisma.aIAnalysis.findMany({
+      select: { lead_id: true, result_json: true }
+    });
+
+    const deepLeadIds = [...new Set(
+      allAnalyses
+        .filter(a => {
+          const json = a.result_json;
+          return json && (json.is_deep === true || typeof json.skor_kualitas !== 'undefined');
+        })
+        .map(a => a.lead_id)
+    )];
+
+    if (deep_analysis === 'YES') {
+      where.id = { in: deepLeadIds };
+    } else if (deep_analysis === 'NO') {
+      where.id = { notIn: deepLeadIds };
+    }
+
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        include: {
+          customer: true,
+          admin: true,
+          _count: { select: { messages: true } }
+        },
+        orderBy: sortField === 'last_activity_at'
+          ? [{ last_activity_at: { sort: sortDir, nulls: 'last' } }, { updatedAt: sortDir }, { id: sortDir }]
+          : [{ [sortField]: sortDir }, { createdAt: sortDir }, { id: sortDir }],
+        skip,
+        take: limitNum
+      }),
+      prisma.lead.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      data: leads.map(l => ({
+        id: l.id,
+        kode_lead: l.kode_lead,
+        customer_id: l.customer_id,
+        admin_id: l.admin_id,
+        customerHp: l.customer.nomor_hp,
+        customerNama: l.customer.nama_kontak,
+        adminNama: l.admin.nama_admin,
+        status_lead: l.status_lead,
+        minat_destinasi: l.minat_destinasi,
+        jumlah_peserta: l.jumlah_peserta,
+        estimasi_waktu: l.estimasi_waktu,
+        catatan_khusus: l.catatan_khusus,
+        catatan_sistem: l.catatan_sistem,
+        referral_source: l.referral_source,
+        estimasi_nilai_order: l.estimasi_nilai_order,
+        messagesCount: l._count.messages,
+        ai_summary: l.ai_summary || null,
+        last_activity_at: l.last_activity_at,
+        has_deep_analysis: deepLeadIds.includes(l.id),
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt
+      })),
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Export Leads to Excel (.xlsx) with Custom Date Range Filter
 export async function deleteLeadsForCustomer(customerIds) {
   const ids = Array.isArray(customerIds) ? customerIds : [customerIds];
   if (ids.length === 0) return;

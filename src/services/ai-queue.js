@@ -11,31 +11,37 @@ export async function enqueueAIJob(leadId) {
     const debounceMinutes = parseInt(process.env.AI_DEBOUNCE_MINUTES, 10) || 15;
     const executeAt = new Date(Date.now() + debounceMinutes * 60 * 1000);
 
-    // Find existing WAITING job for this lead
-    const existingJob = await prisma.aIJob.findFirst({
+    // Atomic update to extend debounce window without SELECT-then-UPDATE race condition (prevents MySQL 1020 error)
+    const updated = await prisma.aIJob.updateMany({
       where: {
         lead_id: leadId,
         status: 'WAITING'
+      },
+      data: {
+        execute_at: executeAt
       }
     });
 
-    if (existingJob) {
-      // Update execution time to extend the debounce window
-      await prisma.aIJob.update({
-        where: { id: existingJob.id },
-        data: { execute_at: executeAt }
-      });
-      console.log(`[AI Queue] Updated WAITING job ID ${existingJob.id} for Lead ${leadId}. Debounced to ${executeAt.toISOString()}`);
+    if (updated.count > 0) {
+      console.log(`[AI Queue] Updated WAITING job for Lead ${leadId}. Debounced to ${executeAt.toISOString()}`);
     } else {
-      // Create a brand new WAITING job
-      const newJob = await prisma.aIJob.create({
-        data: {
-          lead_id: leadId,
-          status: 'WAITING',
-          execute_at: executeAt
-        }
-      });
-      console.log(`[AI Queue] Enqueued new WAITING job ID ${newJob.id} for Lead ${leadId}. Scheduled for ${executeAt.toISOString()}`);
+      // Create a brand new WAITING job if none exists
+      try {
+        const newJob = await prisma.aIJob.create({
+          data: {
+            lead_id: leadId,
+            status: 'WAITING',
+            execute_at: executeAt
+          }
+        });
+        console.log(`[AI Queue] Enqueued new WAITING job ID ${newJob.id} for Lead ${leadId}. Scheduled for ${executeAt.toISOString()}`);
+      } catch (createErr) {
+        // Fallback: If concurrent creation occurred, extend the debounce window
+        await prisma.aIJob.updateMany({
+          where: { lead_id: leadId, status: 'WAITING' },
+          data: { execute_at: executeAt }
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error(`[AI Queue] Failed to enqueue job for Lead ${leadId}:`, err);
