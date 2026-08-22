@@ -307,7 +307,34 @@ export async function processAIQueue(force = false) {
 
       // Build updates object dynamically, ignoring null/undefined to keep existing database values if LLM doesn't update them
       const updates = {};
-      if (result.status_lead) updates.status_lead = result.status_lead;
+
+      // Hysteresis & Status Transition Guard:
+      if (result.status_lead) {
+        if (lead.status_lead === 'CLOSED WON') {
+          // If current lead is CLOSED WON:
+          // - Only allow transition to CLOSED LOST (cancellation) or QUALIFIED/PROSPECT (explicit repeat order for a new trip)
+          // - Never allow downgrade to HOT (HOT means waiting for initial DP, which is invalid for an active/already closed deal)
+          if (result.status_lead === 'CLOSED LOST') {
+            updates.status_lead = 'CLOSED LOST';
+          } else if (['QUALIFIED', 'PROSPECT'].includes(result.status_lead)) {
+            // Repeat order allowed to re-enter pipeline
+            updates.status_lead = result.status_lead;
+          } else {
+            // Keep CLOSED WON for adjustments, operational chats, or false HOT flags
+            updates.status_lead = 'CLOSED WON';
+          }
+        } else if (['PROSPECT', 'HOT'].includes(lead.status_lead)) {
+          // If current lead is PROSPECT or HOT, do not downgrade to QUALIFIED or NEW unless CLOSED LOST
+          if (['QUALIFIED', 'NEW'].includes(result.status_lead)) {
+            updates.status_lead = lead.status_lead; // Retain current high-intent status
+          } else {
+            updates.status_lead = result.status_lead;
+          }
+        } else {
+          updates.status_lead = result.status_lead;
+        }
+      }
+
       if (result.minat_destinasi !== undefined && result.minat_destinasi !== null) {
         if (Array.isArray(result.minat_destinasi)) {
           updates.minat_destinasi = result.minat_destinasi.join(', ');
@@ -332,7 +359,8 @@ export async function processAIQueue(force = false) {
       }
 
       // Closed/Lost handling
-      const isClosedStatus = ['CLOSED WON', 'CLOSED LOST', 'CLOSED', 'LOST'].includes(result.status_lead);
+      const effectiveStatus = updates.status_lead || lead.status_lead;
+      const isClosedStatus = ['CLOSED WON', 'CLOSED LOST', 'CLOSED', 'LOST'].includes(effectiveStatus);
       if (isClosedStatus) {
         if (!lead.closed_at) {
           updates.closed_at = new Date();
@@ -465,13 +493,15 @@ Tugasmu:
    - CLOSED WON: Pelanggan mengirimkan bukti transfer/pembayaran berhasil (termasuk verifikasi gambar), atau mengirim pesan teks konfirmasi pembayaran (seperti "sudah transfer", "bukti bayar", "lunas", "dp 50%", "sudah tf").
    - CLOSED LOST: Pelanggan secara eksplisit menyatakan PEMBATALAN / TIDAK JADI ("ngga jadi", "gajadi kak kemahalan", "batal", "cancel", "pakai travel lain"). Catatan: Frasa "kemahalan" tanpa frasa batal tetap QUALIFIED/PROSPECT.
 
-   ATURAN TAMBAHAN KHUSUS (FORM RESERVASI, HYSTERESIS & BUKTI TRANSFER):
-   - ATURAN KHUSUS FORM RESERVASI: Jika dalam percakapan/summary terdapat FORM RESERVASI yang sudah terisi (atau dikirim oleh CS dan dikonfirmasi/diisi pelanggan), maka status_lead MINIMAL harus PROSPECT. Jika Form Reservasi sudah disertai instruksi pembayaran/nomor rekening, status_lead menjadi HOT.
-    - ATURAN HYSTERESIS & REPEAT ORDER:
+   ATURAN TAMBAHAN KHUSUS (FORM RESERVASI, HYSTERESIS, PENYESUAIAN & REPEAT ORDER):
+   - ATURAN KHUSUS FORM RESERVASI: Jika dalam percakapan/summary terdapat FORM RESERVASI yang sudah terisi (atau dikirim oleh CS dan dikonfirmasi/diisi pelanggan), maka status_lead MINIMAL harus PROSPECT. Jika Form Reservasi sudah disertai instruksi pembayaran/nomor rekening, status_lead menjadi HOT. (CATATAN: Jika status_lead saat ini adalah CLOSED WON dan form reservasi ini merupakan revisi/penyesuaian paket untuk trip yang sedang berjalan, status_lead WAJIB TETAP 'CLOSED WON').
+   - ATURAN HYSTERESIS, PENYESUAIAN & REPEAT ORDER:
       a. Jika status_lead saat ini adalah PROSPECT atau HOT, JANGAN PERNAH menurunkan statusnya kembali ke QUALIFIED/NEW kecuali ada pembatalan tegas (CLOSED LOST).
       b. Jika status_lead saat ini adalah CLOSED WON:
-         - PERTAHANKAN status CLOSED WON apabila percakapan baru hanya berisi pertanyaan penunjang/operasional seputar trip yang sudah di-booking (misal: titik kumpul/meeting point, jam berapa, hotel, rincian barang bawaan, konfirmasi H-1).
-         - JIKA DAN HANYA JIKA pelanggan secara eksplisit menyatakan ingin REPEAT ORDER / BOOKING BARU / ORDER LAGI (misal: "mau booking lagi kak", "mau order paket lagi buat bulan depan", "mau pesan trip baru untuk rombongan lain", "ada paket lain kak saya mau jalan lagi"), maka UBAH status_lead kembali menjadi QUALIFIED (atau PROSPECT jika destinasi, tanggal, dan peserta trip baru sudah disebutkan) agar masuk ke pipeline penawaran order baru.
+         - PENYESUAIAN TRIP / REVISI PAKET / REVISI FORM / REVISI INVOICE/KWITANSI: Jika pelanggan melakukan penyesuaian/revisi pilihan paket, pergantian destinasi, perubahan jumlah peserta, perubahan tanggal keberangkatan, pengisian ulang form reservasi untuk ganti paket, atau permintaan revisi invoice/kwitansi untuk trip yang sedang berjalan, status_lead WAJIB TETAP 'CLOSED WON' (karena ini adalah penyesuaian deal yang sudah jalan/sudah DP). JANGAN PERNAH menurunkannya menjadi HOT, PROSPECT, atau QUALIFIED. Cukup perbarui 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'estimasi_nilai_order', dan 'analysis_summary'.
+         - PERTANYAAN OPERASIONAL: PERTAHANKAN status CLOSED WON apabila percakapan baru berisi pertanyaan penunjang/operasional seputar trip yang sudah di-booking (misal: titik kumpul/meeting point, jam berapa, hotel, rincian barang bawaan, konfirmasi H-1).
+         - REPEAT ORDER (BOOKING TRIP BARU / ORDER LAGI): JIKA DAN HANYA JIKA pelanggan secara eksplisit menyatakan ingin memesan trip baru/lain di masa depan (misal: trip sebelumnya sudah selesai, atau bilang "mau booking trip lagi kak buat bulan depan", "mau pesan paket lagi untuk rombongan kantor"), maka UBAH status_lead kembali menjadi QUALIFIED (atau PROSPECT jika destinasi, tanggal, dan peserta trip baru sudah disebutkan) agar masuk ke pipeline penawaran order baru.
+         - PEMBATALAN: HANYA ubah menjadi CLOSED LOST jika pelanggan secara eksplisit menyatakan BATAL / CANCEL / MINTA REFUND.
    - ATURAN BUKTI TRANSFER & PELUNASAN: Jika pelanggan mengirim bukti transfer/struk bayar (termasuk verifikasi gambar image_ref), atau mengirim pesan teks konfirmasi pembayaran (seperti "sudah transfer", "bukti bayar", "lunas", "dp 50%", "sudah di tf", "tf m-banking"), status_lead WAJIB berubah menjadi CLOSED WON.
 
 Kembalikan respon HANYA berupa JSON Array murni tanpa format markdown (seperti \`\`\`json ... \`\`\`), berisi kumpulan hasil analisis setiap lead. Setiap objek dalam array wajib memiliki key: 'lead_id', 'status_lead', 'minat_destinasi', 'jumlah_peserta', 'estimasi_waktu', 'analysis_summary', 'referral_source', 'estimasi_nilai_order'.`;
